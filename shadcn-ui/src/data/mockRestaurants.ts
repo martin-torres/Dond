@@ -37,30 +37,7 @@ export const mockRestaurants: Restaurant[] = [
           '下午6-9点所有梅斯卡尔和招牌鸡尾酒买一送一'
         ),
         discount: 50,
-        imageUrl: '/images/photo1763264312.jpg',
-      },
-      {
-        id: 'promo-2',
-        title: createMultiLangText(
-          'Dessert Selection',
-          'Selección de Postres',
-          'Sélection de Desserts',
-          'Dessert-Auswahl',
-          'デザートセレクション',
-          'مجموعة الحلويات',
-          '甜品精选'
-        ),
-        description: createMultiLangText(
-          'Limited premium desserts - order early! Mustachón de Pistacho and more',
-          'Postres premium limitados - ¡ordena temprano! Mustachón de Pistacho y más',
-          'Desserts premium limités - commandez tôt! Mustachón de Pistacho et plus',
-          'Limitierte Premium-Desserts - früh bestellen! Mustachón de Pistacho und mehr',
-          '限定プレミアムデザート - 早めにご注文を！ピスタチオムスタチョンなど',
-          'حلويات ممتازة محدودة - اطلب مبكراً! موستاتشون الفستق والمزيد',
-          '限量优质甜品 - 请提早订购！开心果慕斯等'
-        ),
-        discount: 0,
-        imageUrl: '/images/photo1763264313.jpg',
+        imageUrl: '/images/photo1763274122.jpg',
       },
     ],
     tables: [
@@ -394,86 +371,287 @@ export const mockRestaurants: Restaurant[] = [
   },
   {
     id: 'rest-2',
-    name: 'Tokyo Fusion',
-    address: '456 Sakura Street, East District',
+    name: 'Maui',
+    address: 'Calle Padre Mier 909, Barrio Antiguo, Centro, 64000 Monterrey, N.L., México',
     hours: {
-      open: '12:00 PM',
-      close: '10:00 PM',
+      open: '5:00 PM',
+      close: '2:00 AM',
     },
-    waitTime: 25,
-    distance: 120,
+    waitTime: 15,
+    distance: 45,
     promos: [
       {
-        id: 'promo-3',
+        id: 'promo-maui-1',
         title: createMultiLangText(
-          'Sushi Night',
-          'Noche de Sushi',
-          'Soirée Sushi',
-          'Sushi Nacht',
-          '寿司の夜',
-          'ليلة السوشي',
-          '寿司之夜'
+          'Tiki Happy Hour',
+          'Hora Feliz Tiki',
+          'Happy Hour Tiki',
+          'Tiki Happy Hour',
+          'ティキハッピーアワー',
+          'ساعة التيكي السعيدة',
+          '提基欢乐时光'
         ),
         description: createMultiLangText(
-          'All sushi rolls 30% off after 7 PM',
-          'Todos los rollos de sushi con 30% de descuento después de las 7 PM',
-          'Tous les rouleaux de sushi à -30% après 19h',
-          'Alle Sushi-Rollen 30% Rabatt nach 19 Uhr',
-          '午後7時以降、全ての寿司ロールが30%オフ',
-          'جميع لفائف السوشي خصم 30٪ بعد 7 مساءً',
-          '晚上7点后所有寿司卷3折'
+          'All tropical cocktails 40% off from 5-8 PM',
+          'Todos los cócteles tropicales con 40% de descuento de 5-8 PM',
+          'Tous les cocktails tropicaux à -40% de 17h à 20h',
+          'Alle tropischen Cocktails 40% Rabatt von 17-20 Uhr',
+          '午後5時から8時まで全てのトロピカルカクテルが40%オフ',
+          'جميع الكوكتيلات الاستوائية خصم 40٪ من 5-8 مساءً',
+          '下午5-8点所有热带鸡尾酒6折'
         ),
-        discount: 30,
+        discount: 40,
       },
     ],
     tables: [
-      { id: 'table-t1', number: 1, seats: 2, location: 'window', available: true, x: 15, y: 15 },
-      { id: 'table-t2', number: 2, seats: 4, location: 'middle', available: true, x: 45, y: 45 },
-      { id: 'table-t3', number: 3, seats: 6, location: 'patio', available: false, x: 75, y: 15 },
+      { id: 'table-m1', number: 1, seats: 2, location: 'window', available: true, x: 15, y: 15 },
+      { id: 'table-m2', number: 2, seats: 4, location: 'middle', available: true, x: 45, y: 45 },
+      { id: 'table-m3', number: 3, seats: 6, location: 'patio', available: false, x: 75, y: 15 },
+      { id: 'table-m4', number: 4, seats: 2, location: 'patio', available: true, x: 25, y: 75 },
     ],
     menu: {
       drinks: [
         {
-          id: 'drink-t1',
-          name: createMultiLangText('Sake', 'Sake', 'Saké', 'Sake', '日本酒', 'ساكي', '清酒'),
-          description: createMultiLangText(
-            'Premium Japanese rice wine',
-            'Vino de arroz japonés premium',
-            'Vin de riz japonais premium',
-            'Premium japanischer Reiswein',
-            'プレミアム日本酒',
-            'نبيذ أرز ياباني ممتاز',
-            '优质日本米酒'
+          id: 'drink-m1',
+          name: createMultiLangText(
+            'Mai Tai Maui',
+            'Mai Tai Maui',
+            'Mai Tai Maui',
+            'Mai Tai Maui',
+            'マイタイマウイ',
+            'ماي تاي ماوي',
+            '毛伊岛迈泰'
           ),
-          price: 15,
-          category: 'Alcoholic',
-          image: '/images/photo1763264311.jpg',
+          description: createMultiLangText(
+            'Dark rum, light rum, orange curaçao, orgeat syrup, lime juice, mint',
+            'Ron oscuro, ron blanco, curaçao de naranja, jarabe de orgeat, jugo de limón, menta',
+            'Rhum brun, rhum blanc, curaçao orange, sirop d\'orgeat, jus de citron vert, menthe',
+            'Dunkler Rum, heller Rum, Orangen-Curaçao, Orgeat-Sirup, Limettensaft, Minze',
+            'ダークラム、ライトラム、オレンジキュラソー、オルジェシロップ、ライムジュース、ミント',
+            'رم داكن، رم فاتح، كوراساو برتقال، شراب أورجيت، عصير ليمون، نعناع',
+            '深色朗姆酒、浅色朗姆酒、橙味库拉索、杏仁糖浆、青柠汁、薄荷'
+          ),
+          price: 195,
+          category: 'Tropical Cocktails',
+          image: '/images/TropicalCocktails.jpg',
+        },
+        {
+          id: 'drink-m2',
+          name: createMultiLangText(
+            'Piña Colada Premium',
+            'Piña Colada Premium',
+            'Piña Colada Premium',
+            'Premium Piña Colada',
+            'プレミアムピニャコラーダ',
+            'بينا كولادا بريميوم',
+            '优质椰林飘香'
+          ),
+          description: createMultiLangText(
+            'Aged rum, fresh pineapple, coconut cream, lime, toasted coconut rim',
+            'Ron añejo, piña fresca, crema de coco, limón, borde de coco tostado',
+            'Rhum vieux, ananas frais, crème de coco, citron vert, rebord coco grillé',
+            'Gereifter Rum, frische Ananas, Kokosnusscreme, Limette, gerösteter Kokosrand',
+            '熟成ラム、新鮮パイナップル、ココナッツクリーム、ライム、トーストココナッツリム',
+            'رم معتق، أناناس طازج، كريمة جوز الهند، ليمون، حافة جوز هند محمص',
+            '陈年朗姆酒、新鲜菠萝、椰子奶油、青柠、烤椰子边'
+          ),
+          price: 175,
+          category: 'Tropical Cocktails',
+          image: '/images/PinaColada.jpg',
+        },
+        {
+          id: 'drink-m3',
+          name: createMultiLangText(
+            'Tiki Punch Bowl',
+            'Ponchera Tiki',
+            'Bol de Punch Tiki',
+            'Tiki Punch Bowl',
+            'ティキパンチボウル',
+            'وعاء بانش التيكي',
+            '提基潘趣酒碗'
+          ),
+          description: createMultiLangText(
+            'Serves 4-6 people. Mixed rums, tropical fruits, passion fruit, sharing experience',
+            'Para 4-6 personas. Rones mezclados, frutas tropicales, maracuyá, experiencia compartida',
+            'Pour 4-6 personnes. Rhums mélangés, fruits tropicaux, fruit de la passion, expérience partagée',
+            'Für 4-6 Personen. Gemischte Rums, tropische Früchte, Passionsfrucht, gemeinsames Erlebnis',
+            '4-6人用。ミックスラム、トロピカルフルーツ、パッションフルーツ、シェア体験',
+            'يخدم 4-6 أشخاص. رم مختلط، فواكه استوائية، فاكهة العاطفة، تجربة مشاركة',
+            '供4-6人享用。混合朗姆酒、热带水果、百香果、分享体验'
+          ),
+          price: 450,
+          category: 'Sharing',
+          image: '/images/TikiPunch.jpg',
+        },
+        {
+          id: 'drink-m4',
+          name: createMultiLangText(
+            'Zombie Classic',
+            'Zombie Clásico',
+            'Zombie Classique',
+            'Klassischer Zombie',
+            'クラシックゾンビ',
+            'زومبي كلاسيكي',
+            '经典僵尸'
+          ),
+          description: createMultiLangText(
+            'Three rums, apricot brandy, lime juice, grenadine, secret spices',
+            'Tres rones, brandy de albaricoque, jugo de limón, granadina, especias secretas',
+            'Trois rhums, brandy d\'abricot, jus de citron vert, grenadine, épices secrètes',
+            'Drei Rums, Aprikosenbrandy, Limettensaft, Grenadine, geheime Gewürze',
+            '3種のラム、アプリコットブランデー、ライムジュース、グレナデン、秘密のスパイス',
+            'ثلاثة أنواع رم، براندي المشمش، عصير ليمون، جرينادين، توابل سرية',
+            '三种朗姆酒、杏子白兰地、青柠汁、石榴糖浆、秘制香料'
+          ),
+          price: 185,
+          category: 'Tropical Cocktails',
+          image: '/images/TropicalCocktail.jpg',
+        },
+        {
+          id: 'drink-m5',
+          name: createMultiLangText(
+            'Fresh Coconut Water',
+            'Agua de Coco Fresca',
+            'Eau de Coco Fraîche',
+            'Frisches Kokoswasser',
+            'フレッシュココナッツウォーター',
+            'ماء جوز الهند الطازج',
+            '新鲜椰子水'
+          ),
+          description: createMultiLangText(
+            'Young coconut water served in the shell, lime wedge, natural electrolytes',
+            'Agua de coco joven servida en la cáscara, gajo de limón, electrolitos naturales',
+            'Eau de jeune coco servie dans la coque, quartier de citron vert, électrolytes naturels',
+            'Junges Kokoswasser in der Schale serviert, Limettenschnitz, natürliche Elektrolyte',
+            'ヤングココナッツウォーター、殻のまま提供、ライムウェッジ、天然電解質',
+            'ماء جوز الهند الصغير يُقدم في القشرة، قطعة ليمون، إلكتروليت طبيعي',
+            '嫩椰子水带壳供应、青柠角、天然电解质'
+          ),
+          price: 65,
+          category: 'Non-Alcoholic',
+          image: '/images/CoconutWater.jpg',
         },
       ],
       food: [
         {
-          id: 'food-t1',
+          id: 'food-m1',
           name: createMultiLangText(
-            'Dragon Roll',
-            'Rollo Dragón',
-            'Rouleau Dragon',
-            'Drachen-Rolle',
-            'ドラゴンロール',
-            'لفة التنين',
-            '龙卷'
+            'Poke Bowl Ahi',
+            'Bowl de Poke Ahi',
+            'Bol Poke Ahi',
+            'Ahi Poke Bowl',
+            'アヒポケボウル',
+            'وعاء بوكي آهي',
+            '阿希生鱼片饭'
           ),
           description: createMultiLangText(
-            'Eel, cucumber, avocado, tobiko',
-            'Anguila, pepino, aguacate, tobiko',
-            'Anguille, concombre, avocat, tobiko',
-            'Aal, Gurke, Avocado, Tobiko',
-            'うなぎ、きゅうり、アボカド、とびこ',
-            'ثعبان البحر، خيار، أفوكادو، توبيكو',
-            '鳗鱼、黄瓜、牛油果、飞鱼籽'
+            'Fresh ahi tuna, sushi rice, avocado, cucumber, edamame, sesame seeds, ponzu',
+            'Atún ahi fresco, arroz sushi, aguacate, pepino, edamame, semillas de sésamo, ponzu',
+            'Thon ahi frais, riz à sushi, avocat, concombre, edamame, graines de sésame, ponzu',
+            'Frischer Ahi-Thunfisch, Sushi-Reis, Avocado, Gurke, Edamame, Sesamsamen, Ponzu',
+            '新鮮アヒマグロ、寿司飯、アボカド、キュウリ、枝豆、ゴマ、ポン酢',
+            'تونة آهي طازجة، أرز سوشي، أفوكادو، خيار، إدامامي، بذور سمسم، بونزو',
+            '新鲜阿希金枪鱼、寿司米、牛油果、黄瓜、毛豆、芝麻、柚子醋'
           ),
-          price: 18,
-          category: 'Sushi',
-          image: '/images/photo1763264311.jpg',
+          price: 285,
+          category: 'Main Course',
+          image: '/images/PokeBowl.jpg',
+        },
+        {
+          id: 'food-m2',
+          name: createMultiLangText(
+            'Kalua Pork Tacos',
+            'Tacos de Cerdo Kalua',
+            'Tacos de Porc Kalua',
+            'Kalua Schweine-Tacos',
+            'カルアポークタコス',
+            'تاكو لحم الخنزير كالوا',
+            '卡卢阿猪肉塔可'
+          ),
+          description: createMultiLangText(
+            'Slow-roasted pork shoulder, pineapple salsa, cabbage slaw, corn tortillas',
+            'Paleta de cerdo rostizada lentamente, salsa de piña, ensalada de repollo, tortillas de maíz',
+            'Épaule de porc rôtie lentement, salsa à l\'ananas, salade de chou, tortillas de maïs',
+            'Langsam geröstete Schweineschulter, Ananas-Salsa, Krautsalat, Maistortillas',
+            'スロー ローストポークショルダー、パイナップルサルサ、キャベツスロー、コーントルティーヤ',
+            'كتف خنزير محمص ببطء، صلصة أناناس، سلطة ملفوف، تورتيلا ذرة',
+            '慢烤猪肩肉、菠萝莎莎酱、卷心菜丝、玉米饼'
+          ),
+          price: 245,
+          category: 'Main Course',
+          image: '/assets/kalua-pork-tacos.jpg',
+        },
+        {
+          id: 'food-m3',
+          name: createMultiLangText(
+            'Coconut Shrimp',
+            'Camarones al Coco',
+            'Crevettes à la Noix de Coco',
+            'Kokosnuss-Garnelen',
+            'ココナッツシュリンプ',
+            'جمبري جوز الهند',
+            '椰子虾'
+          ),
+          description: createMultiLangText(
+            'Jumbo shrimp, coconut breading, mango chutney, sweet chili sauce',
+            'Camarones jumbo, empanizado de coco, chutney de mango, salsa agridulce de chile',
+            'Grosses crevettes, panure à la noix de coco, chutney de mangue, sauce chili douce',
+            'Riesengarnelen, Kokosnuss-Panade, Mango-Chutney, süße Chilisauce',
+            'ジャンボシュリンプ、ココナッツパン粉、マンゴーチャツネ、スイートチリソース',
+            'جمبري جامبو، تغليف جوز الهند، تشاتني مانجو، صلصة تشيلي حلوة',
+            '巨型虾、椰子面包屑、芒果酸辣酱、甜辣椒酱'
+          ),
+          price: 265,
+          category: 'Appetizers',
+          image: '/images/CoconutShrimp.jpg',
+        },
+        {
+          id: 'food-m4',
+          name: createMultiLangText(
+            'Tropical Fruit Salad',
+            'Ensalada de Frutas Tropicales',
+            'Salade de Fruits Tropicaux',
+            'Tropischer Obstsalat',
+            'トロピカルフルーツサラダ',
+            'سلطة الفواكه الاستوائية',
+            '热带水果沙拉'
+          ),
+          description: createMultiLangText(
+            'Pineapple, mango, papaya, coconut flakes, lime-honey dressing, mint',
+            'Piña, mango, papaya, hojuelas de coco, aderezo de limón y miel, menta',
+            'Ananas, mangue, papaye, flocons de coco, vinaigrette citron vert-miel, menthe',
+            'Ananas, Mango, Papaya, Kokosflocken, Limetten-Honig-Dressing, Minze',
+            'パイナップル、マンゴー、パパイヤ、ココナッツフレーク、ライムハニードレッシング、ミント',
+            'أناناس، مانجو، بابايا، رقائق جوز الهند، تتبيلة ليمون وعسل، نعناع',
+            '菠萝、芒果、木瓜、椰子片、青柠蜂蜜调料、薄荷'
+          ),
+          price: 165,
+          category: 'Desserts',
+          image: '/assets/tropical-fruit-salad.jpg',
+        },
+        {
+          id: 'food-m5',
+          name: createMultiLangText(
+            'Macadamia Crusted Mahi',
+            'Mahi con Costra de Macadamia',
+            'Mahi en Croûte de Macadamia',
+            'Macadamia-Kruste Mahi',
+            'マカダミアクラストマヒ',
+            'ماهي بقشرة الماكاداميا',
+            '夏威夷果马希鱼'
+          ),
+          description: createMultiLangText(
+            'Fresh mahi-mahi, macadamia nut crust, coconut rice, grilled vegetables',
+            'Mahi-mahi fresco, costra de nuez de macadamia, arroz de coco, verduras asadas',
+            'Mahi-mahi frais, croûte de noix de macadamia, riz à la noix de coco, légumes grillés',
+            'Frischer Mahi-Mahi, Macadamianuss-Kruste, Kokosnussreis, gegrilltes Gemüse',
+            '新鮮マヒマヒ、マカダミアナッツクラスト、ココナッツライス、グリル野菜',
+            'ماهي ماهي طازج، قشرة جوز الماكاداميا، أرز جوز الهند، خضروات مشوية',
+            '新鲜马希鱼、夏威夷果外壳、椰子米饭、烤蔬菜'
+          ),
+          price: 320,
+          category: 'Main Course',
+          image: '/images/MacadamiaMahi.jpg',
         },
       ],
     },
