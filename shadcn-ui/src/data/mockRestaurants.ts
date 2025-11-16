@@ -8,7 +8,7 @@ export const mockRestaurants: Restaurant[] = [
   {
     id: 'rest-1',
     name: 'Rupestre Bar Culinario',
-    address: 'Calle Morelos 920, Barrio Antiguo, 64000 Monterrey, N.L., México',
+    address: 'C. de Morelos 867, Barrio Antiguo, Centro, 64000 Monterrey, N.L., México',
     hours: {
       open: '1:00 PM',
       close: '12:00 AM',
@@ -37,7 +37,7 @@ export const mockRestaurants: Restaurant[] = [
           '下午6-9点所有梅斯卡尔和招牌鸡尾酒买一送一'
         ),
         discount: 50,
-        imageUrl: '/images/Mezcal.jpg',
+        imageUrl: '/images/photo1763264312.jpg',
       },
       {
         id: 'promo-2',
@@ -60,7 +60,7 @@ export const mockRestaurants: Restaurant[] = [
           '限量优质甜品 - 请提早订购！开心果慕斯等'
         ),
         discount: 0,
-        imageUrl: '/images/PremiumDesserts.jpg',
+        imageUrl: '/images/photo1763264313.jpg',
       },
     ],
     tables: [
@@ -97,7 +97,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 175,
           category: 'Cocktails',
-          image: '/images/Cocktails.jpg',
+          image: '/assets/mezcal-negroni.jpg',
         },
         {
           id: 'drink-2',
@@ -121,7 +121,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 165,
           category: 'Cocktails',
-          image: '/images/Cocktail.jpg',
+          image: '/assets/paloma-rupestre.jpg',
         },
         {
           id: 'drink-3',
@@ -145,7 +145,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 85,
           category: 'Beer',
-          image: '/images/Michelada.jpg',
+          image: '/assets/michelada.jpg',
         },
         {
           id: 'drink-4',
@@ -169,7 +169,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 90,
           category: 'Beer',
-          image: '/images/MexicanCraftBeer.jpg',
+          image: '/assets/beer-flight.jpg',
         },
         {
           id: 'drink-5',
@@ -193,7 +193,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 55,
           category: 'Non-Alcoholic',
-          image: '/images/CoconutHorchata.jpg',
+          image: '/assets/horchata-coco.jpg',
         },
       ],
       food: [
@@ -217,9 +217,9 @@ export const mockRestaurants: Restaurant[] = [
             'كعكة المرنغ المكسيكية التقليدية مع كريمة الفستق والفستق المسكر وورقة الذهب',
             '传统墨西哥蛋白酥皮蛋糕配开心果奶油、糖渍开心果、金箔'
           ),
-          price: 285,
+          price: 185,
           category: 'Desserts',
-          image: '/images/MexicanMeringueDessert.jpg',
+          image: '/assets/mustachon-pistacho.jpg',
         },
         {
           id: 'dessert-2',
@@ -241,9 +241,9 @@ export const mockRestaurants: Restaurant[] = [
             'كعكة الحليب الثلاثي المرتقية مع حبة الفانيليا ومسحوق القرفة ورغوة الحليب المكرمل',
             '升级版三奶蛋糕配香草豆、肉桂粉、焦糖牛奶泡沫'
           ),
-          price: 245,
+          price: 165,
           category: 'Desserts',
-          image: '/images/TresLechesCake.jpg',
+          image: '/assets/tres-leches.jpg',
         },
         {
           id: 'food-1',
@@ -267,7 +267,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 240,
           category: 'Appetizers',
-          image: '/images/TunaTostada.jpg',
+          image: '/assets/tuna-tostada.jpg',
         },
         {
           id: 'food-2',
@@ -315,7 +315,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 250,
           category: 'Main Course',
-          image: '/images/Octopus.jpg',
+          image: '/assets/octopus-plancha.jpg',
         },
         {
           id: 'food-4',
@@ -339,7 +339,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 245,
           category: 'Appetizers',
-          image: '/images/Ceviche.jpg',
+          image: '/assets/ceviche-mixto.jpg',
         },
         {
           id: 'food-5',
@@ -363,7 +363,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 230,
           category: 'Main Course',
-          image: '/images/ChilesenNogada.jpg',
+          image: '/assets/chiles-nogada.jpg',
         },
         {
           id: 'food-6',
@@ -387,7 +387,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 180,
           category: 'Appetizers',
-          image: '/images/QuesoFundido.jpg',
+          image: '/assets/queso-fundido.jpg',
         },
       ],
     },
@@ -447,7 +447,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 15,
           category: 'Alcoholic',
-          image: '/images/Sake.jpg',
+          image: '/images/photo1763264311.jpg',
         },
       ],
       food: [
@@ -473,7 +473,7 @@ export const mockRestaurants: Restaurant[] = [
           ),
           price: 18,
           category: 'Sushi',
-          image: '/images/DragonRoll.jpg',
+          image: '/images/photo1763264311.jpg',
         },
       ],
     },
