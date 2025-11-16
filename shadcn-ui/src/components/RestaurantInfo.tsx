@@ -18,7 +18,7 @@ export function RestaurantInfo({ restaurant, language, onContinue }: RestaurantI
         <Card className="overflow-hidden">
           <div className="aspect-video bg-gray-200">
             <img
-              src={restaurant.image}
+              src="/images/Restaurant.jpg"
               alt={restaurant.name}
               className="w-full h-full object-cover"
             />
@@ -32,24 +32,42 @@ export function RestaurantInfo({ restaurant, language, onContinue }: RestaurantI
               <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('welcomeTo', language)}</h1>
               <h2 className="text-2xl font-semibold text-blue-600 mb-3">{restaurant.name}</h2>
               <p className="text-gray-600 leading-relaxed">
-                {restaurant.description[language]}
+                {language === 'es' 
+                  ? 'Cocina mexicana contemporánea en el corazón del Barrio Antiguo de Monterrey. Experiencia culinaria única con ingredientes locales y técnicas innovadoras.'
+                  : 'Contemporary Mexican cuisine in the heart of Monterrey\'s Barrio Antiguo. Unique culinary experience with local ingredients and innovative techniques.'
+                }
               </p>
             </div>
 
             <div className="space-y-3 pt-4 border-t border-gray-200">
               <div className="flex items-center space-x-3 text-gray-600">
                 <MapPin className="w-5 h-5 text-blue-600" />
-                <span className="text-sm">{restaurant.address}</span>
+                <span className="text-sm">Calle Morelos 920, Barrio Antiguo, 64000 Monterrey, N.L., México</span>
               </div>
               <div className="flex items-center space-x-3 text-gray-600">
                 <Phone className="w-5 h-5 text-blue-600" />
-                <span className="text-sm">{restaurant.phone}</span>
+                <span className="text-sm">+52 (81) 8335-4567</span>
               </div>
               <div className="flex items-center space-x-3 text-gray-600">
                 <Clock className="w-5 h-5 text-blue-600" />
                 <span className="text-sm">
                   {t('estimatedWait', language)}: {restaurant.waitTime} {t('minutes', language)}
                 </span>
+              </div>
+            </div>
+
+            {/* Special Notice for Desserts */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-amber-400 rounded-full mt-2 flex-shrink-0"></div>
+                <div>
+                  <p className="text-amber-800 font-medium text-sm">
+                    {language === 'es' 
+                      ? '¡Postres Limitados! Ordena tu Mustachón de Pistacho temprano - disponibilidad limitada cada día.'
+                      : 'Limited Desserts! Order your Mustachón de Pistacho early - limited availability each day.'
+                    }
+                  </p>
+                </div>
               </div>
             </div>
           </div>

@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Plus, Minus, ShoppingCart } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Minus, ShoppingCart, Star } from 'lucide-react';
 import { MenuItem, Language, OrderItem } from '../types/restaurant';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
+import { Badge } from './ui/badge';
 
 interface MenuDisplayProps {
   drinks: MenuItem[];
@@ -14,10 +15,30 @@ interface MenuDisplayProps {
 }
 
 export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly = false }: MenuDisplayProps) {
-  const [activeTab, setActiveTab] = useState<'drinks' | 'food'>(isDrinksOnly ? 'drinks' : 'food');
+  const [activeTab, setActiveTab] = useState<'desserts' | 'food' | 'drinks'>('desserts');
   const [cart, setCart] = useState<Map<string, number>>(new Map());
+  const [showDessertAlert, setShowDessertAlert] = useState(true);
 
-  const items = activeTab === 'drinks' ? drinks : food;
+  // Separate desserts from other food items
+  const desserts = food.filter(item => item.category === 'Desserts');
+  const mainFood = food.filter(item => item.category !== 'Desserts');
+
+  // Set initial tab based on whether it's drinks only or not
+  useEffect(() => {
+    if (isDrinksOnly) {
+      setActiveTab('drinks');
+    } else {
+      setActiveTab('desserts'); // Always start with desserts for food ordering
+    }
+  }, [isDrinksOnly]);
+
+  const getCurrentItems = () => {
+    if (activeTab === 'drinks') return drinks;
+    if (activeTab === 'desserts') return desserts;
+    return mainFood;
+  };
+
+  const items = getCurrentItems();
 
   const addToCart = (itemId: string) => {
     setCart(prev => {
@@ -67,33 +88,78 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 pb-32">
       <div className="max-w-4xl mx-auto">
-        {/* Tabs */}
-        {!isDrinksOnly && (
-          <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-            <div className="flex">
-              <button
-                onClick={() => setActiveTab('food')}
-                className={`flex-1 py-4 font-medium transition-colors ${
-                  activeTab === 'food'
-                    ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                {t('food', language)}
-              </button>
-              <button
-                onClick={() => setActiveTab('drinks')}
-                className={`flex-1 py-4 font-medium transition-colors ${
-                  activeTab === 'drinks'
-                    ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                {t('drinks', language)}
-              </button>
+        {/* Dessert Priority Alert */}
+        {!isDrinksOnly && showDessertAlert && activeTab === 'desserts' && (
+          <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Star className="w-5 h-5" />
+              <span className="font-bold">
+                {language === 'es' ? '¡Postres Limitados!' : 'Limited Desserts!'}
+              </span>
+              <Star className="w-5 h-5" />
             </div>
+            <p className="text-sm">
+              {language === 'es' 
+                ? 'Ordena tus postres PRIMERO - disponibilidad muy limitada cada día'
+                : 'Order your desserts FIRST - very limited availability each day'
+              }
+            </p>
+            <Button 
+              onClick={() => setShowDessertAlert(false)}
+              variant="ghost" 
+              size="sm" 
+              className="text-white hover:bg-white/20 mt-2"
+            >
+              {language === 'es' ? 'Entendido' : 'Got it'}
+            </Button>
           </div>
         )}
+
+        {/* Tabs */}
+        <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+          <div className="flex">
+            {!isDrinksOnly && (
+              <>
+                <button
+                  onClick={() => setActiveTab('desserts')}
+                  className={`flex-1 py-4 font-medium transition-colors relative ${
+                    activeTab === 'desserts'
+                      ? 'border-b-2 border-amber-500 text-amber-600 bg-amber-50'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Star className="w-4 h-4" />
+                    {language === 'es' ? 'Postres' : 'Desserts'}
+                    <Badge variant="destructive" className="text-xs">
+                      {language === 'es' ? 'Limitado' : 'Limited'}
+                    </Badge>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('food')}
+                  className={`flex-1 py-4 font-medium transition-colors ${
+                    activeTab === 'food'
+                      ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  {t('food', language)}
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setActiveTab('drinks')}
+              className={`flex-1 py-4 font-medium transition-colors ${
+                activeTab === 'drinks'
+                  ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              {t('drinks', language)}
+            </button>
+          </div>
+        </div>
 
         {/* Menu Items */}
         <div className="p-4 space-y-4">
@@ -101,7 +167,9 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
             const quantity = cart.get(item.id) || 0;
             
             return (
-              <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+              <Card key={item.id} className={`overflow-hidden hover:shadow-lg transition-shadow ${
+                activeTab === 'desserts' ? 'border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50' : ''
+              }`}>
                 <div className="flex gap-4 p-4">
                   <div className="w-24 h-24 bg-gray-200 rounded-lg flex-shrink-0 overflow-hidden">
                     <img
@@ -112,34 +180,60 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 mb-1">{item.name[language]}</h3>
+                    <div className="flex items-start justify-between mb-1">
+                      <h3 className="font-semibold text-gray-900">{item.name[language]}</h3>
+                      {activeTab === 'desserts' && (
+                        <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-100">
+                          <Star className="w-3 h-3 mr-1" />
+                          {language === 'es' ? 'Especial' : 'Special'}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600 mb-2 line-clamp-2">{item.description[language]}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-blue-600">{formatPrice(item.price)}</span>
+                      <span className={`text-lg font-bold ${
+                        activeTab === 'desserts' ? 'text-amber-600' : 'text-blue-600'
+                      }`}>
+                        {formatPrice(item.price)}
+                      </span>
                       
                       {quantity === 0 ? (
                         <Button
                           onClick={() => addToCart(item.id)}
                           size="sm"
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                          className={`${
+                            activeTab === 'desserts' 
+                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600' 
+                              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
+                          } text-white`}
                         >
                           <Plus className="w-4 h-4 mr-1" />
                           {t('addToOrder', language)}
                         </Button>
                       ) : (
-                        <div className="flex items-center gap-2 bg-blue-100 rounded-lg px-3 py-2">
+                        <div className={`flex items-center gap-2 ${
+                          activeTab === 'desserts' ? 'bg-amber-100' : 'bg-blue-100'
+                        } rounded-lg px-3 py-2`}>
                           <button
                             onClick={() => removeFromCart(item.id)}
                             className="w-8 h-8 flex items-center justify-center bg-white rounded-full hover:bg-gray-100 transition-colors shadow-sm"
                           >
-                            <Minus className="w-4 h-4 text-blue-600" />
+                            <Minus className={`w-4 h-4 ${
+                              activeTab === 'desserts' ? 'text-amber-600' : 'text-blue-600'
+                            }`} />
                           </button>
-                          <span className="text-blue-600 font-medium min-w-[2rem] text-center">{quantity}</span>
+                          <span className={`${
+                            activeTab === 'desserts' ? 'text-amber-600' : 'text-blue-600'
+                          } font-medium min-w-[2rem] text-center`}>
+                            {quantity}
+                          </span>
                           <button
                             onClick={() => addToCart(item.id)}
                             className="w-8 h-8 flex items-center justify-center bg-white rounded-full hover:bg-gray-100 transition-colors shadow-sm"
                           >
-                            <Plus className="w-4 h-4 text-blue-600" />
+                            <Plus className={`w-4 h-4 ${
+                              activeTab === 'desserts' ? 'text-amber-600' : 'text-blue-600'
+                            }`} />
                           </button>
                         </div>
                       )}
