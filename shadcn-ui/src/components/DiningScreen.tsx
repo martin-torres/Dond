@@ -1,0 +1,90 @@
+import { UtensilsCrossed, Plus, Receipt } from 'lucide-react';
+import { Language, OrderItem } from '../types/restaurant';
+import { t } from '../utils/translations';
+import { Button } from './ui/button';
+import { Card } from './ui/card';
+
+interface DiningScreenProps {
+  language: Language;
+  currentOrders: OrderItem[];
+  tableNumber: number;
+  onContinueOrdering: () => void;
+  onRequestBill: () => void;
+}
+
+export function DiningScreen({ 
+  language, 
+  currentOrders, 
+  tableNumber,
+  onContinueOrdering,
+  onRequestBill 
+}: DiningScreenProps) {
+  const total = currentOrders.reduce(
+    (sum, item) => sum + item.menuItem.price * item.quantity, 
+    0
+  );
+
+  const formatPrice = (price: number) => {
+    return `$${price.toFixed(2)}`;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 pb-32">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="text-center space-y-2">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+            <UtensilsCrossed className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Table #{tableNumber}</h1>
+          <p className="text-gray-600">Enjoy your meal!</p>
+        </div>
+
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('yourOrder', language)}</h2>
+          <div className="space-y-3">
+            {currentOrders.map((item, index) => (
+              <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {item.quantity}x {item.menuItem.name[language]}
+                  </p>
+                  <p className="text-sm text-gray-600 capitalize">{item.menuItem.category}</p>
+                </div>
+                <p className="font-semibold text-gray-900">
+                  {formatPrice(item.menuItem.price * item.quantity)}
+                </p>
+              </div>
+            ))}
+            
+            <div className="border-t pt-3 flex justify-between items-center">
+              <span className="text-lg font-semibold text-gray-900">{t('subtotal', language)}</span>
+              <span className="text-lg font-bold text-blue-600">{formatPrice(total)}</span>
+            </div>
+          </div>
+        </Card>
+
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
+          <div className="max-w-2xl mx-auto space-y-2">
+            <Button 
+              onClick={onContinueOrdering}
+              variant="outline"
+              className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+              size="lg"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              {t('continueOrdering', language)}
+            </Button>
+            <Button 
+              onClick={onRequestBill}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              size="lg"
+            >
+              <Receipt className="w-5 h-5 mr-2" />
+              {t('requestBill', language)}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
