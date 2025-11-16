@@ -1,26 +1,29 @@
 export type Language = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'ar' | 'zh';
 
 export type AppStage = 
-  | 'qr-scan'
-  | 'restaurant-info'
-  | 'table-selection'
-  | 'waiting'
+  | 'qr-scan' 
+  | 'restaurant-info' 
+  | 'table-selection' 
+  | 'waiting' 
   | 'ordering-drinks'
   | 'table-ready'
-  | 'ordering-food'
-  | 'dining'
+  | 'ordering-desserts'
+  | 'ordering-food' 
+  | 'dining' 
   | 'payment'
   | 'payment-complete';
+
+export interface MultiLangText {
+  [key: string]: string;
+}
 
 export interface MenuItem {
   id: string;
   name: Record<Language, string>;
   description: Record<Language, string>;
   price: number;
-  category: 'food' | 'drinks' | 'appetizers' | 'mains' | 'desserts';
+  category: string;
   image: string;
-  available: boolean;
-  allergens?: string[];
 }
 
 export interface Table {
@@ -29,30 +32,40 @@ export interface Table {
   seats: number;
   location: 'patio' | 'window' | 'balcony' | 'middle';
   available: boolean;
-  reserved: boolean;
-  x: number; // percentage position for visual layout
-  y: number; // percentage position for visual layout
+  reserved?: boolean;
+  x: number;
+  y: number;
+}
+
+export interface Promotion {
+  id: string;
+  title: Record<Language, string>;
+  description: Record<Language, string>;
+  discount: number;
+  imageUrl?: string;
 }
 
 export interface Restaurant {
   id: string;
   name: string;
-  description: Record<Language, string>;
-  image: string;
   address: string;
-  phone: string;
-  waitTime: number; // minutes
+  hours: {
+    open: string;
+    close: string;
+  };
+  waitTime: number;
+  distance: number;
+  promos: Promotion[];
   tables: Table[];
   menu: {
-    food: MenuItem[];
     drinks: MenuItem[];
+    food: MenuItem[];
   };
 }
 
 export interface OrderItem {
   menuItem: MenuItem;
   quantity: number;
-  specialInstructions?: string;
 }
 
 export interface Payment {
@@ -60,7 +73,6 @@ export interface Payment {
   userName: string;
   amount: number;
   paidAt: Date;
-  paymentMethod?: 'card' | 'cash' | 'digital';
 }
 
 export interface Bill {
@@ -70,23 +82,4 @@ export interface Bill {
   tip: number;
   total: number;
   payments: Payment[];
-}
-
-export interface User {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  preferredLanguage: Language;
-}
-
-export interface Session {
-  id: string;
-  restaurantId: string;
-  tableId?: string;
-  userId: string;
-  orders: OrderItem[];
-  status: 'active' | 'completed' | 'cancelled';
-  createdAt: Date;
-  updatedAt: Date;
 }

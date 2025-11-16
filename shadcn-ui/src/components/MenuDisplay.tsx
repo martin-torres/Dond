@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, ShoppingCart, Star } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Star, ArrowLeft } from 'lucide-react';
 import { MenuItem, Language, OrderItem } from '../types/restaurant';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
@@ -12,25 +12,34 @@ interface MenuDisplayProps {
   language: Language;
   onPlaceOrder: (items: OrderItem[]) => void;
   isDrinksOnly?: boolean;
+  isDessertsOnly?: boolean;
 }
 
-export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly = false }: MenuDisplayProps) {
-  const [activeTab, setActiveTab] = useState<'desserts' | 'food' | 'drinks'>('desserts');
+export function MenuDisplay({ 
+  drinks, 
+  food, 
+  language, 
+  onPlaceOrder, 
+  isDrinksOnly = false,
+  isDessertsOnly = false 
+}: MenuDisplayProps) {
+  const [activeTab, setActiveTab] = useState<'desserts' | 'food' | 'drinks'>('drinks');
   const [cart, setCart] = useState<Map<string, number>>(new Map());
-  const [showDessertAlert, setShowDessertAlert] = useState(true);
 
   // Separate desserts from other food items
   const desserts = food.filter(item => item.category === 'Desserts');
   const mainFood = food.filter(item => item.category !== 'Desserts');
 
-  // Set initial tab based on whether it's drinks only or not
+  // Set initial tab based on mode
   useEffect(() => {
     if (isDrinksOnly) {
       setActiveTab('drinks');
+    } else if (isDessertsOnly) {
+      setActiveTab('desserts');
     } else {
-      setActiveTab('desserts'); // Always start with desserts for food ordering
+      setActiveTab('drinks'); // Default to drinks for regular food ordering
     }
-  }, [isDrinksOnly]);
+  }, [isDrinksOnly, isDessertsOnly]);
 
   const getCurrentItems = () => {
     if (activeTab === 'drinks') return drinks;
@@ -85,81 +94,78 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
     return `$${price.toFixed(2)}`;
   };
 
+  const getHeaderTitle = () => {
+    if (isDrinksOnly) {
+      return language === 'es' ? 'Bebidas Mientras Esperas' : 'Drinks While You Wait';
+    }
+    if (isDessertsOnly) {
+      return language === 'es' ? 'Postres Exclusivos' : 'Exclusive Desserts';
+    }
+    return language === 'es' ? 'Menú Principal' : 'Main Menu';
+  };
+
+  const getHeaderSubtitle = () => {
+    if (isDrinksOnly) {
+      return language === 'es' ? 'Disfruta mientras esperas tu mesa' : 'Enjoy while waiting for your table';
+    }
+    if (isDessertsOnly) {
+      return language === 'es' ? 'Disponibilidad muy limitada - ¡ordena ahora!' : 'Very limited availability - order now!';
+    }
+    return language === 'es' ? 'Bebidas y comida' : 'Drinks and food';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 pb-32">
       <div className="max-w-4xl mx-auto">
-        {/* Dessert Priority Alert */}
-        {!isDrinksOnly && showDessertAlert && activeTab === 'desserts' && (
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Star className="w-5 h-5" />
-              <span className="font-bold">
-                {language === 'es' ? '¡Postres Limitados!' : 'Limited Desserts!'}
-              </span>
-              <Star className="w-5 h-5" />
+        {/* Header */}
+        <div className={`${
+          isDessertsOnly ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-blue-600 to-purple-600'
+        } text-white p-6 text-center`}>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            {isDessertsOnly && <Star className="w-6 h-6" />}
+            <h1 className="text-2xl font-bold">{getHeaderTitle()}</h1>
+            {isDessertsOnly && <Star className="w-6 h-6" />}
+          </div>
+          <p className="text-sm opacity-90">{getHeaderSubtitle()}</p>
+          {isDessertsOnly && (
+            <div className="mt-3 bg-white/20 rounded-lg p-2">
+              <p className="text-xs font-medium">
+                {language === 'es' 
+                  ? '⚠️ Solo quedan pocas porciones disponibles hoy'
+                  : '⚠️ Only a few portions available today'
+                }
+              </p>
             </div>
-            <p className="text-sm">
-              {language === 'es' 
-                ? 'Ordena tus postres PRIMERO - disponibilidad muy limitada cada día'
-                : 'Order your desserts FIRST - very limited availability each day'
-              }
-            </p>
-            <Button 
-              onClick={() => setShowDessertAlert(false)}
-              variant="ghost" 
-              size="sm" 
-              className="text-white hover:bg-white/20 mt-2"
-            >
-              {language === 'es' ? 'Entendido' : 'Got it'}
-            </Button>
+          )}
+        </div>
+
+        {/* Tabs - only show if not in single mode */}
+        {!isDrinksOnly && !isDessertsOnly && (
+          <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('drinks')}
+                className={`flex-1 py-4 font-medium transition-colors ${
+                  activeTab === 'drinks'
+                    ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                {t('drinks', language)}
+              </button>
+              <button
+                onClick={() => setActiveTab('food')}
+                className={`flex-1 py-4 font-medium transition-colors ${
+                  activeTab === 'food'
+                    ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                {t('food', language)}
+              </button>
+            </div>
           </div>
         )}
-
-        {/* Tabs */}
-        <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-          <div className="flex">
-            {!isDrinksOnly && (
-              <>
-                <button
-                  onClick={() => setActiveTab('desserts')}
-                  className={`flex-1 py-4 font-medium transition-colors relative ${
-                    activeTab === 'desserts'
-                      ? 'border-b-2 border-amber-500 text-amber-600 bg-amber-50'
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <Star className="w-4 h-4" />
-                    {language === 'es' ? 'Postres' : 'Desserts'}
-                    <Badge variant="destructive" className="text-xs">
-                      {language === 'es' ? 'Limitado' : 'Limited'}
-                    </Badge>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setActiveTab('food')}
-                  className={`flex-1 py-4 font-medium transition-colors ${
-                    activeTab === 'food'
-                      ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  {t('food', language)}
-                </button>
-              </>
-            )}
-            <button
-              onClick={() => setActiveTab('drinks')}
-              className={`flex-1 py-4 font-medium transition-colors ${
-                activeTab === 'drinks'
-                  ? 'border-b-2 border-blue-600 text-blue-600 bg-blue-50'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              {t('drinks', language)}
-            </button>
-          </div>
-        </div>
 
         {/* Menu Items */}
         <div className="p-4 space-y-4">
@@ -168,7 +174,7 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
             
             return (
               <Card key={item.id} className={`overflow-hidden hover:shadow-lg transition-shadow ${
-                activeTab === 'desserts' ? 'border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50' : ''
+                isDessertsOnly ? 'border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50' : ''
               }`}>
                 <div className="flex gap-4 p-4">
                   <div className="w-24 h-24 bg-gray-200 rounded-lg flex-shrink-0 overflow-hidden">
@@ -182,17 +188,17 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between mb-1">
                       <h3 className="font-semibold text-gray-900">{item.name[language]}</h3>
-                      {activeTab === 'desserts' && (
+                      {isDessertsOnly && (
                         <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-100">
                           <Star className="w-3 h-3 mr-1" />
-                          {language === 'es' ? 'Especial' : 'Special'}
+                          {language === 'es' ? 'Limitado' : 'Limited'}
                         </Badge>
                       )}
                     </div>
                     <p className="text-sm text-gray-600 mb-2 line-clamp-2">{item.description[language]}</p>
                     <div className="flex items-center justify-between">
                       <span className={`text-lg font-bold ${
-                        activeTab === 'desserts' ? 'text-amber-600' : 'text-blue-600'
+                        isDessertsOnly ? 'text-amber-600' : 'text-blue-600'
                       }`}>
                         {formatPrice(item.price)}
                       </span>
@@ -202,7 +208,7 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
                           onClick={() => addToCart(item.id)}
                           size="sm"
                           className={`${
-                            activeTab === 'desserts' 
+                            isDessertsOnly 
                               ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600' 
                               : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
                           } text-white`}
@@ -212,18 +218,18 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
                         </Button>
                       ) : (
                         <div className={`flex items-center gap-2 ${
-                          activeTab === 'desserts' ? 'bg-amber-100' : 'bg-blue-100'
+                          isDessertsOnly ? 'bg-amber-100' : 'bg-blue-100'
                         } rounded-lg px-3 py-2`}>
                           <button
                             onClick={() => removeFromCart(item.id)}
                             className="w-8 h-8 flex items-center justify-center bg-white rounded-full hover:bg-gray-100 transition-colors shadow-sm"
                           >
                             <Minus className={`w-4 h-4 ${
-                              activeTab === 'desserts' ? 'text-amber-600' : 'text-blue-600'
+                              isDessertsOnly ? 'text-amber-600' : 'text-blue-600'
                             }`} />
                           </button>
                           <span className={`${
-                            activeTab === 'desserts' ? 'text-amber-600' : 'text-blue-600'
+                            isDessertsOnly ? 'text-amber-600' : 'text-blue-600'
                           } font-medium min-w-[2rem] text-center`}>
                             {quantity}
                           </span>
@@ -232,7 +238,7 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
                             className="w-8 h-8 flex items-center justify-center bg-white rounded-full hover:bg-gray-100 transition-colors shadow-sm"
                           >
                             <Plus className={`w-4 h-4 ${
-                              activeTab === 'desserts' ? 'text-amber-600' : 'text-blue-600'
+                              isDessertsOnly ? 'text-amber-600' : 'text-blue-600'
                             }`} />
                           </button>
                         </div>
@@ -260,10 +266,21 @@ export function MenuDisplay({ drinks, food, language, onPlaceOrder, isDrinksOnly
               </div>
               <Button 
                 onClick={handlePlaceOrder} 
-                className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white" 
+                className={`w-full ${
+                  isDessertsOnly 
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+                    : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
+                } text-white`}
                 size="lg"
               >
-                {t('placeOrder', language)}
+                {isDessertsOnly ? (
+                  <>
+                    <Star className="w-4 h-4 mr-2" />
+                    {language === 'es' ? 'Confirmar Postres' : 'Confirm Desserts'}
+                  </>
+                ) : (
+                  t('placeOrder', language)
+                )}
               </Button>
             </div>
           </div>
