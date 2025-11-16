@@ -1,42 +1,34 @@
 import { useState, useEffect } from 'react';
-import { Language, getTranslation, TranslationKey } from '@/lib/translations';
 
 export const useLanguage = () => {
-  const [currentLanguage, setCurrentLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<string>(() => {
+    const saved = localStorage.getItem('dinein-language');
+    return saved || 'en';
+  });
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const savedLanguage = localStorage.getItem('selectedLanguage') as Language;
-      if (savedLanguage && ['en', 'es', 'fr', 'de', 'it', 'ja', 'ko', 'zh'].includes(savedLanguage)) {
-        setCurrentLanguage(savedLanguage);
-      }
-    } catch (error) {
-      console.error('Error loading language from localStorage:', error);
-      setCurrentLanguage('en');
-    }
-  }, []);
+    localStorage.setItem('dinein-language', language);
+  }, [language]);
 
-  const changeLanguage = (lang: Language) => {
-    try {
-      setCurrentLanguage(lang);
-      localStorage.setItem('selectedLanguage', lang);
-    } catch (error) {
-      console.error('Error saving language to localStorage:', error);
-    }
+  const changeLanguage = (newLanguage: string) => {
+    setLanguage(newLanguage);
   };
 
-  const t = (key: TranslationKey): string => {
-    try {
-      return getTranslation(currentLanguage, key);
-    } catch (error) {
-      console.error('Translation error:', error);
-      return key;
-    }
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+
+  const closeDropdown = () => {
+    setIsDropdownOpen(false);
   };
 
   return {
-    currentLanguage,
+    language,
     changeLanguage,
-    t
+    isDropdownOpen,
+    toggleDropdown,
+    closeDropdown
   };
 };

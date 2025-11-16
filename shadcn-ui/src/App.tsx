@@ -1,48 +1,77 @@
-import { Toaster } from '@/components/ui/sonner';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import ErrorBoundary from '@/components/ErrorBoundary';
-import Index from './pages/Index';
-import LanguageSelector from './pages/LanguageSelector';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { LanguageSelector } from './components/LanguageSelector';
+import { useLanguage } from './hooks/useLanguage';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Pages
+import LanguagePage from './pages/LanguagePage';
 import RestaurantList from './pages/RestaurantList';
 import RestaurantDetails from './pages/RestaurantDetails';
-import Reservation from './pages/Reservation';
-import Menu from './pages/Menu';
-import BarTab from './pages/BarTab';
-import Payment from './pages/Payment';
-import NotFound from './pages/NotFound';
+import ReservationPage from './pages/ReservationPage';
+import MenuPage from './pages/MenuPage';
+import WaitlistPage from './pages/WaitlistPage';
+import PaymentPage from './pages/PaymentPage';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+function AppContent() {
+  const { language, changeLanguage, isDropdownOpen, toggleDropdown, closeDropdown } = useLanguage();
+  const location = useLocation();
+  const isLanguagePage = location.pathname === '/';
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/language" element={<LanguageSelector />} />
-            <Route path="/restaurants" element={<RestaurantList />} />
-            <Route path="/restaurant/:id" element={<RestaurantDetails />} />
-            <Route path="/reservation/:id" element={<Reservation />} />
-            <Route path="/menu/:id" element={<Menu />} />
-            <Route path="/bar-tab/:id" element={<BarTab />} />
-            <Route path="/payment/:id" element={<Payment />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
-);
+  // Close dropdown when clicking outside or navigating
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.language-selector')) {
+        closeDropdown();
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [isDropdownOpen, closeDropdown]);
+
+  useEffect(() => {
+    closeDropdown();
+  }, [location.pathname, closeDropdown]);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Language Selector - Fixed in top right corner, hidden on language selection page */}
+      {!isLanguagePage && (
+        <div className="fixed top-4 right-4 z-50 language-selector">
+          <LanguageSelector
+            currentLanguage={language}
+            onLanguageChange={changeLanguage}
+            isDropdownOpen={isDropdownOpen}
+            onToggleDropdown={toggleDropdown}
+          />
+        </div>
+      )}
+
+      <Routes>
+        <Route path="/" element={<LanguagePage onLanguageSelect={changeLanguage} />} />
+        <Route path="/restaurants" element={<RestaurantList language={language} />} />
+        <Route path="/restaurant/:id" element={<RestaurantDetails language={language} />} />
+        <Route path="/reservation/:id" element={<ReservationPage language={language} />} />
+        <Route path="/menu/:id" element={<MenuPage language={language} />} />
+        <Route path="/waitlist/:id" element={<WaitlistPage language={language} />} />
+        <Route path="/payment" element={<PaymentPage language={language} />} />
+      </Routes>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <Router>
+        <AppContent />
+      </Router>
+    </ErrorBoundary>
+  );
+}
 
 export default App;
