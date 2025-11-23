@@ -56,29 +56,42 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 pb-32">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-gray-900 mb-2">{t('selectTable', language)}</h1>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="space-y-1">
+          <p className="text-sm uppercase tracking-[0.3em] text-gray-400">
+            {t('selectTable', language)}
+          </p>
+          <h1 className="text-3xl font-semibold text-gray-900">{t('seatSelectionTitle', language)}</h1>
+          <p className="text-sm text-gray-600">{t('seatSelectionSubtitle', language)}</p>
         </div>
 
         {/* Location Filter */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {locations.map((loc) => (
-            <Button
-              key={loc.id}
-              onClick={() => setSelectedLocation(loc.id)}
-              variant={selectedLocation === loc.id ? 'default' : 'outline'}
-              className="flex-shrink-0"
-            >
-              <span className="mr-2">{loc.icon}</span>
-              {loc.label}
-            </Button>
-          ))}
-        </div>
+        <Card className="p-4 bg-white/80 border-white/60 shadow-sm backdrop-blur">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {locations.map((loc) => {
+              const isActive = selectedLocation === loc.id;
+              return (
+                <Button
+                  key={loc.id}
+                  onClick={() => setSelectedLocation(loc.id)}
+                  variant="outline"
+                  className={`flex-shrink-0 rounded-full px-4 ${
+                    isActive
+                      ? 'bg-white text-gray-900 border-gray-200 shadow-sm'
+                      : 'bg-white/40 text-gray-600 border-transparent hover:bg-white/60'
+                  }`}
+                >
+                  <span className="mr-2">{loc.icon}</span>
+                  {loc.label}
+                </Button>
+              );
+            })}
+          </div>
+        </Card>
 
         {/* Visual Table Layout */}
-        <Card className="p-6">
-          <div className="relative w-full h-96 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg border-2 border-slate-300">
+        <Card className="p-6 space-y-4 bg-white/85 border-white/60 shadow-lg backdrop-blur">
+          <div className="relative w-full h-80 bg-gradient-to-br from-white via-indigo-50 to-purple-100 rounded-2xl border border-indigo-100 shadow-inner">
             {filteredTables.map((table) => (
               <button
                 key={table.id}
@@ -110,7 +123,7 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
             ))}
             
             {/* Legend */}
-            <div className="absolute bottom-4 left-4 right-4 flex flex-wrap gap-3 bg-white/90 backdrop-blur p-3 rounded-lg">
+            <div className="absolute bottom-4 left-4 right-4 flex flex-wrap gap-3 bg-white/80 backdrop-blur p-3 rounded-xl border border-white/60">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 bg-green-500 rounded" />
                 <span className="text-gray-700">{t('available', language)}</span>
@@ -128,51 +141,56 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
         </Card>
 
         {/* Table List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Card className="p-5 space-y-3 bg-white/85 border-white/60 shadow-lg backdrop-blur">
           {filteredTables.map((table) => (
             <button
               key={table.id}
               onClick={() => handleTableClick(table)}
               disabled={!table.available}
-              className={`p-4 rounded-lg border-2 transition-all text-left ${
+              className={`w-full p-4 rounded-2xl border text-left transition ${
                 table.available
                   ? selectedTable === table.id
-                    ? 'border-green-600 bg-green-50'
+                    ? 'border-indigo-600 bg-indigo-50 shadow-sm'
                     : table.reserved
-                    ? 'border-yellow-400 bg-yellow-50 hover:border-yellow-500'
-                    : 'border-gray-200 bg-white hover:border-green-400'
+                    ? 'border-amber-400 bg-amber-50 hover:border-amber-500'
+                    : 'border-white/80 bg-white hover:border-indigo-200'
                   : 'border-red-200 bg-red-50 cursor-not-allowed opacity-60'
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-gray-900">
+                  <p className="text-gray-900 font-medium">
                     {t('selectTable', language)} #{table.number}
                   </p>
-                  <p className="text-gray-600">
+                  <p className="text-sm text-gray-600">
                     {table.seats} {t('seats', language)} • {locationLabelMap[table.location]}
                   </p>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <Badge variant={
-                    table.available 
-                      ? table.reserved 
-                        ? 'outline' 
-                        : 'default' 
-                      : 'destructive'
-                  } className={
-                    table.reserved && table.available 
-                      ? 'border-yellow-500 text-yellow-700 bg-yellow-50' 
-                      : ''
-                  }>
-                    {table.available 
-                      ? table.reserved 
-                        ? t('reserved', language) 
-                        : t('available', language) 
+                <div className="flex flex-col items-end gap-1">
+                  <Badge
+                    variant={
+                      table.available
+                        ? table.reserved
+                          ? 'outline'
+                          : 'default'
+                        : 'destructive'
+                    }
+                    className={`uppercase tracking-wide text-[10px] ${
+                      table.reserved && table.available
+                        ? 'border-amber-400 text-amber-700 bg-amber-50'
+                        : table.available
+                        ? 'bg-indigo-600 hover:bg-indigo-700'
+                        : ''
+                    }`}
+                  >
+                    {table.available
+                      ? table.reserved
+                        ? t('reserved', language)
+                        : t('available', language)
                       : t('occupied', language)}
                   </Badge>
                   {table.reserved && table.available && (
-                    <span className="text-xs text-yellow-700 flex items-center gap-1">
+                    <span className="text-xs text-amber-600 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                     </span>
                   )}
@@ -180,11 +198,11 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
               </div>
             </button>
           ))}
-        </div>
+        </Card>
 
         {/* Fixed bottom buttons */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
-          <div className="max-w-4xl mx-auto space-y-2">
+          <div className="max-w-2xl mx-auto space-y-2">
             <Button 
               onClick={handleConfirm} 
               className="w-full" 

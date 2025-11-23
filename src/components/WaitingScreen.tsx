@@ -8,10 +8,12 @@ import { Progress } from './ui/progress';
 
 interface WaitingScreenProps {
   language: Language;
-  estimatedWaitTime: number; // in seconds (accelerated for demo)
+  estimatedWaitTime: number;
   onTableReady: () => void;
   onOrderDrinks: () => void;
   onTimeUpdate?: (seconds: number) => void;
+  distance?: number;
+  onDistanceChange?: (distance: number) => void;
 }
 
 export function WaitingScreen({
@@ -20,6 +22,8 @@ export function WaitingScreen({
   onTableReady,
   onOrderDrinks,
   onTimeUpdate,
+  distance,
+  onDistanceChange,
 }: WaitingScreenProps) {
   const [timeRemaining, setTimeRemaining] = useState(estimatedWaitTime);
   const [progress, setProgress] = useState(0);
@@ -87,14 +91,32 @@ export function WaitingScreen({
         </Card>
 
         {timeRemaining > 0 && (
-          <Button 
-            onClick={onOrderDrinks}
-            variant="outline"
-            className="w-full"
-            size="lg"
-          >
-            {t('orderDrinks', language)}
-          </Button>
+          <div className="space-y-4">
+            <Button
+              onClick={onOrderDrinks}
+              variant="outline"
+              className="w-full"
+              size="lg"
+            >
+              {t('orderDrinks', language)}
+            </Button>
+            {distance !== undefined && onDistanceChange && (
+              <Card className="p-4 space-y-3">
+                <p className="text-xs uppercase tracking-[0.3em] text-blue-500">
+                  Distance Demo — DEV MODE
+                </p>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={distance}
+                  onChange={(event) => onDistanceChange(Number(event.target.value))}
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-600">{distance}m</p>
+              </Card>
+            )}
+          </div>
         )}
       </div>
     </div>

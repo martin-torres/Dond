@@ -16,7 +16,6 @@ import { ProximityWarning } from './components/ProximityWarning';
 import { mockRestaurants } from './data/mockRestaurants';
 import { Button } from './components/ui/button';
 import { Globe } from 'lucide-react';
-import { OrderConfirmationScreen } from './components/OrderConfirmationScreen';
 import { MenuPreview } from './components/MenuPreview';
 
 export default function App() {
@@ -36,7 +35,6 @@ export default function App() {
   const [interactiveMenuInitialTab, setInteractiveMenuInitialTab] = useState<'food' | 'drinks'>('food');
   const [chefPreviewCategory, setChefPreviewCategory] = useState<'food' | 'drinks' | null>(null);
   const [menuReturnStage, setMenuReturnStage] = useState<AppStage | null>(null);
-  const [confirmationReturnStage, setConfirmationReturnStage] = useState<AppStage | null>(null);
 
   // Auto-detect language on mount (simulated)
   useEffect(() => {
@@ -64,20 +62,6 @@ export default function App() {
     }
   }, [stage, drinkOrders]);
 
-  useEffect(() => {
-    if (stage !== 'order-confirmation') return;
-
-    const timeout = setTimeout(() => {
-      if (currentOrders.length > 0) {
-        setStage('dining');
-      } else {
-        setStage('waiting');
-      }
-    }, 2000);
-
-    return () => clearTimeout(timeout);
-  }, [stage, currentOrders.length]);
-
   const handleQRScan = (restaurantId: string) => {
     const restaurant = mockRestaurants.find(r => r.id === restaurantId);
     if (restaurant) {
@@ -88,7 +72,6 @@ export default function App() {
       setMenuFocusItemId(null);
       setInteractiveMenuFocusId(null);
       setMenuReturnStage(null);
-      setConfirmationReturnStage(null);
       setInteractiveMenuInitialTab('food');
       setChefPreviewCategory(null);
     }
@@ -166,23 +149,20 @@ export default function App() {
     setMenuFocusItemId(null);
     setInteractiveMenuFocusId(null);
     setMenuReturnStage(null);
-    setConfirmationReturnStage(null);
     setInteractiveMenuInitialTab('food');
     setChefPreviewCategory(null);
   };
 
   const handleFoodOrderPlaced = (items: OrderItem[]) => {
-    setConfirmationReturnStage(menuReturnStage);
-    setMenuReturnStage(null);
+    const nextStage = 'post-order-options';
     setCurrentOrders((prev) => [...prev, ...items]);
     setInteractiveMenuFocusId(null);
-    setStage('order-confirmation');
+    setMenuReturnStage(null);
+    setStage(nextStage);
   };
 
   const handleContinueOrdering = (returnStage?: AppStage | null) => {
-    const targetReturn = returnStage ?? confirmationReturnStage;
-    handleOpenInteractiveMenu(undefined, targetReturn ?? null);
-    setConfirmationReturnStage(null);
+    handleOpenInteractiveMenu(undefined, returnStage ?? null);
   };
 
   const handleViewDining = () => {
@@ -218,20 +198,6 @@ export default function App() {
     setStage('chef-preview');
   };
 
-  const handleChefQuickAdd = (menuItemId: string, category: 'food' | 'drinks') => {
-    if (!currentRestaurant) return;
-    const sourceItems =
-      category === 'drinks' ? currentRestaurant.menu.drinks : currentRestaurant.menu.food;
-    const menuItem = sourceItems.find((item) => item.id === menuItemId);
-    if (!menuItem) return;
-    const quickItem: OrderItem = {
-      menuItem,
-      quantity: 1,
-    };
-    setMenuReturnStage('chef-preview');
-    handleFoodOrderPlaced([quickItem]);
-  };
-
   const handleRequestBill = () => {
     const subtotal = currentOrders.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
     const tax = subtotal * 0.1;
@@ -260,7 +226,6 @@ export default function App() {
     setMenuFocusItemId(null);
     setInteractiveMenuFocusId(null);
     setMenuReturnStage(null);
-    setConfirmationReturnStage(null);
     setInteractiveMenuInitialTab('food');
     setChefPreviewCategory(null);
   };
@@ -315,31 +280,10 @@ export default function App() {
     );
   };
 
-  // Distance simulator for demo
-  const DistanceSimulator = () => {
-    if (stage !== 'waiting' || drinkOrders.length === 0) return null;
-    
-    return (
-      <div className="fixed bottom-24 left-4 z-50 bg-white p-3 rounded-lg shadow-lg border">
-        <p className="text-xs mb-2">Distance Demo — DEV MODE</p>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={proximityDistance}
-          onChange={(e) => setProximityDistance(Number(e.target.value))}
-          className="w-32"
-        />
-        <p className="text-xs mt-1">{proximityDistance}m</p>
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-screen">
       <LanguageSelector />
       <SimulateTerminalPayment />
-      <DistanceSimulator />
       
       {stage === 'waiting' && drinkOrders.length > 0 && (
         <ProximityWarning 
@@ -387,10 +331,11 @@ export default function App() {
             setStage('restaurant-info');
             setChefPreviewCategory(null);
           }}
-          onSelectItem={(itemId, tab) =>
-            handleChefQuickAdd(itemId, tab)
+          onPlaceOrder={handleFoodOrderPlaced}
+          onBrowseFullMenu={(initialTab) =>
+            handleOpenInteractiveMenu(undefined, 'chef-preview', initialTab ?? 'food')
           }
-          onBrowseFullMenu={() => handleOpenInteractiveMenu(undefined, 'chef-preview')}
+          onSelectTable={() => setStage('table-selection')}
         />
       )}
 
@@ -409,6 +354,10 @@ export default function App() {
           onTableReady={handleTableReady}
           onOrderDrinks={handleOrderDrinks}
           onTimeUpdate={(seconds) => setWaitSeconds(seconds)}
+          distance={drinkOrders.length > 0 ? proximityDistance : undefined}
+          onDistanceChange={
+            drinkOrders.length > 0 ? (distance) => setProximityDistance(distance) : undefined
+          }
         />
       )}
 
@@ -429,14 +378,6 @@ export default function App() {
           onProceed={handleProceedToTable}
         />
       )}
-      {stage === 'order-confirmation' && (
-        <OrderConfirmationScreen
-          language={language}
-          onContinueOrdering={() => handleContinueOrdering(confirmationReturnStage)}
-          onViewCurrentOrders={handleViewDining}
-        />
-      )}
-
       {stage === 'ordering-food' && currentRestaurant && (
         <MenuDisplay
           drinks={currentRestaurant.menu.drinks}

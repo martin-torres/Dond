@@ -98,13 +98,22 @@ export function MenuDisplay({
   }, 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 pb-32">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 pb-32">
+      <div className="max-w-2xl mx-auto space-y-4">
         {onBack && (
-          <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100 px-4 py-3 flex items-center">
-            <Button variant="ghost" onClick={onBack} className="text-gray-700">
-              {t('back', language)}
-            </Button>
+          <div className="sticky top-0 z-20">
+            <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl shadow-lg px-4 py-3 flex items-center justify-between text-white">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/80">
+                {t('menu', language)}
+              </p>
+              <Button
+                variant="outline"
+                onClick={onBack}
+                className="text-white border-white hover:bg-white/10"
+              >
+                {t('back', language)}
+              </Button>
+            </div>
           </div>
         )}
         {/* Tabs */}
