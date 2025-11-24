@@ -6,7 +6,8 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-
+import { PageShell } from './PageShell';
+import { BottomActionBar } from './BottomActionBar';
 type TabType = 'drinks' | 'food';
 
 interface MenuDisplayProps {
@@ -18,6 +19,7 @@ interface MenuDisplayProps {
   focusItemId?: string;
   onBack?: () => void;
   initialTab?: TabType;
+  onNext?: () => void;
 }
 
 export function MenuDisplay({
@@ -29,6 +31,7 @@ export function MenuDisplay({
   focusItemId,
   onBack,
   initialTab = 'food',
+  onNext,
 }: MenuDisplayProps) {
   const [activeTab, setActiveTab] = useState<TabType>(isDrinksOnly ? 'drinks' : initialTab);
   const [cart, setCart] = useState<Map<string, number>>(new Map());
@@ -96,135 +99,142 @@ export function MenuDisplay({
     const item = [...drinks, ...food].find(i => i.id === itemId);
     return sum + (item?.price || 0) * qty;
   }, 0);
+  const activeLabel = activeTab === 'drinks' ? t('drinks', language) : t('food', language);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 pb-32">
-      <div className="max-w-2xl mx-auto space-y-4">
-        {onBack && (
-          <div className="sticky top-0 z-20">
-            <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl shadow-lg px-4 py-3 flex items-center justify-between text-white">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/80">
-                {t('menu', language)}
-              </p>
-              <Button
-                variant="outline"
-                onClick={onBack}
-                className="text-white border-white hover:bg-white/10"
-              >
-                {t('back', language)}
-              </Button>
+    <>
+      <PageShell
+        width="lg"
+        className="justify-start"
+        paddedForActionBar={totalItems > 0}
+      >
+        <div className="space-y-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-sm uppercase tracking-[0.3em] text-gray-400">{activeLabel}</p>
+              <h1 className="text-xl font-semibold text-gray-900">{t('menu', language)}</h1>
+              <p className="text-sm text-gray-600">{t('guestBrowseMenu', language)}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {onBack && (
+                <Button
+                  variant="ghost"
+                  onClick={onBack}
+                  className="text-gray-600 hover:text-gray-900"
+                >
+                  {t('back', language)}
+                </Button>
+              )}
+              {onNext && (
+                <Button variant="outline" onClick={onNext} className="hidden sm:inline-flex">
+                  Next
+                </Button>
+              )}
             </div>
           </div>
-        )}
-        {/* Tabs */}
-        {!isDrinksOnly && (
-          <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-            <div className="flex">
-              <button
+
+          {!isDrinksOnly && (
+            <div className="grid grid-cols-2 gap-3">
+              <Button
                 onClick={() => setActiveTab('food')}
-                className={`flex-1 py-4 transition-colors ${
-                  activeTab === 'food'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-600'
-                }`}
+                variant={activeTab === 'food' ? 'default' : 'outline'}
+                className="w-full"
               >
                 {t('food', language)}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setActiveTab('drinks')}
-                className={`flex-1 py-4 transition-colors ${
-                  activeTab === 'drinks'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-600'
-                }`}
+                variant={activeTab === 'drinks' ? 'default' : 'outline'}
+                className="w-full"
               >
                 {t('drinks', language)}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Menu Items */}
-        <div className="p-4 space-y-4">
-          {items.map((item) => {
-            const quantity = cart.get(item.id) || 0;
-            const itemName = localizeText(item.name, language);
-            const itemDescription = localizeText(item.description, language);
-            
-            return (
-              <Card
-                key={item.id}
-                id={`menu-item-${item.id}`}
-                className={`overflow-hidden transition-shadow ${
-                  focusItemId === item.id ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-blue-50 shadow-lg' : ''
-                }`}
-              >
-                <div className="flex gap-4 p-4">
-                  <ImageWithFallback
-                    src={item.image}
-                    alt={itemName}
-                    className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
-                  />
-                  
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-gray-900 mb-1">{itemName}</h3>
-                    <p className="text-gray-600 mb-2 line-clamp-2">{itemDescription}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-blue-600">${item.price.toFixed(2)}</span>
-                      
-                      {quantity === 0 ? (
-                        <Button
-                          onClick={() => addToCart(item.id)}
-                          size="sm"
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          {t('addToOrder', language)}
-                        </Button>
-                      ) : (
-                        <div className="flex items-center gap-2 bg-blue-100 rounded-lg px-2 py-1">
-                          <button
-                            onClick={() => removeFromCart(item.id)}
-                            className="w-7 h-7 flex items-center justify-center bg-white rounded hover:bg-gray-100"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <span className="text-blue-600 min-w-[2rem] text-center">{quantity}</span>
-                          <button
-                            onClick={() => addToCart(item.id)}
-                            className="w-7 h-7 flex items-center justify-center bg-white rounded hover:bg-gray-100"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Fixed bottom cart */}
-        {totalItems > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg">
-            <div className="max-w-4xl mx-auto p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5 text-blue-600" />
-                  <span className="text-gray-900">
-                    {totalItems} {totalItems === 1 ? t('item', language) : t('items', language)}
-                  </span>
-                </div>
-                <span className="text-gray-900">${totalPrice.toFixed(2)}</span>
-              </div>
-              <Button onClick={handlePlaceOrder} className="w-full" size="lg">
-                {t('placeOrder', language)}
               </Button>
             </div>
+          )}
+
+          <div className="space-y-4">
+            {items.map((item) => {
+              const quantity = cart.get(item.id) || 0;
+              const itemName = localizeText(item.name, language);
+              const itemDescription = localizeText(item.description, language);
+              
+              return (
+                <Card
+                  key={item.id}
+                  id={`menu-item-${item.id}`}
+                  className={`border border-gray-200 bg-white/90 shadow-sm rounded-xl overflow-hidden transition hover:shadow-md ${
+                    focusItemId === item.id ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-blue-50 shadow-lg' : ''
+                  }`}
+                >
+                  <div className="flex gap-4 p-4">
+                    <ImageWithFallback
+                      src={item.image}
+                      alt={itemName}
+                      className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
+                    />
+                    
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-gray-900 flex-1">{itemName}</h3>
+                        <Badge variant="secondary" className="capitalize">
+                          {item.category}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 line-clamp-2">{itemDescription}</p>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-blue-600 font-semibold">${item.price.toFixed(2)}</span>
+                        
+                        {quantity === 0 ? (
+                          <Button
+                            onClick={() => addToCart(item.id)}
+                            size="sm"
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            {t('addToOrder', language)}
+                          </Button>
+                        ) : (
+                          <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-2 py-1">
+                            <button
+                              onClick={() => removeFromCart(item.id)}
+                              className="w-7 h-7 flex items-center justify-center bg-white rounded hover:bg-gray-100"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="text-blue-600 min-w-[2rem] text-center font-semibold">{quantity}</span>
+                            <button
+                              onClick={() => addToCart(item.id)}
+                              className="w-7 h-7 flex items-center justify-center bg-white rounded hover:bg-gray-100"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      </PageShell>
+
+      {totalItems > 0 && (
+        <BottomActionBar innerClassName="items-start sm:items-center">
+          <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-blue-600" />
+              <span className="text-gray-900">
+                {totalItems} {totalItems === 1 ? t('item', language) : t('items', language)}
+              </span>
+            </div>
+            <span className="text-gray-900 font-semibold">${totalPrice.toFixed(2)}</span>
+          </div>
+          <Button onClick={handlePlaceOrder} className="w-full sm:flex-1" size="lg">
+            {t('placeOrder', language)}
+          </Button>
+        </BottomActionBar>
+      )}
+    </>
   );
 }

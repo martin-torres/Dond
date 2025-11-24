@@ -78,6 +78,7 @@ export type AppStage =
   | 'waiting'
   | 'chef-preview'
   | 'menu-preview'
+  | 'order-summary'
   | 'order-submit'
   | 'post-order-options'
   | 'ordering-drinks'

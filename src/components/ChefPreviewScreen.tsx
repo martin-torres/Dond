@@ -5,6 +5,8 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Plus, Minus, ShoppingCart } from 'lucide-react';
+import { PageShell } from './PageShell';
+import { BottomActionBar } from './BottomActionBar';
 
 type HighlightCategory = 'food' | 'drinks';
 
@@ -15,7 +17,7 @@ interface ChefPreviewScreenProps {
   onClose: () => void;
   onBrowseFullMenu: (initialTab?: HighlightCategory) => void;
   onSelectTable?: () => void;
-  onPlaceOrder: (items: OrderItem[]) => void;
+  onReserveTable: (items: OrderItem[]) => void;
 }
 
 const normalize = (text: string) => text.toLowerCase();
@@ -38,6 +40,36 @@ const pickItems = (
   return [...new Set([...filtered, ...fallback])].slice(0, limit);
 };
 
+const selectSectionItems = (
+  source: MenuItem[],
+  keywords: string[],
+  fallback: MenuItem[],
+  limit: number,
+  usedIds: Set<string>
+) => {
+  const candidates = pickItems(source, keywords, fallback, limit * 2);
+  const unique: MenuItem[] = [];
+
+  for (const item of candidates) {
+    if (usedIds.has(item.id)) continue;
+    unique.push(item);
+    usedIds.add(item.id);
+    if (unique.length === limit) break;
+  }
+
+  // If we still need more, pull from the source list in order
+  if (unique.length < limit) {
+    for (const item of source) {
+      if (usedIds.has(item.id)) continue;
+      unique.push(item);
+      usedIds.add(item.id);
+      if (unique.length === limit) break;
+    }
+  }
+
+  return unique;
+};
+
 const formatPrice = (price: number) => `$${price.toFixed(2)}`;
 
 export function ChefPreviewScreen({
@@ -47,42 +79,60 @@ export function ChefPreviewScreen({
   onClose,
   onBrowseFullMenu,
   onSelectTable,
-  onPlaceOrder,
+  onReserveTable,
 }: ChefPreviewScreenProps) {
   const foodItems = restaurant.menu.food;
   const drinkItems = restaurant.menu.drinks;
   const [cart, setCart] = useState<Map<string, number>>(new Map());
 
+  const usedIds = useMemo(() => new Set<string>(), [restaurant.id]);
+
   const appetizers = useMemo(
-    () => pickItems(foodItems, ['antoj', 'starter', 'entr', 'app'], foodItems.slice(0, 4), 3),
-    [foodItems]
+    () =>
+      selectSectionItems(
+        foodItems,
+        ['antoj', 'starter', 'entr', 'app'],
+        foodItems.slice(0, 4),
+        3,
+        usedIds
+      ),
+    [foodItems, usedIds]
   );
   const mains = useMemo(
     () =>
-      pickItems(
+      selectSectionItems(
         foodItems,
         ['main', 'plato', 'taco', 'burger', 'bowls'],
         foodItems.slice(2),
-        3
+        3,
+        usedIds
       ),
-    [foodItems]
+    [foodItems, usedIds]
   );
   const desserts = useMemo(
-    () => pickItems(foodItems, ['dess', 'sweet', 'postre'], foodItems.slice(-3), 2),
-    [foodItems]
+    () =>
+      selectSectionItems(foodItems, ['dess', 'sweet', 'postre'], foodItems.slice(-3), 2, usedIds),
+    [foodItems, usedIds]
   );
   const drinks = useMemo(
-    () => pickItems(drinkItems, ['cocktail', 'drink', 'agua', 'slush'], drinkItems.slice(0, 4), 3),
-    [drinkItems]
+    () =>
+      selectSectionItems(
+        drinkItems,
+        ['cocktail', 'drink', 'agua', 'slush'],
+        drinkItems.slice(0, 4),
+        3,
+        usedIds
+      ),
+    [drinkItems, usedIds]
   );
-  const backgroundGradient = 'from-blue-50 to-purple-50';
-  const sectionTitleClass = 'text-sm uppercase tracking-[0.3em] text-gray-400';
+  const sectionTitleClass = 'text-xl font-semibold text-gray-900';
   const chefBadgeClass = 'text-[10px]';
   const sectionGridClass = 'grid gap-3 sm:grid-cols-2';
   const itemCardClass =
-    'relative overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow transition hover:-translate-y-0.5 hover:shadow-lg';
+    'relative overflow-hidden rounded-xl border border-gray-200 bg-white/90 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md';
   const itemImageClass = 'h-32 w-full object-cover';
-  const shellCardClass = 'p-6 space-y-6 bg-white/90 border-white/70 shadow-lg backdrop-blur';
+  const shellCardClass =
+    'p-6 md:p-8 space-y-6 bg-white/95 border border-gray-200 shadow-sm rounded-2xl';
 
   useEffect(() => {
     const targetId =
@@ -130,15 +180,18 @@ export function ChefPreviewScreen({
       }
     });
     if (orderItems.length === 0) return;
-    onPlaceOrder(orderItems);
+    onReserveTable(orderItems);
   };
 
-  const renderSection = (title: string, items: MenuItem[], tab: HighlightCategory) => (
+  const renderSection = (title: string, items: MenuItem[], _tab: HighlightCategory) => (
     <div className="space-y-3" key={title}>
-      <div className="flex items-center justify-between">
-        <h2 className={sectionTitleClass}>{title}</h2>
-        <Badge variant="outline" className={chefBadgeClass}>
-          Chef’s pick
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-gray-400">Chef’s picks</p>
+          <h2 className={sectionTitleClass}>{title}</h2>
+        </div>
+        <Badge variant="secondary" className={chefBadgeClass}>
+          Featured
         </Badge>
       </div>
       <div className={sectionGridClass}>
@@ -199,26 +252,31 @@ export function ChefPreviewScreen({
   }, 0);
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br ${backgroundGradient} p-4 pb-32`}>
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-sm uppercase tracking-[0.3em] text-gray-400">
-              {t('guestGreeting', language)}, {t('seatLabelMe', language)}
-            </p>
-            <h1 className="text-3xl font-semibold text-gray-900">
-              {t('guestPrompt', language)}
-            </h1>
+    <>
+      <PageShell
+        width="xl"
+        className="justify-start"
+        paddedForActionBar={totalItems > 0}
+        headerSlot={
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm uppercase tracking-[0.3em] text-gray-400">
+                {t('guestGreeting', language)}, {t('seatLabelMe', language)}
+              </p>
+              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+                {t('guestPrompt', language)}
+              </h1>
+            </div>
+            <Button
+              variant="ghost"
+              onClick={onClose}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              {t('back', language)}
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-gray-600 hover:text-gray-900"
-          >
-            {t('back', language)}
-          </Button>
-        </div>
-
+        }
+      >
         <Card className={shellCardClass} id="chef-preview-food">
           {renderSection(t('specialsAppetizers', language), appetizers, 'food')}
           {renderSection(t('specialsMains', language), mains, 'food')}
@@ -228,40 +286,36 @@ export function ChefPreviewScreen({
           </div>
         </Card>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button
             className="w-full sm:flex-1"
             onClick={() => onBrowseFullMenu(focusCategory ?? 'food')}
+            variant="outline"
           >
             {t('guestBrowseMenu', language)}
           </Button>
-          <Button
-            variant="outline"
-            className="w-full sm:flex-1"
-            onClick={onSelectTable ?? onClose}
-          >
+          <Button className="w-full sm:flex-1" onClick={onSelectTable ?? onClose}>
             {onSelectTable ? t('selectTable', language) : t('back', language)}
           </Button>
         </div>
-      </div>
+      </PageShell>
+
       {totalItems > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg">
-          <div className="max-w-2xl mx-auto p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-gray-900">
-                <ShoppingCart className="w-5 h-5 text-blue-600" />
-                <span>
-                  {totalItems} {totalItems === 1 ? t('item', language) : t('items', language)}
-                </span>
-              </div>
-              <span className="text-gray-900">${totalPrice.toFixed(2)}</span>
+        <BottomActionBar innerClassName="items-start sm:items-center">
+          <div className="flex items-center justify-between w-full sm:w-auto gap-3">
+            <div className="flex items-center gap-2 text-gray-900">
+              <ShoppingCart className="w-5 h-5 text-blue-600" />
+              <span>
+                {totalItems} {totalItems === 1 ? t('item', language) : t('items', language)}
+              </span>
             </div>
-            <Button className="w-full" size="lg" onClick={() => handlePlaceOrder(foodItems.concat(drinkItems), focusCategory)}>
-              {t('placeOrder', language)}
-            </Button>
+            <span className="text-gray-900 font-semibold">${totalPrice.toFixed(2)}</span>
           </div>
-        </div>
+          <Button className="w-full sm:flex-1" size="lg" onClick={() => handlePlaceOrder()}>
+            {t('selectTable', language)}
+          </Button>
+        </BottomActionBar>
       )}
-    </div>
+    </>
   );
 }

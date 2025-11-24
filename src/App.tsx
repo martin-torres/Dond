@@ -8,6 +8,7 @@ import { TableReadyScreen } from './components/TableReadyScreen';
 import { MenuDisplay } from './components/MenuDisplay';
 import { DiningScreen } from './components/DiningScreen';
 import { OrderSubmissionScreen } from './components/OrderSubmissionScreen';
+import { OrderSummaryScreen } from './components/OrderSummaryScreen';
 import { PostOrderOptionsScreen } from './components/PostOrderOptionsScreen';
 import { ChefPreviewScreen } from './components/ChefPreviewScreen';
 import { BillPayment } from './components/BillPayment';
@@ -35,6 +36,7 @@ export default function App() {
   const [interactiveMenuInitialTab, setInteractiveMenuInitialTab] = useState<'food' | 'drinks'>('food');
   const [chefPreviewCategory, setChefPreviewCategory] = useState<'food' | 'drinks' | null>(null);
   const [menuReturnStage, setMenuReturnStage] = useState<AppStage | null>(null);
+  const [pendingChefPreviewItems, setPendingChefPreviewItems] = useState<OrderItem[] | null>(null);
 
   // Auto-detect language on mount (simulated)
   useEffect(() => {
@@ -86,6 +88,10 @@ export default function App() {
       }
     } else {
       setWaitSeconds(currentRestaurant ? currentRestaurant.waitTime : null);
+    }
+    if (pendingChefPreviewItems && pendingChefPreviewItems.length > 0) {
+      setCurrentOrders((prev) => [...prev, ...pendingChefPreviewItems]);
+      setPendingChefPreviewItems(null);
     }
     setStage('waiting');
   };
@@ -154,7 +160,7 @@ export default function App() {
   };
 
   const handleFoodOrderPlaced = (items: OrderItem[]) => {
-    const nextStage = 'post-order-options';
+    const nextStage = 'order-summary';
     setCurrentOrders((prev) => [...prev, ...items]);
     setInteractiveMenuFocusId(null);
     setMenuReturnStage(null);
@@ -196,6 +202,13 @@ export default function App() {
   const handleOpenChefPreview = (category?: 'food' | 'drinks') => {
     setChefPreviewCategory(category ?? null);
     setStage('chef-preview');
+  };
+
+  const handleChefPreviewReserve = (items: OrderItem[]) => {
+    if (!items.length) return;
+    setPendingChefPreviewItems(items);
+    setChefPreviewCategory(null);
+    setStage('table-selection');
   };
 
   const handleRequestBill = () => {
@@ -331,7 +344,7 @@ export default function App() {
             setStage('restaurant-info');
             setChefPreviewCategory(null);
           }}
-          onPlaceOrder={handleFoodOrderPlaced}
+          onReserveTable={handleChefPreviewReserve}
           onBrowseFullMenu={(initialTab) =>
             handleOpenInteractiveMenu(undefined, 'chef-preview', initialTab ?? 'food')
           }
@@ -387,6 +400,7 @@ export default function App() {
           isDrinksOnly={false}
           focusItemId={interactiveMenuFocusId ?? undefined}
           initialTab={interactiveMenuInitialTab}
+          onNext={() => handleFoodOrderPlaced([])}
           onBack={() => {
             setInteractiveMenuFocusId(null);
             if (menuReturnStage) {
@@ -414,6 +428,16 @@ export default function App() {
         <OrderSubmissionScreen
           language={language}
           onContinue={() => setStage('post-order-options')}
+        />
+      )}
+      {stage === 'order-summary' && currentRestaurant && (
+        <OrderSummaryScreen
+          language={language}
+          tableNumber={selectedTable?.number}
+          items={currentOrders}
+          onContinueOrdering={() => handleContinueOrdering('order-summary')}
+          onRequestBill={handleRequestBill}
+          onContinueToOptions={() => setStage('post-order-options')}
         />
       )}
 
