@@ -9,7 +9,6 @@ import { MenuDisplay } from './components/MenuDisplay';
 import { DiningScreen } from './components/DiningScreen';
 import { OrderSubmissionScreen } from './components/OrderSubmissionScreen';
 import { OrderSummaryScreen } from './components/OrderSummaryScreen';
-import { PostOrderOptionsScreen } from './components/PostOrderOptionsScreen';
 import { ChefPreviewScreen } from './components/ChefPreviewScreen';
 import { BillPayment } from './components/BillPayment';
 import { PaymentCompleteScreen } from './components/PaymentCompleteScreen';
@@ -427,7 +426,7 @@ export default function App() {
       {stage === 'order-submit' && (
         <OrderSubmissionScreen
           language={language}
-          onContinue={() => setStage('post-order-options')}
+          onContinue={() => setStage('order-summary')}
         />
       )}
       {stage === 'order-summary' && currentRestaurant && (
@@ -436,17 +435,6 @@ export default function App() {
           tableNumber={selectedTable?.number}
           items={currentOrders}
           onContinueOrdering={() => handleContinueOrdering('order-summary')}
-          onRequestBill={handleRequestBill}
-          onContinueToOptions={() => setStage('post-order-options')}
-        />
-      )}
-
-      {stage === 'post-order-options' && (
-        <PostOrderOptionsScreen
-          language={language}
-          onGoToMenu={() => {
-            handleOpenInteractiveMenu(promoFocusItemId, 'post-order-options', promoFocusTab);
-          }}
           onRequestBill={handleRequestBill}
         />
       )}

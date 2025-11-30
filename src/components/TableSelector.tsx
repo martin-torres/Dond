@@ -35,9 +35,8 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
     { id: 'middle', label: locationLabelMap.middle, icon: '🍽️' },
   ];
 
-  const filteredTables = selectedLocation === 'all' 
-    ? tables 
-    : tables.filter(t => t.location === selectedLocation);
+  const filteredTables =
+    selectedLocation === 'all' ? tables : tables.filter((t) => t.location === selectedLocation);
 
   const handleTableClick = (table: Table) => {
     if (table.available) {
@@ -58,7 +57,7 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
 
   return (
     <>
-      <PageShell width="lg" paddedForActionBar className="justify-start">
+      <PageShell paddedForActionBar className="justify-start">
         <div className="space-y-6">
           <div className="space-y-1">
             <p className="text-sm uppercase tracking-[0.3em] text-gray-400">
@@ -92,28 +91,32 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
 
           {/* Visual Table Layout */}
           <Card className="p-6 space-y-4 bg-white/85 border-white/60 shadow-lg backdrop-blur">
-            <div className="relative w-full h-80 bg-gradient-to-br from-white via-indigo-50 to-purple-100 rounded-2xl border border-indigo-100 shadow-inner">
-              {filteredTables.map((table) => (
+            <div className="relative w-full h-[360px] min-h-[360px] overflow-hidden bg-gradient-to-br from-white via-indigo-50 to-purple-100 rounded-2xl border border-indigo-100 shadow-inner">
+              {tables.map((table) => {
+                const matchesLocation = selectedLocation === 'all' || table.location === selectedLocation;
+                const isSelected = selectedTable === table.id;
+                const isMuted = !matchesLocation;
+                return (
                 <button
                   key={table.id}
                   onClick={() => handleTableClick(table)}
-                  disabled={!table.available}
-                  className={`absolute w-16 h-16 rounded-lg flex flex-col items-center justify-center transition-all transform hover:scale-110 ${
+                  disabled={!table.available || isMuted}
+                  className={`absolute w-16 h-16 rounded-lg flex flex-col items-center justify-center transition-all ${
                     table.available
-                      ? selectedTable === table.id
-                        ? 'bg-green-600 text-white shadow-lg scale-110'
+                      ? isSelected
+                        ? 'bg-green-600 text-white shadow-lg ring-4 ring-green-200'
                         : table.reserved
-                        ? 'bg-yellow-100 border-2 border-yellow-500 text-gray-900 hover:border-yellow-600'
-                        : 'bg-white border-2 border-green-500 text-gray-900 hover:border-green-600'
+                        ? 'bg-yellow-100 border-2 border-yellow-500 text-gray-900'
+                        : 'bg-white border-2 border-green-500 text-gray-900'
                       : 'bg-red-100 border-2 border-red-400 text-red-600 cursor-not-allowed opacity-60'
-                  }`}
+                  } ${isMuted ? 'opacity-50 grayscale pointer-events-none' : ''}`}
                   style={{
                     left: `${table.x}%`,
                     top: `${table.y}%`,
                   }}
                 >
-                  {selectedTable === table.id && <Check className="w-6 h-6 mb-1" />}
-                  {table.reserved && table.available && selectedTable !== table.id && (
+                  {isSelected && <Check className="w-6 h-6 mb-1" />}
+                  {table.reserved && table.available && !isSelected && (
                     <Clock className="w-4 h-4 mb-0.5" />
                   )}
                   <span className="font-bold">#{table.number}</span>
@@ -121,7 +124,8 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
                     {table.seats} {t('seats', language)}
                   </span>
                 </button>
-              ))}
+              );
+              })}
 
               {/* Legend */}
               <div className="absolute bottom-4 left-4 right-4 flex flex-wrap gap-3 bg-white/80 backdrop-blur p-3 rounded-xl border border-white/60">

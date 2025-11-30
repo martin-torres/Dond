@@ -11,7 +11,6 @@ interface OrderSummaryScreenProps {
   items: OrderItem[];
   onContinueOrdering: () => void;
   onRequestBill: () => void;
-  onContinueToOptions: () => void;
 }
 
 const formatPrice = (price: number) => `$${price.toFixed(2)}`;
@@ -22,7 +21,6 @@ export function OrderSummaryScreen({
   items,
   onContinueOrdering,
   onRequestBill,
-  onContinueToOptions,
 }: OrderSummaryScreenProps) {
   const subtotal = items.reduce(
     (sum, item) => sum + item.menuItem.price * item.quantity,
@@ -84,13 +82,6 @@ export function OrderSummaryScreen({
         </Button>
         <Button className="w-full sm:flex-1" onClick={onRequestBill} size="lg">
           {t('requestBill', language)}
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full sm:flex-1 text-gray-700"
-          onClick={onContinueToOptions}
-        >
-          {t('postOrderHeading', language)}
         </Button>
       </BottomActionBar>
     </>

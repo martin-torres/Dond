@@ -143,7 +143,7 @@ export function RestaurantInfo({
 
   return (
     <>
-      <PageShell width="lg" paddedForActionBar>
+      <PageShell paddedForActionBar>
         <div className="space-y-6">
           <Card className="p-6 space-y-4">
             <div className="space-y-2">
@@ -258,14 +258,22 @@ export function RestaurantInfo({
             </>
           )}
 
-          {restaurant.promos.length > 0 && (
+          {(() => {
+            const promosForList =
+              restaurant.id === 'rest-rupestre'
+                ? restaurant.promos.filter((promo) => promo.id !== 'rup-promo-mariachi')
+                : restaurant.promos;
+
+            if (promosForList.length === 0) return null;
+
+            return (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Tag className="w-5 h-5 text-orange-600" />
                 <h2 className="text-xl font-semibold text-gray-900">{todaysPromosLabel}</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {restaurant.promos.map((promo) => {
+                {promosForList.map((promo) => {
                   const promoTitle = localizeText(promo.title, language);
                   const promoDescription = localizeText(promo.description, language);
                   return (
@@ -322,7 +330,8 @@ export function RestaurantInfo({
                 })}
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       </PageShell>
 

@@ -49,7 +49,7 @@ export const mockRestaurants: Restaurant[] = [
         ),
         discount: 0,
         imageUrl:
-          'https://images.unsplash.com/photo-1509099836639-18ba1795216d?w=800',
+          'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80',
       },
       {
         id: 'rup-promo-2',

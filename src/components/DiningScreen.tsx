@@ -33,7 +33,7 @@ export function DiningScreen({
 
   return (
     <>
-      <PageShell width="lg" paddedForActionBar className="justify-start">
+      <PageShell paddedForActionBar className="justify-start">
         <div className="space-y-6">
           <div className="text-center space-y-2">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">

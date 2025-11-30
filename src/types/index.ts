@@ -80,7 +80,6 @@ export type AppStage =
   | 'menu-preview'
   | 'order-summary'
   | 'order-submit'
-  | 'post-order-options'
   | 'ordering-drinks'
   | 'table-ready'
   | 'ordering-food'
