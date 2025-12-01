@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { Table, Language } from '../types';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
@@ -7,6 +7,7 @@ import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
+import FloorPlanTablePicker from './FloorPlanTablePicker';
 
 interface TableSelectorProps {
   tables: Table[];
@@ -49,7 +50,7 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
   };
 
   const handleNextAvailable = () => {
-    const nextTable = tables.find(t => t.available);
+    const nextTable = tables.find((t) => t.available);
     if (nextTable) {
       onSelectTable(nextTable.id);
     }
@@ -89,60 +90,15 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
             </div>
           </Card>
 
-          {/* Visual Table Layout */}
+          {/* Visual Table Layout - NEW fixed floor plan */}
           <Card className="p-6 space-y-4 bg-white/85 border-white/60 shadow-lg backdrop-blur">
-            <div className="relative w-full h-[360px] min-h-[360px] overflow-hidden bg-gradient-to-br from-white via-indigo-50 to-purple-100 rounded-2xl border border-indigo-100 shadow-inner">
-              {tables.map((table) => {
-                const matchesLocation = selectedLocation === 'all' || table.location === selectedLocation;
-                const isSelected = selectedTable === table.id;
-                const isMuted = !matchesLocation;
-                return (
-                <button
-                  key={table.id}
-                  onClick={() => handleTableClick(table)}
-                  disabled={!table.available || isMuted}
-                  className={`absolute w-16 h-16 rounded-lg flex flex-col items-center justify-center transition-all ${
-                    table.available
-                      ? isSelected
-                        ? 'bg-green-600 text-white shadow-lg ring-4 ring-green-200'
-                        : table.reserved
-                        ? 'bg-yellow-100 border-2 border-yellow-500 text-gray-900'
-                        : 'bg-white border-2 border-green-500 text-gray-900'
-                      : 'bg-red-100 border-2 border-red-400 text-red-600 cursor-not-allowed opacity-60'
-                  } ${isMuted ? 'opacity-50 grayscale pointer-events-none' : ''}`}
-                  style={{
-                    left: `${table.x}%`,
-                    top: `${table.y}%`,
-                  }}
-                >
-                  {isSelected && <Check className="w-6 h-6 mb-1" />}
-                  {table.reserved && table.available && !isSelected && (
-                    <Clock className="w-4 h-4 mb-0.5" />
-                  )}
-                  <span className="font-bold">#{table.number}</span>
-                  <span className="text-xs">
-                    {table.seats} {t('seats', language)}
-                  </span>
-                </button>
-              );
-              })}
-
-              {/* Legend */}
-              <div className="absolute bottom-4 left-4 right-4 flex flex-wrap gap-3 bg-white/80 backdrop-blur p-3 rounded-xl border border-white/60">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-green-500 rounded" />
-                  <span className="text-sm text-gray-700">{t('available', language)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-yellow-400 rounded" />
-                  <span className="text-sm text-gray-700">{t('reserved', language)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-red-400 rounded" />
-                  <span className="text-sm text-gray-700">{t('occupied', language)}</span>
-                </div>
-              </div>
-            </div>
+            <FloorPlanTablePicker
+              tables={tables}
+              language={language}
+              selectedLocation={selectedLocation}
+              selectedTableId={selectedTable}
+              onTableClick={handleTableClick}
+            />
           </Card>
 
           {/* Table List */}
