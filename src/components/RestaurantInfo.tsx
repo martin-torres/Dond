@@ -145,41 +145,44 @@ export function RestaurantInfo({
     <>
       <PageShell paddedForActionBar>
         <div className="space-y-6">
-          <Card className="p-6 space-y-4">
-            <div className="space-y-2">
-              <h1 className="text-xl font-semibold text-gray-900">{restaurant.name}</h1>
-              <div className="flex items-start gap-2 text-sm text-gray-600">
-                <MapPin className="w-5 h-5 mt-0.5 flex-shrink-0 text-blue-500" />
-                <span>{restaurant.address}</span>
+          {/* Slim restaurant identity card */}
+          <Card className="p-4 sm:p-5 border border-slate-100 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-sm">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-base font-semibold shadow-inner">
+                  {restaurant.name.slice(0, 1)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-lg sm:text-xl font-semibold text-gray-900 leading-tight truncate">
+                    {restaurant.name}
+                  </h1>
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                    <MapPin className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    <span className="truncate">{restaurant.address}</span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-600" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{t('hours', language)}</p>
-                  <p className="text-sm text-gray-600">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 shadow-inner">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  <p className="text-xs sm:text-sm text-gray-700 font-semibold truncate">
                     {restaurant.hours.open} - {restaurant.hours.close}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-600" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{t('waitTime', language)}</p>
-                  <p className="text-sm text-gray-600">
+                <div className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 shadow-inner">
+                  <Users className="w-4 h-4 text-purple-600" />
+                  <p className="text-xs sm:text-sm text-gray-700 font-semibold truncate">
                     {restaurant.waitTime} {t('minutes', language)}
                   </p>
                 </div>
+                <div className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 shadow-inner">
+                  <MapPin className="w-4 h-4 text-green-600" />
+                  <p className="text-xs sm:text-sm text-gray-700 font-semibold truncate">
+                    {restaurant.distance} {t('meters', language)}
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2 border-t">
-              <MapPin className="w-5 h-5 text-green-600" />
-              <p className="text-sm text-gray-600">
-                {t('distance', language)}: {restaurant.distance} {t('meters', language)}
-              </p>
             </div>
           </Card>
 
@@ -267,69 +270,73 @@ export function RestaurantInfo({
             if (promosForList.length === 0) return null;
 
             return (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Tag className="w-5 h-5 text-orange-600" />
-                <h2 className="text-xl font-semibold text-gray-900">{todaysPromosLabel}</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {promosForList.map((promo) => {
-                  const promoTitle = localizeText(promo.title, language);
-                  const promoDescription = localizeText(promo.description, language);
-                  return (
-                    <Card
-                      key={promo.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handlePromoNavigateToMenu(promo)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          handlePromoNavigateToMenu(promo);
-                        }
-                      }}
-                      className="overflow-hidden border-2 border-orange-200 hover:border-orange-400 transition-all hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-200"
-                      style={{ minHeight: '160px' }}
-                    >
-                      {promo.imageUrl && (
-                        <div className="relative h-32 w-full overflow-hidden">
-                          <ImageWithFallback
-                            src={promo.imageUrl}
-                            alt={promoTitle}
-                            className="w-full h-full object-cover"
-                          />
-                          {promo.discount > 0 && (
-                            <div className="absolute top-3 right-3">
-                              <Badge className="bg-orange-600 text-white text-xs px-2 py-1 shadow-lg">
-                                {promo.discount}% {t('off', language)}
-                              </Badge>
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                          <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                            <h3 className="text-sm font-semibold">{promoTitle}</h3>
-                          </div>
-                        </div>
-                      )}
-                      <div className="p-3">
-                        {!promo.imageUrl && (
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <h3 className="text-gray-900 text-sm font-semibold">{promoTitle}</h3>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-orange-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">{todaysPromosLabel}</h2>
+                </div>
+
+                {/* TODAY'S SPECIALS: ALWAYS 2 CARDS PER ROW */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  {promosForList.map((promo) => {
+                    const promoTitle = localizeText(promo.title, language);
+                    const promoDescription = localizeText(promo.description, language);
+                    return (
+                      <Card
+                        key={promo.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handlePromoNavigateToMenu(promo)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            handlePromoNavigateToMenu(promo);
+                          }
+                        }}
+                        className="overflow-hidden border-2 border-orange-200 hover:border-orange-400 transition-all hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-200"
+                        style={{ minHeight: '160px' }}
+                      >
+                        {promo.imageUrl && (
+                          <div className="relative h-32 w-full overflow-hidden">
+                            <ImageWithFallback
+                              src={promo.imageUrl}
+                              alt={promoTitle}
+                              className="w-full h-full object-cover"
+                            />
                             {promo.discount > 0 && (
-                              <Badge className="bg-orange-600 text-white flex-shrink-0 text-xs">
-                                {promo.discount}% {t('off', language)}
-                              </Badge>
+                              <div className="absolute top-3 right-3">
+                                <Badge className="bg-orange-600 text-white text-xs px-2 py-1 shadow-lg">
+                                  {promo.discount}% {t('off', language)}
+                                </Badge>
+                              </div>
                             )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                            <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                              <h3 className="text-sm font-semibold line-clamp-1">{promoTitle}</h3>
+                            </div>
                           </div>
                         )}
+                        <div className="p-3">
+                          {!promo.imageUrl && (
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <h3 className="text-gray-900 text-sm font-semibold line-clamp-2">
+                                {promoTitle}
+                              </h3>
+                              {promo.discount > 0 && (
+                                <Badge className="bg-orange-600 text-white flex-shrink-0 text-xs">
+                                  {promo.discount}% {t('off', language)}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
 
-                        <p className="text-gray-600 text-sm line-clamp-3">{promoDescription}</p>
-                      </div>
-                    </Card>
-                  );
-                })}
+                          <p className="text-gray-600 text-sm line-clamp-3">{promoDescription}</p>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
             );
           })()}
         </div>

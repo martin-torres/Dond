@@ -14,9 +14,11 @@ import { BillPayment } from './components/BillPayment';
 import { PaymentCompleteScreen } from './components/PaymentCompleteScreen';
 import { ProximityWarning } from './components/ProximityWarning';
 import { mockRestaurants } from './data/mockRestaurants';
+import { supabase } from './lib/supabaseClient';
 import { Button } from './components/ui/button';
 import { Globe } from 'lucide-react';
 import { MenuPreview } from './components/MenuPreview';
+import { translateRestaurantMenu } from './utils/liveTranslations';
 
 export default function App() {
   // Detect phone language (simulated - in real app would use navigator.language)
@@ -36,6 +38,8 @@ export default function App() {
   const [chefPreviewCategory, setChefPreviewCategory] = useState<'food' | 'drinks' | null>(null);
   const [menuReturnStage, setMenuReturnStage] = useState<AppStage | null>(null);
   const [pendingChefPreviewItems, setPendingChefPreviewItems] = useState<OrderItem[] | null>(null);
+  const [pendingTableOrder, setPendingTableOrder] = useState<OrderItem[] | null>(null);
+  const [deliveredItemIds, setDeliveredItemIds] = useState<Set<string>>(new Set());
 
   // Auto-detect language on mount (simulated)
   useEffect(() => {
@@ -48,6 +52,39 @@ export default function App() {
     else if (browserLang.startsWith('zh')) setLanguage('zh');
     else setLanguage('en');
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const translateCurrent = async () => {
+      if (!currentRestaurant) return;
+      const translated = await translateRestaurantMenu(currentRestaurant, language);
+      if (cancelled) return;
+      if (translated !== currentRestaurant) {
+        setCurrentRestaurant(translated);
+      }
+    };
+    translateCurrent();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentRestaurant?.id, language]);
+
+  const appendOrders = (items: OrderItem[]) => {
+    if (!items.length) return;
+    setCurrentOrders((prev) => {
+      const existingIds = new Set(prev.map((item) => item.menuItem.id));
+      setDeliveredItemIds((deliveredPrev) => {
+        const next = new Set(deliveredPrev);
+        items.forEach((item) => {
+          if (existingIds.has(item.menuItem.id)) {
+            next.add(item.menuItem.id);
+          }
+        });
+        return next;
+      });
+      return [...prev, ...items];
+    });
+  };
 
   // Simulate proximity changes
   useEffect(() => {
@@ -75,6 +112,8 @@ export default function App() {
       setMenuReturnStage(null);
       setInteractiveMenuInitialTab('food');
       setChefPreviewCategory(null);
+      setPendingTableOrder(null);
+      setDeliveredItemIds(new Set());
     }
   };
 
@@ -88,9 +127,21 @@ export default function App() {
     } else {
       setWaitSeconds(currentRestaurant ? currentRestaurant.waitTime : null);
     }
+    let shouldGoToOrderSummary = false;
+    const stagedItems: OrderItem[] = [];
     if (pendingChefPreviewItems && pendingChefPreviewItems.length > 0) {
-      setCurrentOrders((prev) => [...prev, ...pendingChefPreviewItems]);
+      stagedItems.push(...pendingChefPreviewItems);
       setPendingChefPreviewItems(null);
+    }
+    if (pendingTableOrder && pendingTableOrder.length > 0) {
+      stagedItems.push(...pendingTableOrder);
+      shouldGoToOrderSummary = true;
+      setPendingTableOrder(null);
+    }
+    if (stagedItems.length > 0) {
+      appendOrders(stagedItems);
+      setStage(shouldGoToOrderSummary ? 'order-summary' : 'waiting');
+      return;
     }
     setStage('waiting');
   };
@@ -101,7 +152,7 @@ export default function App() {
 
   const handleDrinkOrderPlaced = (items: OrderItem[]) => {
     setDrinkOrders(items);
-    setCurrentOrders(prev => [...prev, ...items]);
+    appendOrders(items);
     setWaitSeconds(prev => {
       const base = prev ?? currentRestaurant?.waitTime ?? 0;
       if (base <= 1) return 1;
@@ -126,9 +177,7 @@ export default function App() {
       quantity: 1,
     };
 
-    // Add to current orders
-    const updatedOrders = [...currentOrders, newOrderItem];
-    setCurrentOrders(updatedOrders);
+    appendOrders([newOrderItem]);
 
     // Promo pre-orders are held until the guest is seated
     // and the main flow will handle billing later.
@@ -156,11 +205,18 @@ export default function App() {
     setMenuReturnStage(null);
     setInteractiveMenuInitialTab('food');
     setChefPreviewCategory(null);
+    setPendingTableOrder(null);
+    setDeliveredItemIds(new Set());
   };
 
   const handleFoodOrderPlaced = (items: OrderItem[]) => {
     const nextStage = 'order-summary';
-    setCurrentOrders((prev) => [...prev, ...items]);
+    if (!selectedTableId && items.length > 0) {
+      setPendingTableOrder(items);
+      setStage('table-selection');
+      return;
+    }
+    appendOrders(items);
     setInteractiveMenuFocusId(null);
     setMenuReturnStage(null);
     setStage(nextStage);
@@ -180,6 +236,37 @@ export default function App() {
 
   const handleFinalizeOrder = () => {
     setStage('order-submit');
+  };
+
+  const handleSubmitOrder = async () => {
+    // If we are missing basic info, just go back to the summary for now
+    if (!currentRestaurant || !selectedTableId || currentOrders.length === 0) {
+      setStage('order-summary');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('orders').insert([
+        {
+          restaurant_id: currentRestaurant.id,
+          restaurant_name: currentRestaurant.name,
+          table_id: selectedTableId,
+          table_number: selectedTable?.number?.toString(),
+          items: currentOrders,
+          language,
+          status: 'new',
+        },
+      ]);
+
+      if (error) {
+        console.error('Error saving order to Supabase:', error.message);
+      }
+    } catch (err) {
+      console.error('Unexpected error saving order to Supabase:', err);
+    } finally {
+      // No matter what happens, show the order summary screen
+      setStage('order-summary');
+    }
   };
 
   const handleOpenMenuPreview = (menuItemId?: string) => {
@@ -212,8 +299,13 @@ export default function App() {
 
   const handleRequestBill = () => {
     const subtotal = currentOrders.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
-    const tax = subtotal * 0.1;
+    const tax = subtotal * 0.089999;
     const tip = subtotal * 0.15;
+    setDeliveredItemIds((prev) => {
+      const next = new Set(prev);
+      currentOrders.forEach((item) => next.add(item.menuItem.id));
+      return next;
+    });
     
     setBill({
       items: currentOrders,
@@ -240,6 +332,8 @@ export default function App() {
     setMenuReturnStage(null);
     setInteractiveMenuInitialTab('food');
     setChefPreviewCategory(null);
+    setPendingTableOrder(null);
+    setDeliveredItemIds(new Set());
   };
 
   const selectedTable = currentRestaurant?.tables.find(t => t.id === selectedTableId);
@@ -370,6 +464,8 @@ export default function App() {
           onDistanceChange={
             drinkOrders.length > 0 ? (distance) => setProximityDistance(distance) : undefined
           }
+          onBack={() => setStage('table-selection')}
+          onNext={handleTableReady}
         />
       )}
 
@@ -409,6 +505,8 @@ export default function App() {
             }
             setStage('restaurant-info');
           }}
+          showSeatPrompt={!selectedTable && menuReturnStage === 'restaurant-info'}
+          onChooseSeat={() => setStage('table-selection')}
         />
       )}
 
@@ -417,6 +515,7 @@ export default function App() {
           language={language}
           currentOrders={currentOrders}
           tableNumber={selectedTable?.number}
+          deliveredIds={deliveredItemIds}
           onContinueOrdering={() => handleContinueOrdering('dining')}
           onFinalizeOrder={handleFinalizeOrder}
           onOpenPromoMenu={() => handleOpenInteractiveMenu(promoFocusItemId, 'dining', promoFocusTab)}
@@ -426,7 +525,7 @@ export default function App() {
       {stage === 'order-submit' && (
         <OrderSubmissionScreen
           language={language}
-          onContinue={() => setStage('order-summary')}
+          onContinue={handleSubmitOrder}
         />
       )}
       {stage === 'order-summary' && currentRestaurant && (
@@ -434,6 +533,7 @@ export default function App() {
           language={language}
           tableNumber={selectedTable?.number}
           items={currentOrders}
+          deliveredIds={deliveredItemIds}
           onContinueOrdering={() => handleContinueOrdering('order-summary')}
           onRequestBill={handleRequestBill}
         />

@@ -143,6 +143,54 @@ export const mockRestaurants: Restaurant[] = [
           image:
             'https://images.unsplash.com/photo-1545680016-33fd4d6c4b8e?w=800',
         },
+        {
+          id: 'rup-drink-3',
+          name: createMultiLangText('Draft Beer', 'Draft Beer'),
+          description: createMultiLangText(
+            'Rotating local draft, crisp and cold.',
+            'Linea rotativa local, siempre fría.',
+            'Pression locale tournante, fraîche et bien pétillante.',
+            'Wechselndes Fassbier aus der Region, kühl und spritzig.',
+            '地元の樽生を日替わりで。キレのある冷たい一杯。',
+            'صنبور محلي متغير، بارد ومنعش.',
+            '輪替本地生啤，冰鎮爽口。'
+          ),
+          price: 140,
+          category: 'Drinks',
+          image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800',
+        },
+        {
+          id: 'rup-drink-4',
+          name: createMultiLangText('Soda Drinks', 'Soda Drinks'),
+          description: createMultiLangText(
+            'Classic sodas and sparkling mixers.',
+            'Refrescos clásicos y mezcladores con burbujas.',
+            'Sodas classiques et mélangeurs pétillants.',
+            'Klassische Limonaden und spritzige Mixer.',
+            '定番ソーダやスパークリングの割材。',
+            'مشروبات غازية كلاسيكية ومكسرات فوارة.',
+            '經典汽水與氣泡調和飲料。'
+          ),
+          price: 80,
+          category: 'Drinks',
+          image: 'https://images.unsplash.com/photo-1509057199576-632a47484ece?w=800',
+        },
+        {
+          id: 'rup-drink-5',
+          name: createMultiLangText('Turmeric Peppermint Squirty', 'Turmeric Peppermint Squirty'),
+          description: createMultiLangText(
+            'Turmeric, peppermint, citrus spritz over ice.',
+            'Cúrcuma, menta y cítricos en spritz con hielo.',
+            'Curcuma, menthe poivrée et agrumes en spritz sur glace.',
+            'Kurkuma, Pfefferminze und Zitrus als spritziger Drink auf Eis.',
+            'ターメリックとペパーミントに柑橘を合わせたスプリッツをアイスで。',
+            'كركم ونعناع مع رذاذ حمضيات فوق الثلج.',
+            '薑黃、薄荷與柑橘調成的冰鎮氣泡飲。'
+          ),
+          price: 165,
+          category: 'Signature',
+          image: 'https://images.unsplash.com/photo-1514361892635-6e122620e4d1?w=800',
+        },
       ],
       food: [
         {
@@ -179,6 +227,198 @@ export const mockRestaurants: Restaurant[] = [
           image:
             'https://images.unsplash.com/photo-1550547660-d9450f859349?w=800',
         },
+        {
+          id: 'rup-food-3',
+          name: createMultiLangText(
+            'Tacos de Arrachera',
+            'Tacos de Arrachera',
+            'Tacos de Arrachera',
+            'Tacos de Arrachera',
+            'Tacos de Arrachera',
+            'Tacos de Arrachera',
+            'Tacos de Arrachera'
+          ),
+          description: createMultiLangText(
+            'Charred skirt steak, salsa verde, lime, handmade tortillas.',
+            'Arrachera a la parrilla, salsa verde, limón y tortillas hechas a mano.',
+            "Bavette grillée, salsa verde, citron vert, tortillas maison.",
+            'Gegrilltes Skirt-Steak, Salsa Verde, Limette und handgemachte Tortillas.',
+            '炙ったスカートステーキにサルサ・ヴェルデ、ライム、自家製トルティーヤ。',
+            'لحم سكيرت مشوي مع صلصة خضراء وليمون وتورتيلا منزلية.',
+            '炙烤腹肉牛排配青莎莎、萊姆與手工玉米餅。'
+          ),
+          price: 245,
+          category: 'Mains',
+          image: 'https://images.unsplash.com/photo-1608039829572-78524f77fc5c?w=800',
+        },
+        {
+          id: 'rup-food-4',
+          name: createMultiLangText(
+            'Parrillada',
+            'Parrillada',
+            'Parrillada',
+            'Parrillada',
+            'Parrillada',
+            'Parrillada',
+            'Parrillada'
+          ),
+          description: createMultiLangText(
+            'Mixed grill with chorizo, steak, and roasted veggies.',
+            'Parrillada con chorizo, corte de res y vegetales rostizados.',
+            'Assortiment grillé avec chorizo, steak et légumes rôtis.',
+            'Gemischte Grillplatte mit Chorizo, Steak und geröstetem Gemüse.',
+            'チョリソー、ステーキ、ロースト野菜のミックスグリル。',
+            'مشاوي مشكلة مع تشوريزو وستيك وخضار مشوية.',
+            '香腸、牛排與烤蔬菜的綜合炭烤拼盤。'
+          ),
+          price: 480,
+          category: 'Mains',
+          image: 'https://images.unsplash.com/photo-1559057348-7a33b0700f83?w=800',
+        },
+        {
+          id: 'rup-food-5',
+          name: createMultiLangText(
+            'Molcajete de Sirloin y Ribeye',
+            'Molcajete de Sirloin y Ribeye',
+            'Molcajete de Sirloin y Ribeye',
+            'Molcajete de Sirloin y Ribeye',
+            'Molcajete de Sirloin y Ribeye',
+            'Molcajete de Sirloin y Ribeye',
+            'Molcajete de Sirloin y Ribeye'
+          ),
+          description: createMultiLangText(
+            'Seared sirloin and ribeye in bubbling molcajete with grilled cheese.',
+            'Sirloin y ribeye sellados en molcajete burbujeante con queso asado.',
+            'Faux-filet et ribeye saisis dans un molcajete bouillonnant avec fromage grillé.',
+            'Angebratener Sirloin und Ribeye im blubbernden Molcajete mit Grillkäse.',
+            'アツアツのモルカへーテにサーロインとリブアイ、炙りチーズを合わせて。',
+            'سيرلوين وريب آي محمر في مولكاجيت يغلي مع جبن مشوي.',
+            '鐵壺石臼中盛上煎烤沙朗與肋眼，加上炙燒起司。'
+          ),
+          price: 520,
+          category: 'Mains',
+          image: 'https://images.unsplash.com/photo-1604908554164-025f5b0f8c5e?w=800',
+        },
+        {
+          id: 'rup-food-6',
+          name: createMultiLangText(
+            'Calabacita Rellena',
+            'Calabacita Rellena',
+            'Calabacita Rellena',
+            'Calabacita Rellena',
+            'Calabacita Rellena',
+            'Calabacita Rellena',
+            'Calabacita Rellena'
+          ),
+          description: createMultiLangText(
+            'Stuffed squash with melted cheese and herbs.',
+            'Calabacita rellena con queso gratinado y hierbas.',
+            'Courge farcie au fromage fondant et herbes.',
+            'Gefüllter Kürbis mit geschmolzenem Käse und Kräutern.',
+            'とろけるチーズとハーブを詰めたズッキーニ。',
+            'قرع محشو بجبن ذائب وأعشاب.',
+            '填入融化起司與香草的櫛瓜。'
+          ),
+          price: 195,
+          category: 'Appetizers',
+          image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800',
+        },
+        {
+          id: 'rup-food-7',
+          name: createMultiLangText(
+            'Chilitos Cremosos',
+            'Chilitos Cremosos',
+            'Chilitos Cremosos',
+            'Chilitos Cremosos',
+            'Chilitos Cremosos',
+            'Chilitos Cremosos',
+            'Chilitos Cremosos'
+          ),
+          description: createMultiLangText(
+            'Peppers in creamy sauce with bacon and crushed piquín.',
+            'Chilitos en salsa cremosa con tocino y piquín quebrado.',
+            'Piments en sauce crémeuse avec bacon et piquín concassé.',
+            'Paprika in cremiger Sauce mit Speck und zerstoßenem Piquín.',
+            'ベーコンと砕いたピキン唐辛子入りクリームソースのチリ。',
+            'فلفل في صلصة كريمية مع لحم مقدد وبيكين مجروش.',
+            '奶油醬辣椒配培根與碎皮奎因辣椒。'
+          ),
+          price: 185,
+          category: 'Appetizers',
+          image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800',
+        },
+        {
+          id: 'rup-food-8',
+          name: createMultiLangText(
+            'Pay de Calabaza y Pistache',
+            'Pay de Calabaza y Pistache',
+            'Pay de Calabaza y Pistache',
+            'Pay de Calabaza y Pistache',
+            'Pay de Calabaza y Pistache',
+            'Pay de Calabaza y Pistache',
+            'Pay de Calabaza y Pistache'
+          ),
+          description: createMultiLangText(
+            'Pumpkin pie with pistachio crunch and whipped crema.',
+            'Pay de calabaza con pistache crujiente y crema batida.',
+            'Tarte à la citrouille avec croustillant de pistache et crème fouettée.',
+            'Kürbiskuchen mit Pistazien-Crunch und geschlagener Creme.',
+            'ピスタチオの食感を添えたパンプキンパイ、ホイップクリーム添え。',
+            'فطيرة قرع مع قرمشة فستق وكريمة مخفوقة.',
+            '南瓜派配開心果脆與鮮奶油。'
+          ),
+          price: 165,
+          category: 'Desserts',
+          image: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?w=800',
+        },
+        {
+          id: 'rup-food-9',
+          name: createMultiLangText(
+            'Mini Hotcakes con Frutos Rojos',
+            'Mini Hotcakes con Frutos Rojos',
+            'Mini Hotcakes con Frutos Rojos',
+            'Mini Hotcakes con Frutos Rojos',
+            'Mini Hotcakes con Frutos Rojos',
+            'Mini Hotcakes con Frutos Rojos',
+            'Mini Hotcakes con Frutos Rojos'
+          ),
+          description: createMultiLangText(
+            'Caramelized berries over fluffy mini pancakes.',
+            'Frutos rojos caramelizados sobre mini hotcakes esponjosos.',
+            'Baies caramélisées sur de moelleux mini pancakes.',
+            'Karamellisierte Beeren auf fluffigen Mini-Pfannkuchen.',
+            'キャラメリゼしたベリーをのせたふわふわミニパンケーキ。',
+            'توت مكرمل فوق ميني بانكيك هش.',
+            '焦糖漿莓果鋪在鬆軟迷你鬆餅上。'
+          ),
+          price: 155,
+          category: 'Desserts',
+          image: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?w=800&sat=-20',
+        },
+        {
+          id: 'rup-food-10',
+          name: createMultiLangText(
+            'Nieve del Dis',
+            'Nieve del Dis',
+            'Nieve del Dis',
+            'Nieve del Dis',
+            'Nieve del Dis',
+            'Nieve del Dis',
+            'Nieve del Dis'
+          ),
+          description: createMultiLangText(
+            'Chef’s rotating ice cream scoop served tableside.',
+            'Nieve del día servida en mesa, sabor rotativo.',
+            'Boule de glace du jour servie à table par le chef.',
+            'Täglich wechselnde Eiskugel, am Tisch serviert.',
+            'シェフおまかせのアイスクリームをテーブルで提供。',
+            'كرة آيس كريم تتغير يوميًا يقدّمها الشيف على الطاولة.',
+            '主廚每日變換口味的冰淇淋，桌邊服務。'
+          ),
+          price: 120,
+          category: 'Desserts',
+          image: 'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?w=800&sat=-60',
+        },
       ],
     },
   },
@@ -203,7 +443,12 @@ export const mockRestaurants: Restaurant[] = [
         ),
         description: createMultiLangText(
           'Chase the sunset with two-for-one signature Nalus every Tuesday from 6–8 PM.',
-          'Despide el atardecer con dos por uno en los Nalus de la casa todos los martes de 6 a 8 PM.'
+          'Despide el atardecer con dos por uno en los Nalus de la casa todos los martes de 6 a 8 PM.',
+          'Poursuis le coucher du soleil avec deux pour un sur les Nalus signature chaque mardi de 18h à 20h.',
+          'Feiere den Sonnenuntergang mit 2-für-1 auf unsere Signature Nalus jeden Dienstag von 18–20 Uhr.',
+          '毎週火曜の18〜20時は看板ナールが2杯目無料、夕日を眺めながらどうぞ。',
+          'لاحق غروب الشمس مع عرض ٢ مقابل ١ على مشروبات نالو المميزة كل ثلاثاء من 6 إلى 8 مساءً.',
+          '每週二晚間 6–8 點，招牌 Nalu 飲品買二付一，陪你追夕陽。'
         ),
         discount: 0,
         imageUrl:
@@ -219,7 +464,12 @@ export const mockRestaurants: Restaurant[] = [
         ),
         description: createMultiLangText(
           'Share a tray of our Nachos Patacón with molten queso, carne, pico and crema for MXN 250 all night.',
-          'Comparte nuestros Nachos Patacón con queso fundido, carne, pico y crema por MXN 250 toda la noche.'
+          'Comparte nuestros Nachos Patacón con queso fundido, carne, pico y crema por MXN 250 toda la noche.',
+          'Partagez un plateau de Nachos Patacón avec fromage fondu, carne, pico et crema pour 250 MXN toute la soirée.',
+          'Teile ein Blech Nachos Patacón mit geschmolzenem Käse, Fleisch, Pico und Crema – den ganzen Abend für 250 MXN.',
+          'とろけるチーズ、ビーフ、ピコ・デ・ガヨ、クリームを載せたナチョス・パタコンを、夜通し250ペソでシェア。',
+          'شارك صينية ناشوز باتاكون بالجبن المذاب واللحم والبيكو والكريما مقابل 250 بيزو طوال الليل.',
+          '整盤帕塔孔玉米片鋪滿起司、牛肉、pico 與酸奶油，整晚只要 250 披索，一起分享。'
         ),
         discount: 0,
         imageUrl:

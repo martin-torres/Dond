@@ -8,6 +8,7 @@ import { Card } from './ui/card';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
+import { StageGraphicSlot } from './StageGraphicSlot';
 type TabType = 'drinks' | 'food';
 
 interface MenuDisplayProps {
@@ -20,6 +21,8 @@ interface MenuDisplayProps {
   onBack?: () => void;
   initialTab?: TabType;
   onNext?: () => void;
+  showSeatPrompt?: boolean;
+  onChooseSeat?: () => void;
 }
 
 export function MenuDisplay({
@@ -32,6 +35,8 @@ export function MenuDisplay({
   onBack,
   initialTab = 'food',
   onNext,
+  showSeatPrompt = false,
+  onChooseSeat,
 }: MenuDisplayProps) {
   const [activeTab, setActiveTab] = useState<TabType>(isDrinksOnly ? 'drinks' : initialTab);
   const [cart, setCart] = useState<Map<string, number>>(new Map());
@@ -99,38 +104,42 @@ export function MenuDisplay({
     const item = [...drinks, ...food].find(i => i.id === itemId);
     return sum + (item?.price || 0) * qty;
   }, 0);
-  const activeLabel = activeTab === 'drinks' ? t('drinks', language) : t('food', language);
 
   return (
     <>
       <PageShell
         width="lg"
         className="justify-start"
-        paddedForActionBar={totalItems > 0}
+        paddedForActionBar={totalItems > 0 || showSeatPrompt}
       >
         <div className="space-y-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <p className="text-sm uppercase tracking-[0.3em] text-gray-400">{activeLabel}</p>
-              <h1 className="text-xl font-semibold text-gray-900">{t('menu', language)}</h1>
-              <p className="text-sm text-gray-600">{t('guestBrowseMenu', language)}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {onBack && (
-                <Button
-                  variant="ghost"
-                  onClick={onBack}
-                  className="text-gray-600 hover:text-gray-900"
-                >
-                  {t('back', language)}
-                </Button>
-              )}
-              {onNext && (
-                <Button variant="outline" onClick={onNext} className="hidden sm:inline-flex">
-                  Next
-                </Button>
-              )}
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            {onBack ? (
+              <Button
+                variant="ghost"
+                onClick={onBack}
+                className="text-gray-700 hover:text-gray-900"
+              >
+                {t('back', language)}
+              </Button>
+            ) : (
+              <span className="w-20" aria-hidden />
+            )}
+
+            <StageGraphicSlot
+              label={activeTab === 'drinks' ? t('drinks', language) : t('food', language)}
+              tone={activeTab === 'drinks' ? 'blue' : 'amber'}
+            >
+              {activeTab === 'drinks' ? '🍸' : '🍽️'}
+            </StageGraphicSlot>
+
+            {onNext ? (
+              <Button variant="outline" onClick={onNext} className="hidden sm:inline-flex">
+                Next
+              </Button>
+            ) : (
+              <span className="w-20" aria-hidden />
+            )}
           </div>
 
           {!isDrinksOnly && (
@@ -219,18 +228,34 @@ export function MenuDisplay({
         </div>
       </PageShell>
 
+      {showSeatPrompt && totalItems === 0 && (
+        <BottomActionBar innerClassName='items-center justify-between gap-3 sm:flex-row'>
+          <div className='flex-1 text-sm text-gray-900'>
+            {t('chooseSeatPrompt', language)}
+          </div>
+          <Button
+            className='w-full sm:w-auto'
+            size='lg'
+            onClick={onChooseSeat}
+            disabled={!onChooseSeat}
+          >
+            {t('chooseSeatCta', language)}
+          </Button>
+        </BottomActionBar>
+      )}
+
       {totalItems > 0 && (
-        <BottomActionBar innerClassName="items-start sm:items-center">
-          <div className="flex items-center justify-between w-full sm:w-auto gap-3">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-blue-600" />
-              <span className="text-gray-900">
+        <BottomActionBar innerClassName='items-start sm:items-center'>
+          <div className='flex items-center justify-between w-full sm:w-auto gap-3'>
+            <div className='flex items-center gap-2'>
+              <ShoppingCart className='w-5 h-5 text-blue-600' />
+              <span className='text-gray-900'>
                 {totalItems} {totalItems === 1 ? t('item', language) : t('items', language)}
               </span>
             </div>
-            <span className="text-gray-900 font-semibold">${totalPrice.toFixed(2)}</span>
+            <span className='text-gray-900 font-semibold'>${totalPrice.toFixed(2)}</span>
           </div>
-          <Button onClick={handlePlaceOrder} className="w-full sm:flex-1" size="lg">
+          <Button onClick={handlePlaceOrder} className='w-full sm:flex-1' size='lg'>
             {t('placeOrder', language)}
           </Button>
         </BottomActionBar>

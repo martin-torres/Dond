@@ -11,6 +11,7 @@ interface OrderSummaryScreenProps {
   items: OrderItem[];
   onContinueOrdering: () => void;
   onRequestBill: () => void;
+  deliveredIds?: Set<string>;
 }
 
 const formatPrice = (price: number) => `$${price.toFixed(2)}`;
@@ -21,11 +22,13 @@ export function OrderSummaryScreen({
   items,
   onContinueOrdering,
   onRequestBill,
+  deliveredIds,
 }: OrderSummaryScreenProps) {
   const subtotal = items.reduce(
     (sum, item) => sum + item.menuItem.price * item.quantity,
     0
   );
+  const seenIds = new Set<string>();
 
   return (
     <>
@@ -50,10 +53,15 @@ export function OrderSummaryScreen({
                 const name = item.menuItem.name[language] || item.menuItem.name.en;
                 const category = item.menuItem.category || '';
                 const lineTotal = item.menuItem.price * item.quantity;
+                const hasBeenSeen = seenIds.has(item.menuItem.id);
+                const isDelivered = deliveredIds?.has(item.menuItem.id) || hasBeenSeen;
+                seenIds.add(item.menuItem.id);
                 return (
                   <div
                     key={`${item.menuItem.id}-${item.quantity}`}
-                    className="flex items-start justify-between rounded-xl bg-gray-50 p-3"
+                    className={`flex items-start justify-between rounded-xl p-3 border ${
+                      isDelivered ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'
+                    }`}
                   >
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-gray-900">

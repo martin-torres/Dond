@@ -23,9 +23,11 @@ export function BillPayment({
   const [itemSelections, setItemSelections] = useState<Record<string, number>>(
     {}
   );
+  const [tipPercent, setTipPercent] = useState(10);
+  const [cookPercent, setCookPercent] = useState(0);
 
   const taxRate = bill.subtotal > 0 ? bill.tax / bill.subtotal : 0;
-  const tipRate = bill.subtotal > 0 ? bill.tip / bill.subtotal : 0;
+  const tipRate = (tipPercent + cookPercent) / 100;
 
   const getItemKey = (itemId: string, idx: number) => `${itemId}-${idx}`;
 
@@ -44,17 +46,18 @@ export function BillPayment({
   }, [splitMethod, selectedItemsSubtotal, taxRate, tipRate]);
 
   const amountToPay = useMemo(() => {
+    const computedTotal = bill.subtotal * (1 + taxRate + tipRate);
     if (splitMethod === 'even') {
       const safePartySize = Math.max(1, partySize);
-      return bill.total / safePartySize;
+      return computedTotal / safePartySize;
     }
 
     if (splitMethod === 'items') {
       return selectedItemsTotal;
     }
 
-    return bill.total;
-  }, [bill.total, partySize, selectedItemsTotal, splitMethod]);
+    return computedTotal;
+  }, [bill.subtotal, partySize, selectedItemsTotal, splitMethod, taxRate, tipRate]);
 
   const handleItemSelection = (key: string, nextQuantity: number) => {
     setItemSelections((prev) => {
@@ -122,15 +125,18 @@ export function BillPayment({
         description={t('billPaymentSubtitle', language)}
       >
         <div className="space-y-5">
-          <Card className="p-5 space-y-3">
+          <Card className="p-4 space-y-3">
             <h2 className="text-xl font-semibold text-gray-900">{t('billSummary', language)}</h2>
             <ul className="space-y-1 text-sm text-gray-700 max-h-40 overflow-y-auto">
               {bill.items.map((item, idx) => (
-                <li key={idx} className="flex justify-between">
-                  <span>
+                <li
+                  key={idx}
+                  className="flex justify-between items-center px-1 py-1"
+                >
+                  <span className="font-medium">
                     {item.quantity}× {item.menuItem.name[language] || item.menuItem.name.en}
                   </span>
-                  <span>${(item.menuItem.price * item.quantity).toFixed(2)}</span>
+                  <span className="font-semibold">${(item.menuItem.price * item.quantity).toFixed(2)}</span>
                 </li>
               ))}
             </ul>
@@ -145,16 +151,16 @@ export function BillPayment({
               </div>
               <div className="flex justify-between">
                 <span>{t('tip', language)}</span>
-                <span>${bill.tip.toFixed(2)}</span>
+                <span>${(bill.subtotal * tipRate).toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-semibold pt-1">
                 <span>{t('total', language)}</span>
-                <span>${bill.total.toFixed(2)}</span>
+                <span>${(bill.subtotal * (1 + taxRate + tipRate)).toFixed(2)}</span>
               </div>
             </div>
           </Card>
 
-          <Card className="p-5 space-y-4">
+          <Card className="p-4 space-y-4">
             <h2 className="text-xl font-semibold text-gray-900">{t('howToPay', language)}</h2>
 
             <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
@@ -176,6 +182,37 @@ export function BillPayment({
               >
                 {t('splitByItems', language)}
               </Button>
+            </div>
+
+            <div className="rounded-xl border border-gray-100 bg-white/70 p-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex-1 min-w-[220px]">
+                  <p className="text-xs font-semibold text-gray-700">{t('tip', language)} {tipPercent}%</p>
+                  <input
+                    type="range"
+                    min={10}
+                    max={25}
+                    step={5}
+                    value={tipPercent}
+                    onChange={(e) => setTipPercent(Number(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                  <p className="text-xs text-gray-600">Starts at 10%, rises in 5% steps up to 25%.</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <p className="text-xs text-gray-700 whitespace-nowrap">+ to the cook</p>
+                  {[0, 5, 10].map((value) => (
+                    <Button
+                      key={value}
+                      size="sm"
+                      variant={cookPercent === value ? 'default' : 'outline'}
+                      onClick={() => setCookPercent(value)}
+                    >
+                      {value}%
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {splitMethod === 'even' && (
@@ -211,7 +248,7 @@ export function BillPayment({
                     return (
                       <div
                         key={key}
-                        className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+                        className="flex items-center justify-between rounded-lg border px-4 py-3 text-sm"
                       >
                         <div>
                           <p className="font-medium">

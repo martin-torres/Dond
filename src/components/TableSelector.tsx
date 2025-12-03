@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
 import { Table, Language } from '../types';
 import { t } from '../utils/translations';
@@ -8,6 +8,7 @@ import { Card } from './ui/card';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
 import FloorPlanTablePicker from './FloorPlanTablePicker';
+import { StageGraphicSlot } from './StageGraphicSlot';
 
 interface TableSelectorProps {
   tables: Table[];
@@ -18,6 +19,10 @@ interface TableSelectorProps {
 export function TableSelector({ tables, language, onSelectTable }: TableSelectorProps) {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
 
   const locationLabelMap: Record<Table['location'], string> = {
     patio: t('patio', language),
@@ -60,14 +65,12 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
     <>
       <PageShell paddedForActionBar className="justify-start">
         <div className="space-y-6">
-          <div className="space-y-1">
-            <p className="text-sm uppercase tracking-[0.3em] text-gray-400">
-              {t('selectTable', language)}
-            </p>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {t('seatSelectionTitle', language)}
-            </h1>
-            <p className="text-sm text-gray-600">{t('seatSelectionSubtitle', language)}</p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="w-20" aria-hidden />
+            <StageGraphicSlot label={t('selectTable', language)} tone="mint">
+              🪑
+            </StageGraphicSlot>
+            <div className="flex w-20 justify-end" aria-hidden />
           </div>
 
           {/* Location Filter */}
@@ -102,19 +105,19 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
           </Card>
 
           {/* Table List */}
-          <Card className="p-5 space-y-3 bg-white/85 border-white/60 shadow-lg backdrop-blur">
+          <Card className="p-4 space-y-4 bg-white/85 border-white/60 shadow-lg backdrop-blur">
             {filteredTables.map((table) => (
               <button
                 key={table.id}
                 onClick={() => handleTableClick(table)}
                 disabled={!table.available}
-                className={`w-full p-4 rounded-2xl border text-left transition ${
+                className={`w-full p-4 rounded-2xl border text-left transition shadow-sm ${
                   table.available
                     ? selectedTable === table.id
-                      ? 'border-indigo-600 bg-indigo-50 shadow-sm'
+                      ? 'border-green-600 bg-green-50 ring-2 ring-green-200 shadow-[0_0_0_6px_rgba(74,222,128,0.25)]'
                       : table.reserved
                       ? 'border-amber-400 bg-amber-50 hover:border-amber-500'
-                      : 'border-white/80 bg-white hover:border-indigo-200'
+                      : 'border-white/80 bg-white hover:border-green-200'
                     : 'border-red-200 bg-red-50 cursor-not-allowed opacity-60'
                 }`}
               >

@@ -13,6 +13,7 @@ interface DiningScreenProps {
   onContinueOrdering: () => void;
   onFinalizeOrder: () => void;
   onOpenPromoMenu: () => void;
+  deliveredIds?: Set<string>;
 }
 
 export function DiningScreen({ 
@@ -22,6 +23,7 @@ export function DiningScreen({
   onContinueOrdering,
   onFinalizeOrder,
   onOpenPromoMenu,
+  deliveredIds,
 }: DiningScreenProps) {
   const total = currentOrders.reduce(
     (sum, item) => sum + item.menuItem.price * item.quantity, 
@@ -30,6 +32,7 @@ export function DiningScreen({
   const hasTable = typeof tableNumber === 'number';
   const heading = hasTable ? `Table #${tableNumber}` : t('yourOrder', language);
   const subheading = hasTable ? 'Enjoy your meal!' : t('orderConfirmationSubtext', language);
+  const seenIds = new Set<string>();
 
   return (
     <>
@@ -45,22 +48,29 @@ export function DiningScreen({
 
           <Card className="p-6 space-y-3">
             <h2 className="text-xl font-semibold text-gray-900">{t('yourOrder', language)}</h2>
-            {currentOrders.map((item, index) => (
-              <div
-                key={index}
-                className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-              >
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {item.quantity}x {item.menuItem.name[language]}
+            {currentOrders.map((item, index) => {
+              const hasBeenSeen = seenIds.has(item.menuItem.id);
+              const isDelivered = deliveredIds?.has(item.menuItem.id) || hasBeenSeen;
+              seenIds.add(item.menuItem.id);
+              return (
+                <div
+                  key={index}
+                  className={`flex justify-between items-center p-3 rounded-lg border ${
+                    isDelivered ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'
+                  }`}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {item.quantity}x {item.menuItem.name[language]}
+                    </p>
+                    <p className="text-sm text-gray-600">{item.menuItem.category}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    ${(item.menuItem.price * item.quantity).toFixed(2)}
                   </p>
-                  <p className="text-sm text-gray-600">{item.menuItem.category}</p>
                 </div>
-                <p className="text-sm font-semibold text-gray-900">
-                  ${(item.menuItem.price * item.quantity).toFixed(2)}
-                </p>
-              </div>
-            ))}
+              );
+            })}
 
             <div className="border-t pt-3 flex justify-between">
               <span className="text-sm font-medium text-gray-900">{t('subtotal', language)}</span>
