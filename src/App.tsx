@@ -69,6 +69,38 @@ export default function App() {
     };
   }, [currentRestaurant?.id, language]);
 
+  // Listen for delivered items from Supabase so order lists reflect restaurant updates in real time.
+  useEffect(() => {
+    if (!selectedTableId || !currentRestaurant) return;
+    const channel = supabase
+      .channel('order-items-delivered')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'order_items',
+          filter: `table_id=eq.${selectedTableId}`,
+        },
+        (payload) => {
+          const status = (payload.new as any)?.status;
+          const menuItemId = (payload.new as any)?.menu_item_id;
+          if (status === 'delivered' && menuItemId) {
+            setDeliveredItemIds((prev) => {
+              const next = new Set(prev);
+              next.add(menuItemId);
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedTableId, currentRestaurant]);
+
   const appendOrders = (items: OrderItem[]) => {
     if (!items.length) return;
     setCurrentOrders((prev) => {
@@ -127,7 +159,6 @@ export default function App() {
     } else {
       setWaitSeconds(currentRestaurant ? currentRestaurant.waitTime : null);
     }
-    let shouldGoToOrderSummary = false;
     const stagedItems: OrderItem[] = [];
     if (pendingChefPreviewItems && pendingChefPreviewItems.length > 0) {
       stagedItems.push(...pendingChefPreviewItems);
@@ -135,13 +166,10 @@ export default function App() {
     }
     if (pendingTableOrder && pendingTableOrder.length > 0) {
       stagedItems.push(...pendingTableOrder);
-      shouldGoToOrderSummary = true;
       setPendingTableOrder(null);
     }
     if (stagedItems.length > 0) {
       appendOrders(stagedItems);
-      setStage(shouldGoToOrderSummary ? 'order-summary' : 'waiting');
-      return;
     }
     setStage('waiting');
   };
@@ -505,7 +533,7 @@ export default function App() {
             }
             setStage('restaurant-info');
           }}
-          showSeatPrompt={!selectedTable && menuReturnStage === 'restaurant-info'}
+          showSeatPrompt={!selectedTableId}
           onChooseSeat={() => setStage('table-selection')}
         />
       )}

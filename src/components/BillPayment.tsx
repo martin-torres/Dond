@@ -23,8 +23,11 @@ export function BillPayment({
   const [itemSelections, setItemSelections] = useState<Record<string, number>>(
     {}
   );
-  const [tipPercent, setTipPercent] = useState(10);
-  const [cookPercent, setCookPercent] = useState(0);
+  const [tipPercent, setTipPercent] = useState(5);
+  const [cookPercent, setCookPercent] = useState(5);
+  const [poorService, setPoorService] = useState(false);
+  const [poorFood, setPoorFood] = useState(false);
+  const [noTipReason, setNoTipReason] = useState('');
 
   const taxRate = bill.subtotal > 0 ? bill.tax / bill.subtotal : 0;
   const tipRate = (tipPercent + cookPercent) / 100;
@@ -72,6 +75,29 @@ export function BillPayment({
     });
   };
 
+  const handleServiceTipChange = (value: number) => {
+    setTipPercent((prev) => {
+      if (poorService) {
+        return prev === value ? 0 : value;
+      }
+      return value;
+    });
+  };
+
+  const handleCookTipChange = (value: number) => {
+    setCookPercent((prev) => {
+      if (poorFood) {
+        return prev === value ? 0 : value;
+      }
+      return value;
+    });
+  };
+
+  const handleNoTip = () => {
+    setTipPercent(0);
+    setCookPercent(0);
+  };
+
   const selectedItemsIds = () => {
     const ids: string[] = [];
     bill.items.forEach((item, idx) => {
@@ -97,6 +123,10 @@ export function BillPayment({
   const handlePayment = () => {
     if (splitMethod === 'items' && selectedItemsTotal <= 0) {
       alert(t('selectItemsWarning', language));
+      return;
+    }
+    if ((tipPercent + cookPercent) === 0 && !noTipReason.trim()) {
+      alert(t('noTipReasonLabel', language));
       return;
     }
 
@@ -185,34 +215,90 @@ export function BillPayment({
             </div>
 
             <div className="rounded-xl border border-gray-100 bg-white/70 p-4">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex-1 min-w-[220px]">
-                  <p className="text-xs font-semibold text-gray-700">{t('tip', language)} {tipPercent}%</p>
-                  <input
-                    type="range"
-                    min={10}
-                    max={25}
-                    step={5}
-                    value={tipPercent}
-                    onChange={(e) => setTipPercent(Number(e.target.value))}
-                    className="w-full accent-emerald-500"
-                  />
-                  <p className="text-xs text-gray-600">Starts at 10%, rises in 5% steps up to 25%.</p>
+              <p className="text-xs font-semibold text-gray-900 mb-2">
+                {t('totalTip', language)}: {tipPercent + cookPercent}%
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                <div className="flex flex-col gap-2 h-full">
+                  <p className="text-xs font-semibold text-gray-700">{t('serviceTipLabel', language)}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[5, 10, 15, 20].map((value) => (
+                      <Button
+                        key={value}
+                        size="sm"
+                        variant={tipPercent === value ? 'default' : 'outline'}
+                        onClick={() => handleServiceTipChange(value)}
+                      >
+                        {value}%
+                      </Button>
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-1 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={poorService}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setPoorService(next);
+                        if (!next && tipPercent === 0) {
+                          setTipPercent(5);
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <span>{t('servicePoor', language)}</span>
+                  </label>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <p className="text-xs text-gray-700 whitespace-nowrap">+ to the cook</p>
-                  {[0, 5, 10].map((value) => (
-                    <Button
-                      key={value}
-                      size="sm"
-                      variant={cookPercent === value ? 'default' : 'outline'}
-                      onClick={() => setCookPercent(value)}
-                    >
-                      {value}%
-                    </Button>
-                  ))}
+                <div className="flex flex-col gap-2 h-full">
+                  <p className="text-xs font-semibold text-gray-700">{t('cookTip', language)}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[5, 10, 15, 20].map((value) => (
+                      <Button
+                        key={value}
+                        size="sm"
+                        variant={cookPercent === value ? 'default' : 'outline'}
+                        onClick={() => handleCookTipChange(value)}
+                      >
+                        {value}%
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <label className="text-xs text-gray-700 flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={poorFood}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setPoorFood(next);
+                        if (!next && cookPercent === 0) {
+                          setCookPercent(5);
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <span>{t('foodPoor', language)}</span>
+                  </label>
+                  </div>
                 </div>
               </div>
+              <p className="text-xs text-gray-700 mt-3">
+                {t('serviceTipLabel', language)}: {tipPercent}% + {t('cookTip', language)}: {cookPercent}% = {t('totalTip', language)}: {tipPercent + cookPercent}%
+              </p>
+              {(poorService || poorFood) && (
+                <div className="w-full mt-2">
+                  <label className="text-xs text-gray-700 block mb-1">
+                    {t('noTipReasonLabel', language)}
+                  </label>
+                  <textarea
+                    value={noTipReason}
+                    onChange={(e) => setNoTipReason(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    rows={2}
+                    placeholder={t('noTipPlaceholder', language)}
+                  />
+                </div>
+              )}
             </div>
 
             {splitMethod === 'even' && (

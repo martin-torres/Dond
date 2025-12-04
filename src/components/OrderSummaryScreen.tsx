@@ -1,5 +1,5 @@
 import { Language, OrderItem } from '../types';
-import { t } from '../utils/translations';
+import { t, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { PageShell } from './PageShell';
@@ -50,8 +50,12 @@ export function OrderSummaryScreen({
           <Card className="p-6 shadow-lg">
             <div className="space-y-4">
               {items.map((item) => {
-                const name = item.menuItem.name[language] || item.menuItem.name.en;
+                const name =
+                  item.menuItem.name.es ||
+                  item.menuItem.name.en ||
+                  Object.values(item.menuItem.name)[0];
                 const category = item.menuItem.category || '';
+                const localizedCategory = category ? localizeCategory(category, language) : '';
                 const lineTotal = item.menuItem.price * item.quantity;
                 const hasBeenSeen = seenIds.has(item.menuItem.id);
                 const isDelivered = deliveredIds?.has(item.menuItem.id) || hasBeenSeen;
@@ -67,7 +71,9 @@ export function OrderSummaryScreen({
                       <p className="text-sm font-semibold text-gray-900">
                         {item.quantity}x {name}
                       </p>
-                      {category && <p className="text-xs text-gray-500">{category}</p>}
+                      {localizedCategory && (
+                        <p className="text-xs text-gray-500">{localizedCategory}</p>
+                      )}
                     </div>
                     <span className="text-sm font-semibold text-gray-900">
                       {formatPrice(lineTotal)}

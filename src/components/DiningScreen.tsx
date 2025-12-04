@@ -1,6 +1,6 @@
 import { UtensilsCrossed, Plus } from 'lucide-react';
 import { Language, OrderItem } from '../types';
-import { t } from '../utils/translations';
+import { t, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { PageShell } from './PageShell';
@@ -52,6 +52,11 @@ export function DiningScreen({
               const hasBeenSeen = seenIds.has(item.menuItem.id);
               const isDelivered = deliveredIds?.has(item.menuItem.id) || hasBeenSeen;
               seenIds.add(item.menuItem.id);
+              const displayName =
+                item.menuItem.name.es ||
+                item.menuItem.name.en ||
+                Object.values(item.menuItem.name)[0];
+              const displayCategory = localizeCategory(item.menuItem.category, language);
               return (
                 <div
                   key={index}
@@ -61,9 +66,9 @@ export function DiningScreen({
                 >
                   <div>
                     <p className="text-sm font-medium text-gray-900">
-                      {item.quantity}x {item.menuItem.name[language]}
+                      {item.quantity}x {displayName}
                     </p>
-                    <p className="text-sm text-gray-600">{item.menuItem.category}</p>
+                    <p className="text-sm text-gray-600">{displayCategory}</p>
                   </div>
                   <p className="text-sm font-semibold text-gray-900">
                     ${(item.menuItem.price * item.quantity).toFixed(2)}

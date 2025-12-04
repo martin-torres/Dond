@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, CheckCircle } from 'lucide-react';
+import { Clock, CheckCircle, GlassWater } from 'lucide-react';
 import { Language } from '../types';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
@@ -16,7 +16,6 @@ interface WaitingScreenProps {
   distance?: number;
   onDistanceChange?: (distance: number) => void;
   onBack?: () => void;
-  onNext?: () => void;
 }
 
 export function WaitingScreen({
@@ -28,7 +27,6 @@ export function WaitingScreen({
   distance,
   onDistanceChange,
   onBack,
-  onNext,
 }: WaitingScreenProps) {
   const [timeRemaining, setTimeRemaining] = useState(estimatedWaitTime);
   const [progress, setProgress] = useState(0);
@@ -78,9 +76,14 @@ export function WaitingScreen({
             <div className="rounded-full px-4 py-2 bg-white/70 backdrop-blur border border-white/70 shadow-sm text-xs font-semibold uppercase tracking-wide text-gray-700">
               {t('waitTime', language)}
             </div>
-            {onNext ? (
-              <Button variant="outline" onClick={onNext} className="text-gray-700">
-                Next
+            {onOrderDrinks ? (
+              <Button
+                variant="outline"
+                onClick={onOrderDrinks}
+                className="text-gray-700"
+                aria-label={t('orderDrinks', language)}
+              >
+                <GlassWater className="w-5 h-5" />
               </Button>
             ) : (
               <span className="w-20" aria-hidden />

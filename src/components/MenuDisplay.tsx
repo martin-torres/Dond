@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, ShoppingCart } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Armchair } from 'lucide-react';
 import { MenuItem, Language, OrderItem } from '../types';
-import { t, localizeText } from '../utils/translations';
+import { t, localizeText, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
@@ -11,6 +11,7 @@ import { BottomActionBar } from './BottomActionBar';
 import { StageGraphicSlot } from './StageGraphicSlot';
 type TabType = 'drinks' | 'food';
 
+// Menu display: shows items and, when no table is selected, surfaces a bottom bar prompting table selection.
 interface MenuDisplayProps {
   drinks: MenuItem[];
   food: MenuItem[];
@@ -135,7 +136,7 @@ export function MenuDisplay({
 
             {onNext ? (
               <Button variant="outline" onClick={onNext} className="hidden sm:inline-flex">
-                Next
+                <Armchair className="w-5 h-5" />
               </Button>
             ) : (
               <span className="w-20" aria-hidden />
@@ -186,7 +187,7 @@ export function MenuDisplay({
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="text-sm font-semibold text-gray-900 flex-1">{itemName}</h3>
                         <Badge variant="secondary" className="capitalize">
-                          {item.category}
+                          {localizeCategory(item.category, language)}
                         </Badge>
                       </div>
                       <p className="text-sm text-gray-600 line-clamp-2">{itemDescription}</p>
@@ -228,7 +229,7 @@ export function MenuDisplay({
         </div>
       </PageShell>
 
-      {showSeatPrompt && totalItems === 0 && (
+      {showSeatPrompt && (
         <BottomActionBar innerClassName='items-center justify-between gap-3 sm:flex-row'>
           <div className='flex-1 text-sm text-gray-900'>
             {t('chooseSeatPrompt', language)}
@@ -244,7 +245,7 @@ export function MenuDisplay({
         </BottomActionBar>
       )}
 
-      {totalItems > 0 && (
+      {!showSeatPrompt && totalItems > 0 && (
         <BottomActionBar innerClassName='items-start sm:items-center'>
           <div className='flex items-center justify-between w-full sm:w-auto gap-3'>
             <div className='flex items-center gap-2'>
