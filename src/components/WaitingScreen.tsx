@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, CheckCircle, GlassWater } from 'lucide-react';
+import { Clock, CheckCircle, GlassWater, ChevronLeft } from 'lucide-react';
 import { Language } from '../types';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
@@ -67,8 +67,13 @@ export function WaitingScreen({
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             {onBack ? (
-              <Button variant="ghost" onClick={onBack} className="text-gray-700 hover:text-gray-900">
-                {t('back', language)}
+              <Button
+                variant="ghost"
+                onClick={onBack}
+                className="text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
+                aria-label={t('back', language)}
+              >
+                <ChevronLeft className="w-5 h-5" />
               </Button>
             ) : (
               <span className="w-20" aria-hidden />

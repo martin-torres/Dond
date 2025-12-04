@@ -222,7 +222,7 @@ export function BillPayment({
                 <div className="flex flex-col gap-2 h-full">
                   <p className="text-xs font-semibold text-gray-700">{t('serviceTipLabel', language)}</p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {[5, 10, 15, 20].map((value) => (
+                    {[5, 7.5, 10, 12.5].map((value) => (
                       <Button
                         key={value}
                         size="sm"
@@ -252,7 +252,7 @@ export function BillPayment({
                 <div className="flex flex-col gap-2 h-full">
                   <p className="text-xs font-semibold text-gray-700">{t('cookTip', language)}</p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {[5, 10, 15, 20].map((value) => (
+                    {[5, 7.5, 10, 12.5].map((value) => (
                       <Button
                         key={value}
                         size="sm"

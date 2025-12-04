@@ -523,7 +523,11 @@ export default function App() {
           isDrinksOnly={false}
           focusItemId={interactiveMenuFocusId ?? undefined}
           initialTab={interactiveMenuInitialTab}
-          onNext={() => handleFoodOrderPlaced([])}
+          onNext={
+            !selectedTableId
+              ? () => setStage('table-selection')
+              : () => handleFoodOrderPlaced([])
+          }
           onBack={() => {
             setInteractiveMenuFocusId(null);
             if (menuReturnStage) {

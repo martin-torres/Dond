@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Restaurant, Language } from '../types';
 import { t } from '../utils/translations';
+import { ChevronLeft } from 'lucide-react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 
@@ -38,8 +39,13 @@ export function MenuPreview({ restaurant, language, onClose, focusItemId }: Menu
             <p className="text-sm uppercase tracking-[0.3em] text-gray-400">{restaurant.name}</p>
             <h1 className="text-2xl font-semibold text-gray-900">{t('menu', language)}</h1>
           </div>
-          <Button variant="outline" onClick={onClose}>
-            {t('back', language)}
+          <Button
+            variant="outline"
+            onClick={onClose}
+            aria-label={t('back', language)}
+            className="rounded-full border border-gray-200 bg-white/80 shadow-sm px-3"
+          >
+            <ChevronLeft className="w-5 h-5" />
           </Button>
         </div>
 

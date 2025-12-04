@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, ShoppingCart, Armchair } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Armchair, ChevronLeft } from 'lucide-react';
 import { MenuItem, Language, OrderItem } from '../types';
 import { t, localizeText, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
@@ -119,9 +119,10 @@ export function MenuDisplay({
               <Button
                 variant="ghost"
                 onClick={onBack}
-                className="text-gray-700 hover:text-gray-900"
+                className="text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
+                aria-label={t('back', language)}
               >
-                {t('back', language)}
+                <ChevronLeft className="w-5 h-5" />
               </Button>
             ) : (
               <span className="w-20" aria-hidden />
@@ -231,9 +232,7 @@ export function MenuDisplay({
 
       {showSeatPrompt && (
         <BottomActionBar innerClassName='items-center justify-between gap-3 sm:flex-row'>
-          <div className='flex-1 text-sm text-gray-900'>
-            {t('chooseSeatPrompt', language)}
-          </div>
+          <div className='flex-1' />
           <Button
             className='w-full sm:w-auto'
             size='lg'

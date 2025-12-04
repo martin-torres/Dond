@@ -4,7 +4,7 @@ import { t } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { Plus, Minus, ShoppingCart } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, ArrowLeft, ChevronLeft } from 'lucide-react';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
 import { StageGraphicSlot } from './StageGraphicSlot';
@@ -263,9 +263,10 @@ export function ChefPreviewScreen({
             <Button
               variant="ghost"
               onClick={onClose}
-              className="text-gray-700 hover:text-gray-900"
+              className="text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
+              aria-label={t('back', language)}
             >
-              {t('back', language)}
+              <ChevronLeft className="w-5 h-5" />
             </Button>
             <StageGraphicSlot label={t('todaysPromos', language)} tone="rose">
               🍽️
