@@ -1217,7 +1217,9 @@ const categoryTranslations: Record<
 };
 
 export function t(key: string, lang: Language): string {
-  return translations[lang][key] || translations.en[key] || key;
+  // Gracefully handle cases where a language was removed or is missing entries.
+  const langMap = translations[lang] || translations.en;
+  return langMap[key] || translations.en[key] || key;
 }
 
 export function localizeText(text: Record<Language, string>, lang: Language): string {

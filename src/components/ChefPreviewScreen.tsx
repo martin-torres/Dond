@@ -86,7 +86,8 @@ export function ChefPreviewScreen({
   const drinkItems = restaurant.menu.drinks;
   const [cart, setCart] = useState<Map<string, number>>(new Map());
 
-  const usedIds = useMemo(() => new Set<string>(), [restaurant.id]);
+  // Fresh per-render so language changes don't reuse a mutated set and hide items.
+  const usedIds = useMemo(() => new Set<string>(), [restaurant.id, language]);
 
   const appetizers = useMemo(
     () =>

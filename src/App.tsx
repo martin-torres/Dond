@@ -21,6 +21,10 @@ import { MenuPreview } from './components/MenuPreview';
 import { translateRestaurantMenu } from './utils/liveTranslations';
 
 export default function App() {
+  const SUPPORTED_LANGS: Language[] = ['en', 'es', 'fr', 'de', 'ja', 'ar', 'zh'];
+  const normalizeLang = (value: string): Language =>
+    SUPPORTED_LANGS.includes(value as Language) ? (value as Language) : 'en';
+
   // Detect phone language (simulated - in real app would use navigator.language)
   const [language, setLanguage] = useState<Language>('en');
   const [stage, setStage] = useState<AppStage>('qr-scan');
@@ -44,13 +48,14 @@ export default function App() {
   // Auto-detect language on mount (simulated)
   useEffect(() => {
     const browserLang = navigator.language.toLowerCase();
-    if (browserLang.startsWith('es')) setLanguage('es');
-    else if (browserLang.startsWith('fr')) setLanguage('fr');
-    else if (browserLang.startsWith('de')) setLanguage('de');
-    else if (browserLang.startsWith('ja')) setLanguage('ja');
-    else if (browserLang.startsWith('ar')) setLanguage('ar');
-    else if (browserLang.startsWith('zh')) setLanguage('zh');
-    else setLanguage('en');
+    let nextLang: Language = 'en';
+    if (browserLang.startsWith('es')) nextLang = 'es';
+    else if (browserLang.startsWith('fr')) nextLang = 'fr';
+    else if (browserLang.startsWith('de')) nextLang = 'de';
+    else if (browserLang.startsWith('ja')) nextLang = 'ja';
+    else if (browserLang.startsWith('ar')) nextLang = 'ar';
+    else if (browserLang.startsWith('zh')) nextLang = 'zh';
+    setLanguage(normalizeLang(nextLang));
   }, []);
 
   useEffect(() => {
@@ -374,7 +379,7 @@ export default function App() {
     <div className="fixed top-4 right-4 z-50">
       <select
         value={language}
-        onChange={(e) => setLanguage(e.target.value as Language)}
+        onChange={(e) => setLanguage(normalizeLang(e.target.value))}
         className="px-3 py-2 bg-white border border-gray-300 rounded-lg shadow-sm flex items-center gap-2"
       >
         <option value="en">🇬🇧 English (DEV TEST)</option>
