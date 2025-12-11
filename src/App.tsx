@@ -19,11 +19,14 @@ import { Button } from './components/ui/button';
 import { Globe } from 'lucide-react';
 import { MenuPreview } from './components/MenuPreview';
 import { translateRestaurantMenu } from './utils/liveTranslations';
+import { useStaffData } from './staff/StaffDataProvider';
 
 export default function App() {
   const SUPPORTED_LANGS: Language[] = ['en', 'es', 'fr', 'de', 'ja', 'ar', 'zh'];
   const normalizeLang = (value: string): Language =>
     SUPPORTED_LANGS.includes(value as Language) ? (value as Language) : 'en';
+
+  const staff = useStaffData();
 
   // Detect phone language (simulated - in real app would use navigator.language)
   const [language, setLanguage] = useState<Language>('en');
@@ -277,6 +280,18 @@ export default function App() {
       setStage('order-summary');
       return;
     }
+
+    const tableNumber =
+      currentRestaurant.tables.find((t) => t.id === selectedTableId)?.number ?? null;
+    staff.addCustomerOrder({
+      items: currentOrders,
+      meta: {
+        restaurant: currentRestaurant,
+        tableId: selectedTableId,
+        tableNumber,
+        language,
+      },
+    });
 
     try {
       const { error } = await supabase.from('orders').insert([

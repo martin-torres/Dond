@@ -44,6 +44,30 @@ export function QRScanner({ language, onScan }: QRScannerProps) {
             </Button>
           ))}
         </div>
+
+        <div className="w-full h-px bg-gray-100" />
+        <div className="space-y-3">
+          <p className="text-center text-gray-500 text-sm uppercase tracking-[0.25em]">
+            Staff access
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button asChild variant="outline" className="w-full">
+              <a href="/kitchen">Kitchen</a>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <a href="/bar">Bar</a>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <a href="/foh">FOH</a>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <a href="/owner">Owner</a>
+            </Button>
+          </div>
+          <p className="text-center text-xs text-gray-400">
+            Scan a staff QR to jump into management screens.
+          </p>
+        </div>
       </div>
     </PageShell>
   );
