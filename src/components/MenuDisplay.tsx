@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, ShoppingCart, Armchair, ChevronLeft } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Armchair, ChevronLeft, Receipt } from 'lucide-react';
 import { MenuItem, Language, OrderItem } from '../types';
 import { t, localizeText, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
@@ -137,7 +137,7 @@ export function MenuDisplay({
 
             {onNext ? (
               <Button variant="outline" onClick={onNext} className="hidden sm:inline-flex">
-                <Armchair className="w-5 h-5" />
+                {showSeatPrompt ? <Armchair className="w-5 h-5" /> : <Receipt className="w-5 h-5" />}
               </Button>
             ) : (
               <span className="w-20" aria-hidden />

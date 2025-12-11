@@ -104,7 +104,7 @@ export function WaitingScreen({
                 {t('orderDrinks', language)}
               </p>
               <p className="text-xs text-gray-600 mb-3">
-                A soft start while we prep your table.
+                {t('softStart', language)}
               </p>
               <div className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-700">
                 <span>{t('orderDrinks', language)}</span>

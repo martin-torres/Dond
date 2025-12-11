@@ -101,6 +101,9 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
               selectedLocation={selectedLocation}
               selectedTableId={selectedTable}
               onTableClick={handleTableClick}
+              compact
+              hideMeta
+              hideSignals
             />
           </Card>
 

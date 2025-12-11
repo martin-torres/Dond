@@ -193,7 +193,7 @@ export function ChefPreviewScreen({
           <h2 className={sectionTitleClass}>{title}</h2>
         </div>
         <Badge variant="secondary" className={chefBadgeClass}>
-          Featured
+          {t('featured', language)}
         </Badge>
       </div>
       <div className={sectionGridClass}>

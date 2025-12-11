@@ -1,5 +1,6 @@
 import React from "react";
 import { Table, Language } from "../types";
+import { t } from "../utils/translations";
 
 export type TableSignal = {
   hasRequest?: boolean;
@@ -17,6 +18,9 @@ interface FloorPlanTablePickerProps {
   selectedTableId: string | null;
   onTableClick: (table: Table) => void;
   tableSignals?: Record<string, TableSignal>;
+  compact?: boolean;
+  hideMeta?: boolean;
+  hideSignals?: boolean;
 }
 
 /**
@@ -41,6 +45,9 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
   selectedTableId,
   onTableClick,
   tableSignals,
+  compact = false,
+  hideMeta = false,
+  hideSignals = false,
 }) => {
   if (!tables || tables.length === 0) {
     return (
@@ -62,12 +69,16 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
   }
 
   const tableCount = tables.length || 1;
-  // Base size between 56px and 96px depending on how many tables total
-  const minSize = 56;
-  const maxSize = 96;
+  const sizeScale = compact ? 0.65 : 1;
+  // Base size between compact (smaller) and default (larger) depending on table count
+  const minSize = compact ? 16 : 56;
+  const maxSize = compact ? 28 : 96;
   const clampedCount = Math.min(Math.max(tableCount, 15), 36);
   const ratio = (clampedCount - 15) / (36 - 15); // 0 -> 1
   const baseSize = maxSize - (maxSize - minSize) * ratio;
+
+  const minHeight = compact ? 170 : 360;
+  const outerPadding = compact ? 12 : 16;
 
   return (
     <div style={{ width: "100%" }}>
@@ -75,43 +86,47 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
         style={{
           position: "relative",
           width: "100%",
-          minHeight: 360,
+          minHeight,
           borderRadius: 18,
           border: "2px dashed #ef4444",
           background:
             "linear-gradient(135deg, #ffffff 0%, #eef2ff 50%, #ede9fe 100%)",
-          padding: 16,
+          padding: outerPadding,
           boxSizing: "border-box",
           overflow: "hidden",
         }}
       >
         {/* Info line */}
-        <div
-          style={{
-            fontSize: 11,
-            color: "#475569",
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 12,
-            fontWeight: 600,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-          }}
-        >
-          <span>Floor plan</span>
-          <span>
-            Tables: {tables.length} • Filter:{" "}
-            {selectedLocation === "all" ? "All" : selectedLocation}
-          </span>
-        </div>
+        {!hideMeta && (
+          <div
+            style={{
+              fontSize: 11,
+              color: "#475569",
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: 12,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            <span>{t('floorPlan', language)}</span>
+            <span>
+              {t('tablesLabel', language)}: {tables.length} • {t('filter', language)}:{" "}
+              {selectedLocation === "all" ? t('allTables', language) : selectedLocation}
+            </span>
+          </div>
+        )}
 
         {/* Tables cluster */}
         <div
           style={{
-            paddingInline: 8,
+            paddingInline: compact ? 8 : 8,
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-            gap: 12,
+            gridTemplateColumns: compact
+              ? "repeat(auto-fit, minmax(90px, 1fr))"
+              : "repeat(auto-fit, minmax(120px, 1fr))",
+            gap: compact ? 12 : 12,
           }}
         >
           {tables.map((table) => {
@@ -126,23 +141,23 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
             const baseBorder = table.available ? "#16a34a" : "#f97373";
             const baseText = table.available ? "#14532d" : "#991b1b";
 
-            // Shape & size based on number of seats
-            let width = baseSize * 1.2;
-            let height = baseSize * 0.9;
-            let borderRadius = "14px";
+            // Shape & size based on number of seats (circles for small, squares for others)
+            let width = baseSize * 1.1 * sizeScale;
+            let height = width;
+            let borderRadius = "12px";
 
             if (table.seats <= 2) {
-              width = baseSize * 1.0;
+              width = baseSize * 1.0 * sizeScale;
               height = width;
-              borderRadius = "9999px";
+              borderRadius = "9999px"; // circle
             } else if (table.seats <= 4) {
-              width = baseSize * 1.1;
+              width = baseSize * 1.25 * sizeScale;
               height = width;
-              borderRadius = "12px";
-            } else if (table.seats >= 7) {
-              width = baseSize * 1.6;
-              height = baseSize;
-              borderRadius = "16px";
+              borderRadius = "12px"; // rounded square
+            } else {
+              width = baseSize * 1.45 * sizeScale;
+              height = width;
+              borderRadius = "14px"; // larger rounded square
             }
 
             const badge = (label: string, color: string) => (
@@ -175,11 +190,13 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
             );
 
             const badges: JSX.Element[] = [];
-            if (signals.hasRequest) badges.push(badge("REQUEST", "#f59e0b"));
-            if (signals.hasOrder) badges.push(badge("ORDER", "#0ea5e9"));
-            if (signals.inProcess) badges.push(badge("IN PROCESS", "#fb7185"));
-            if (signals.ready) badges.push(badge("READY", "#10b981"));
-            if (signals.pickingUp) badges.push(badge("PICKUP", "#6366f1"));
+            if (!hideSignals) {
+              if (signals.hasRequest) badges.push(badge(t("badgeRequest", language), "#f59e0b"));
+              if (signals.hasOrder) badges.push(badge(t("badgeOrder", language), "#0ea5e9"));
+              if (signals.inProcess) badges.push(badge(t("badgeInProcess", language), "#fb7185"));
+              if (signals.ready) badges.push(badge(t("badgeReady", language), "#10b981"));
+              if (signals.pickingUp) badges.push(badge(t("badgePickup", language), "#6366f1"));
+            }
 
             return (
               <button
@@ -242,7 +259,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                     {badges}
                   </div>
                 )}
-                {badges.length === 0 && (
+                {badges.length === 0 && !hideSignals && (
                   <div
                     style={{
                       fontSize: 11,
@@ -250,7 +267,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                       opacity: 0.8,
                     }}
                   >
-                    No active tickets
+                    {t('noActiveTickets', language)}
                   </div>
                 )}
               </button>

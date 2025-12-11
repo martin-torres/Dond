@@ -24,12 +24,12 @@ import { useStaffData } from './staff/StaffDataProvider';
 export default function App() {
   const SUPPORTED_LANGS: Language[] = ['en', 'es', 'fr', 'de', 'ja', 'ar', 'zh'];
   const normalizeLang = (value: string): Language =>
-    SUPPORTED_LANGS.includes(value as Language) ? (value as Language) : 'en';
+    SUPPORTED_LANGS.includes(value as Language) ? (value as Language) : 'es';
 
   const staff = useStaffData();
 
   // Detect phone language (simulated - in real app would use navigator.language)
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>('es');
   const [stage, setStage] = useState<AppStage>('qr-scan');
   const [currentRestaurant, setCurrentRestaurant] = useState<Restaurant | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export default function App() {
   // Auto-detect language on mount (simulated)
   useEffect(() => {
     const browserLang = navigator.language.toLowerCase();
-    let nextLang: Language = 'en';
+    let nextLang: Language = 'es';
     if (browserLang.startsWith('es')) nextLang = 'es';
     else if (browserLang.startsWith('fr')) nextLang = 'fr';
     else if (browserLang.startsWith('de')) nextLang = 'de';
