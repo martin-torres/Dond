@@ -1,12 +1,22 @@
 import React from "react";
 import { Table, Language } from "../types";
 
+export type TableSignal = {
+  hasRequest?: boolean;
+  hasOrder?: boolean;
+  inProcess?: boolean;
+  ready?: boolean;
+  pickingUp?: boolean;
+  delivered?: boolean;
+};
+
 interface FloorPlanTablePickerProps {
   tables: Table[];
   language: Language; // kept for future use
   selectedLocation: string; // 'all' or one of the table locations
   selectedTableId: string | null;
   onTableClick: (table: Table) => void;
+  tableSignals?: Record<string, TableSignal>;
 }
 
 /**
@@ -30,6 +40,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
   selectedLocation,
   selectedTableId,
   onTableClick,
+  tableSignals,
 }) => {
   if (!tables || tables.length === 0) {
     return (
@@ -51,9 +62,9 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
   }
 
   const tableCount = tables.length || 1;
-  // Base size between 32px and 56px depending on how many tables total
-  const minSize = 32;
-  const maxSize = 56;
+  // Base size between 56px and 96px depending on how many tables total
+  const minSize = 56;
+  const maxSize = 96;
   const clampedCount = Math.min(Math.max(tableCount, 15), 36);
   const ratio = (clampedCount - 15) / (36 - 15); // 0 -> 1
   const baseSize = maxSize - (maxSize - minSize) * ratio;
@@ -64,7 +75,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
         style={{
           position: "relative",
           width: "100%",
-          minHeight: 220,
+          minHeight: 360,
           borderRadius: 18,
           border: "2px dashed #ef4444",
           background:
@@ -77,78 +88,30 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
         {/* Info line */}
         <div
           style={{
-            fontSize: 10,
-            color: "#6b7280",
+            fontSize: 11,
+            color: "#475569",
             display: "flex",
             justifyContent: "space-between",
-            marginBottom: 8,
+            marginBottom: 12,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
           }}
         >
-          <span>Floor plan preview</span>
+          <span>Floor plan</span>
           <span>
             Tables: {tables.length} • Filter:{" "}
             {selectedLocation === "all" ? "All" : selectedLocation}
           </span>
         </div>
 
-        {/* Orientation labels */}
-        <div
-          style={{
-            position: "absolute",
-            top: 6,
-            left: 10,
-            fontSize: 10,
-            color: "#6b7280",
-          }}
-        >
-          BAR
-        </div>
-        <div
-          style={{
-            position: "absolute",
-            top: 6,
-            right: 10,
-            fontSize: 10,
-            color: "#6b7280",
-          }}
-        >
-          STAGE
-        </div>
-        <div
-          style={{
-            position: "absolute",
-            bottom: 6,
-            left: "50%",
-            transform: "translateX(-50%)",
-            fontSize: 10,
-            color: "#6b7280",
-          }}
-        >
-          MAIN DOOR
-        </div>
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            right: 10,
-            transform: "translateY(-50%)",
-            fontSize: 10,
-            color: "#6b7280",
-            textAlign: "right",
-          }}
-        >
-          WINDOWS
-        </div>
-
         {/* Tables cluster */}
         <div
           style={{
-            marginTop: 16,
             paddingInline: 8,
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: 8,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+            gap: 12,
           }}
         >
           {tables.map((table) => {
@@ -156,82 +119,140 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
               selectedLocation === "all" || table.location === selectedLocation;
             const isMuted = !matchesLocation;
             const isSelected = selectedTableId === table.id;
-            const isAvailable = table.available;
+            const signals = tableSignals?.[table.id] ?? {};
 
             // Base colours
-            const baseBg = isAvailable ? "#dcfce7" : "#fee2e2";
-            const baseBorder = isAvailable ? "#16a34a" : "#f97373";
-            const baseText = isAvailable ? "#14532d" : "#991b1b";
+            const baseBg = table.available ? "#dcfce7" : "#fee2e2";
+            const baseBorder = table.available ? "#16a34a" : "#f97373";
+            const baseText = table.available ? "#14532d" : "#991b1b";
 
             // Shape & size based on number of seats
-            let width = baseSize;
-            let height = baseSize;
-            let borderRadius = "9999px"; // full circle by default
+            let width = baseSize * 1.2;
+            let height = baseSize * 0.9;
+            let borderRadius = "14px";
 
             if (table.seats <= 2) {
-              // small round (bar stool / tiny table)
-              width = baseSize * 0.85;
+              width = baseSize * 1.0;
               height = width;
               borderRadius = "9999px";
             } else if (table.seats <= 4) {
-              // medium square
-              width = baseSize * 1.0;
+              width = baseSize * 1.1;
               height = width;
               borderRadius = "12px";
-            } else if (table.seats <= 6) {
-              // wider rectangle (larger table)
-              width = baseSize * 1.4;
-              height = baseSize * 0.9;
-              borderRadius = "14px";
-            } else {
-              // biggest rectangle for 7–8+ seats
+            } else if (table.seats >= 7) {
               width = baseSize * 1.6;
               height = baseSize;
               borderRadius = "16px";
             }
 
+            const badge = (label: string, color: string) => (
+              <span
+                key={label}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "#ffffffc7",
+                  color,
+                  fontSize: 10,
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  border: `1px solid ${color}33`,
+                  fontWeight: 700,
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: color,
+                    display: "inline-block",
+                  }}
+                />
+                {label}
+              </span>
+            );
+
+            const badges: JSX.Element[] = [];
+            if (signals.hasRequest) badges.push(badge("REQUEST", "#f59e0b"));
+            if (signals.hasOrder) badges.push(badge("ORDER", "#0ea5e9"));
+            if (signals.inProcess) badges.push(badge("IN PROCESS", "#fb7185"));
+            if (signals.ready) badges.push(badge("READY", "#10b981"));
+            if (signals.pickingUp) badges.push(badge("PICKUP", "#6366f1"));
+
             return (
               <button
                 key={table.id}
                 onClick={() => onTableClick(table)}
-                disabled={!isAvailable || isMuted}
                 style={{
-                  width,
-                  height,
+                  width: "100%",
+                  minHeight: height + 12,
                   borderRadius,
                   border: `2px solid ${baseBorder}`,
                   background: baseBg,
                   color: baseText,
-                  fontSize: 10,
+                  fontSize: 12,
                   display: "flex",
                   flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  alignItems: "stretch",
+                  justifyContent: "space-between",
                   boxSizing: "border-box",
-                  opacity: isMuted ? 0.15 : 1,
-                  cursor:
-                    !isAvailable || isMuted ? "not-allowed" : "pointer",
+                  opacity: isMuted ? 0.25 : 1,
+                  cursor: "pointer",
                   boxShadow: isSelected
-                    ? "0 0 0 3px rgba(34,197,94,0.5)"
-                    : "0 1px 2px rgba(15,23,42,0.1)",
-                  transform: isSelected ? "scale(1.05)" : "scale(1.0)",
+                    ? "0 0 0 4px rgba(34,197,94,0.6)"
+                    : "0 4px 14px rgba(15,23,42,0.12)",
+                  transform: isSelected ? "scale(1.02)" : "scale(1.0)",
                   transition: "transform 120ms ease, box-shadow 120ms ease",
-                  textAlign: "center",
-                  paddingInline: 4,
+                  textAlign: "left",
+                  padding: 10,
+                  gap: 8,
                 }}
               >
-                <div style={{ fontWeight: 700, lineHeight: 1 }}>
-                  #{table.number}
-                </div>
                 <div
                   style={{
-                    fontSize: 9,
-                    lineHeight: 1.1,
-                    marginTop: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                   }}
                 >
-                  {table.seats} seats
+                  <div style={{ fontWeight: 800, lineHeight: 1.1 }}>
+                    #{table.number}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      lineHeight: 1.1,
+                      color: "#0f172a",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {table.seats} seats
+                  </div>
                 </div>
+                {badges.length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                    }}
+                  >
+                    {badges}
+                  </div>
+                )}
+                {badges.length === 0 && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#475569",
+                      opacity: 0.8,
+                    }}
+                  >
+                    No active tickets
+                  </div>
+                )}
               </button>
             );
           })}

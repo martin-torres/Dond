@@ -4,83 +4,83 @@ import { useStaffData } from './StaffDataProvider';
 import { TicketCard } from './TicketCard';
 import { filterItemsByKind } from './utils';
 import { updateOrderStatus } from './orderStatus';
+import { OrderStatus, StaffOrder } from './types';
+
+const nextAction = (status: OrderStatus) => {
+  if (status === 'NEW') return { label: 'Start', next: 'IN_PROGRESS' as const };
+  if (status === 'IN_PROGRESS') return { label: 'Ready', next: 'READY' as const };
+  if (status === 'READY') return { label: 'Picking up', next: 'PICKING_UP' as const };
+  if (status === 'PICKING_UP') return { label: 'Delivered', next: 'DELIVERED' as const };
+  return null;
+};
+
+const pickItemsForOwner = (order: StaffOrder) => {
+  if (order.orderType === 'request') return order.items;
+  const food = filterItemsByKind(order, 'food');
+  const drinks = filterItemsByKind(order, 'drink');
+  if (food.length > 0 && drinks.length === 0) return food;
+  if (drinks.length > 0 && food.length === 0) return drinks;
+  return order.items;
+};
+
+const getAccent = (order: StaffOrder): 'kitchen' | 'bar' | 'server' | 'owner' => {
+  if (order.orderType === 'request') return 'server';
+  const hasFood = filterItemsByKind(order, 'food').length > 0;
+  const hasDrink = filterItemsByKind(order, 'drink').length > 0;
+  if (hasFood && !hasDrink) return 'kitchen';
+  if (!hasFood && hasDrink) return 'bar';
+  if (order.station === 'bar') return 'bar';
+  if (order.station === 'kitchen') return 'kitchen';
+  return 'owner';
+};
 
 export const OwnerView = () => {
-  const { orders } = useStaffData();
+  const { orders, singleOperatorMode } = useStaffData();
 
-  const grouped = useMemo(
-    () => ({
-      food: orders.filter(
-        (order) => order.orderType !== 'request' && filterItemsByKind(order, 'food').length > 0
+  const tickets = useMemo(
+    () =>
+      [...orders].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ),
-      drinks: orders.filter(
-        (order) => order.orderType !== 'request' && filterItemsByKind(order, 'drink').length > 0
-      ),
-      requests: orders.filter((order) => order.orderType === 'request'),
-    }),
     [orders]
-  );
-
-  const nextAction = (status: string) => {
-    if (status === 'NEW') return { label: 'Start', next: 'IN_PROGRESS' as const };
-    if (status === 'IN_PROGRESS') return { label: 'Ready', next: 'READY' as const };
-    if (status === 'READY') return { label: 'Picking up', next: 'PICKING_UP' as const };
-    if (status === 'PICKING_UP') return { label: 'Delivered', next: 'DELIVERED' as const };
-    return null;
-  };
-
-  const renderColumn = (
-    title: string,
-    accent: 'kitchen' | 'bar' | 'server' | 'owner',
-    list = orders
-  ) => (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-[0.3em] text-gray-500">{title}</p>
-        <span className="text-xs text-gray-500">{list.length} tickets</span>
-      </div>
-      {list.length === 0 && (
-        <p className="text-sm text-gray-500">Nothing queued here.</p>
-      )}
-      {list.map((order) => {
-        const action = nextAction(order.status);
-        const items =
-          accent === 'kitchen'
-            ? filterItemsByKind(order, 'food')
-            : accent === 'bar'
-              ? filterItemsByKind(order, 'drink')
-              : order.items;
-        const actions = action
-          ? [
-              {
-                label: action.label,
-                onClick: () => updateOrderStatus(order.id, action.next),
-              },
-            ]
-          : [];
-        return (
-          <TicketCard
-            key={`${title}-${order.id}`}
-            order={order}
-            items={items}
-            accent={accent}
-            actions={actions}
-          />
-        );
-      })}
-    </div>
   );
 
   return (
     <StaffLayout
       title="Owner view"
-      subtitle="Single-operator control for food, drinks, and requests."
+      subtitle={
+        singleOperatorMode
+          ? 'Single-operator control across food, drinks, and requests.'
+          : 'Overview with full control across every order.'
+      }
+      hideNav
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        {renderColumn('Kitchen / Food', 'kitchen', grouped.food)}
-        {renderColumn('Bar / Drinks', 'bar', grouped.drinks)}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {tickets.map((order) => {
+          const action = nextAction(order.status);
+          const actions =
+            action && order.status !== 'DELIVERED'
+              ? [
+                  {
+                    label: action.label,
+                    onClick: () => updateOrderStatus(order.id, action.next),
+                  },
+                ]
+              : [];
+          return (
+            <TicketCard
+              key={order.id}
+              order={order}
+              items={pickItemsForOwner(order)}
+              accent={getAccent(order)}
+              actions={actions}
+            />
+          );
+        })}
       </div>
-      <div>{renderColumn('Requests', 'server', grouped.requests)}</div>
+      {tickets.length === 0 && (
+        <p className="text-sm text-gray-500">No orders yet. Everything will show here in one place.</p>
+      )}
     </StaffLayout>
   );
 };
