@@ -23,10 +23,11 @@ export type OrderItemInput = {
 export type NewOrderInput = {
   restaurantId: string;
   orderType: OrderType;
-  tableLabel?: string;      // dine-in only
-  customerName?: string;    // esp. for to-go
-  customerId?: string;      // optional link to customers table
-  note?: string;            // overall note for the order
+  tableId?: string | null;
+  tableLabel?: string; // dine-in only
+  customerName?: string; // esp. for to-go
+  customerId?: string; // optional link to customers table
+  note?: string; // overall note for the order
   items: OrderItemInput[];
 };
 
@@ -34,12 +35,30 @@ export type OrderRow = {
   id: string;
   restaurant_id: string;
   order_type: OrderType;
+  table_id?: string | null;
   table_label: string | null;
   customer_name: string | null;
+  customer_id?: string | null;
   status: OrderStatus;
   note: string | null;
-  created_at: string;       // ISO timestamp
+  created_at: string; // ISO timestamp
 };
+
+export type OrderItemRow = {
+  id: string;
+  order_id: string;
+  menu_item_id: string | null;
+  name: string;
+  quantity: number;
+  price: number | null;
+  kind: ItemKind;
+  note: string | null;
+  status?: string | null;
+  table_id?: string | null;
+  created_at?: string;
+};
+
+export type OrderWithItems = OrderRow & { items: OrderItemRow[] };
 
 /**
  * STEP 3: Load existing open orders once.
@@ -58,6 +77,44 @@ export async function fetchOpenOrders(): Promise<OrderRow[]> {
   }
 
   return (data ?? []) as OrderRow[];
+}
+
+/**
+ * Fetch order_items for a list of order IDs.
+ */
+export async function fetchOrderItemsForOrders(orderIds: string[]): Promise<Map<string, OrderItemRow[]>> {
+  const map = new Map<string, OrderItemRow[]>();
+  if (!orderIds.length) return map;
+
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('*')
+    .in('order_id', orderIds);
+
+  if (error) {
+    console.error('Error fetching order items', error);
+    throw error;
+  }
+
+  (data ?? []).forEach((item) => {
+    const list = map.get(item.order_id) ?? [];
+    list.push(item as OrderItemRow);
+    map.set(item.order_id, list);
+  });
+
+  return map;
+}
+
+/**
+ * Convenience helper to load open orders with their items.
+ */
+export async function fetchOpenOrdersWithItems(): Promise<OrderWithItems[]> {
+  const orders = await fetchOpenOrders();
+  const itemsMap = await fetchOrderItemsForOrders(orders.map((order) => order.id));
+  return orders.map((order) => ({
+    ...order,
+    items: itemsMap.get(order.id) ?? [],
+  }));
 }
 
 /**
@@ -104,6 +161,7 @@ export async function createOrderWithItems(input: NewOrderInput): Promise<OrderR
     .insert({
       restaurant_id: input.restaurantId,
       order_type: input.orderType,
+      table_id: input.tableId ?? null,
       table_label: input.tableLabel ?? null,
       customer_name: input.customerName ?? null,
       customer_id: input.customerId ?? null,
@@ -128,6 +186,7 @@ export async function createOrderWithItems(input: NewOrderInput): Promise<OrderR
       price: item.price,
       kind: item.kind,
       note: item.note ?? null,
+      table_id: input.tableId ?? null,
     }));
 
     const { error: itemsError } = await supabase

@@ -10,12 +10,22 @@ import {
 import { mockRestaurants } from '../data/mockRestaurants';
 import { Language, OrderItem, Restaurant } from '../types';
 import {
+  createOrderWithItems,
+  fetchOpenOrdersWithItems,
+  fetchOrderItemsForOrders,
+  subscribeToOrders,
+  updateOrderStatus as updateOrderStatusApi,
+  type OrderItemRow,
+  type OrderWithItems,
+} from '../api/ordersApi';
+import {
   ItemKind,
   OrderStatus,
   OrderType,
   StaffOrder,
   StaffOrderItem,
   StaffOrderPayload,
+  Station,
   StaffSeedContext,
   TableInfo,
   TableState,
@@ -27,7 +37,7 @@ type StaffContextValue = {
   singleOperatorMode: boolean;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   addStaffOrder: (order: StaffOrder) => void;
-  addCustomerOrder: (payload: StaffOrderPayload) => StaffOrder | null;
+  addCustomerOrder: (payload: StaffOrderPayload) => Promise<StaffOrder | null>;
   setTableState: (tableId: string, state: TableState, startedAt?: Date | null) => void;
   closeTableSession: (tableId: string) => void;
   getOrdersForTable: (tableId: string) => StaffOrder[];
@@ -84,94 +94,8 @@ const formatMenuName = (name: Record<Language, string>, language?: Language) => 
   return name.en ?? Object.values(name)[0];
 };
 
-const makeItem = (
-  id: string,
-  kindIndex: Map<string, ItemKind>,
-  restaurant: Restaurant | null,
-  quantity = 1,
-  language?: Language
-): StaffOrderItem | null => {
-  if (!restaurant) return null;
-  const allItems = [...restaurant.menu.food, ...restaurant.menu.drinks];
-  const match = allItems.find((item) => item.id === id);
-  if (!match) return null;
-  return {
-    id,
-    quantity,
-    name: formatMenuName(match.name, language),
-    kind: kindIndex.get(id) ?? 'food',
-  };
-};
-
-const seedOrdersFromRestaurant = (restaurant: Restaurant | null): StaffOrder[] => {
-  if (!restaurant) return [];
-  const kindIndex = buildMenuKindIndex(restaurant);
-  const sample: StaffOrder[] = [];
-  const taco = makeItem('rup-food-1', kindIndex, restaurant, 2);
-  const empanada = makeItem('rup-food-3', kindIndex, restaurant, 1);
-  const beer = makeItem('rup-drink-3', kindIndex, restaurant, 2);
-  const mezcal = makeItem('rup-drink-1', kindIndex, restaurant, 1);
-  if (taco && beer) {
-    sample.push({
-      id: 'seed-order-1',
-      orderType: 'dine_in',
-      tableId: 'rup-table-2',
-      tableLabel: getTableLabel(restaurant, 'rup-table-2'),
-      items: [taco, beer],
-      note: 'NO ONION',
-      createdAt: new Date(Date.now() - 8 * 60 * 1000),
-      status: 'NEW',
-      station: 'kitchen',
-    });
-  }
-  if (empanada && mezcal) {
-    sample.push({
-      id: 'seed-order-2',
-      orderType: 'dine_in',
-      tableId: 'rup-table-8',
-      tableLabel: getTableLabel(restaurant, 'rup-table-8'),
-      items: [empanada, mezcal],
-      note: 'FIRE FAST',
-      createdAt: new Date(Date.now() - 14 * 60 * 1000),
-      status: 'IN_PROGRESS',
-      station: 'bar',
-    });
-  }
-  if (mezcal) {
-    sample.push({
-      id: 'seed-order-3',
-      orderType: 'to_go',
-      customerName: 'Camila',
-      items: [{ ...mezcal, quantity: 2 }],
-      note: 'WHATSAPP ETA 15',
-      createdAt: new Date(Date.now() - 4 * 60 * 1000),
-      status: 'NEW',
-      station: 'bar',
-    });
-  }
-  sample.push({
-    id: 'seed-request-1',
-    orderType: 'request',
-    tableId: 'rup-table-4',
-    tableLabel: getTableLabel(restaurant, 'rup-table-4'),
-    items: [
-      {
-        id: 'request-water',
-        name: 'Water refill',
-        quantity: 1,
-        kind: 'food',
-      },
-    ],
-    note: 'CALL SERVER',
-    createdAt: new Date(Date.now() - 2 * 60 * 1000),
-    status: 'READY',
-    station: 'server',
-  });
-  return sample;
-};
-
 export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
-  const [orders, setOrders] = useState<StaffOrder[]>(() => seedOrdersFromRestaurant(seedRestaurant));
+  const [orders, setOrders] = useState<StaffOrder[]>([]);
   const [tables, setTables] = useState<TableInfo[]>(() => seedTablesFromRestaurant(seedRestaurant));
   const [kindIndex] = useState(() => buildMenuKindIndex(seedRestaurant));
 
@@ -198,9 +122,8 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
 
   const updateOrderStatus = useCallback(
     (orderId: string, status: OrderStatus) => {
-      setOrders((prev) => {
-        const next = prev.map((order) => (order.id === orderId ? { ...order, status } : order));
-        return next;
+      updateOrderStatusApi(orderId, status).catch((err) => {
+        console.error('Failed to update order status in Supabase', err);
       });
     },
     []
@@ -219,7 +142,13 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
 
   const addStaffOrder = useCallback(
     (order: StaffOrder) => {
-      setOrders((prev) => [order, ...prev]);
+      setOrders((prev) => {
+        const exists = prev.some((existing) => existing.id === order.id);
+        if (exists) {
+          return prev.map((existing) => (existing.id === order.id ? order : existing));
+        }
+        return [order, ...prev];
+      });
       if (order.tableId) {
         setTables((prev) =>
           prev.map((table) =>
@@ -228,7 +157,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         );
       }
     },
-    []
+    [setTables]
   );
 
   const adaptOrderItems = useCallback(
@@ -251,32 +180,191 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
     [kindIndex]
   );
 
+  const mapOrderItemsFromSupabase = useCallback(
+    (items: OrderItemRow[]): StaffOrderItem[] =>
+      (items ?? []).map((item) => ({
+        id: item.menu_item_id ?? item.id,
+        quantity: item.quantity,
+        name: item.name,
+        kind: item.kind,
+        note: item.note ?? undefined,
+      })),
+    []
+  );
+
+  const deriveStation = (items: StaffOrderItem[], orderType: OrderType): Station | undefined => {
+    if (orderType === 'request') return 'server';
+    const hasFoodOnly = items.length > 0 && items.every((item) => item.kind === 'food');
+    const hasDrinksOnly = items.length > 0 && items.every((item) => item.kind === 'drink');
+    if (hasFoodOnly) return 'kitchen';
+    if (hasDrinksOnly) return 'bar';
+    return undefined;
+  };
+
+  const mapSupabaseOrderToStaff = useCallback(
+    (order: OrderWithItems): StaffOrder => {
+      const itemList = mapOrderItemsFromSupabase(order.items ?? []);
+      const tableLabel =
+        order.table_label ??
+        (order.table_id ? getTableLabel(seedRestaurant, order.table_id) : undefined);
+      return {
+        id: order.id,
+        orderType: order.order_type,
+        items: itemList,
+        tableId: order.table_id ?? undefined,
+        tableLabel,
+        customerName: order.customer_name ?? undefined,
+        note: order.note ?? undefined,
+        status: order.status,
+        createdAt: new Date(order.created_at ?? Date.now()),
+        station: deriveStation(itemList, order.order_type),
+      };
+    },
+    [mapOrderItemsFromSupabase]
+  );
+
+  const upsertStaffOrder = useCallback((nextOrder: StaffOrder) => {
+    setOrders((prev) => {
+      const exists = prev.some((order) => order.id === nextOrder.id);
+      if (exists) {
+        return prev.map((order) => (order.id === nextOrder.id ? nextOrder : order));
+      }
+      return [nextOrder, ...prev];
+    });
+  }, []);
+
   const addCustomerOrder = useCallback(
-    (payload: StaffOrderPayload): StaffOrder | null => {
+    async (payload: StaffOrderPayload): Promise<StaffOrder | null> => {
       const restaurant = payload.meta?.restaurant ?? seedRestaurant;
+      if (!restaurant) return null;
+
       const items = adaptOrderItems(payload.items, restaurant, payload.meta?.language);
       if (!items.length) return null;
+
       const orderType: OrderType =
         payload.meta?.tableId || payload.meta?.tableNumber ? 'dine_in' : 'to_go';
       const tableLabel = payload.meta?.tableId
         ? getTableLabel(restaurant, payload.meta.tableId)
         : undefined;
-      const order: StaffOrder = {
-        id: `order-${Date.now()}`,
-        orderType,
-        tableId: payload.meta?.tableId ?? undefined,
-        tableLabel,
-        items,
-        customerName: payload.meta?.customerName,
-        note: payload.meta?.note,
-        status: 'NEW',
-        createdAt: new Date(),
-      };
-      addStaffOrder(order);
-      return order;
+
+      try {
+        const orderRow = await createOrderWithItems({
+          restaurantId: restaurant.id,
+          orderType,
+          tableId: payload.meta?.tableId ?? null,
+          tableLabel,
+          customerName: payload.meta?.customerName,
+          customerId: payload.meta?.customerId,
+          note: payload.meta?.note,
+          items: payload.items.map((item) => ({
+            menuItemId: item.menuItem.id,
+            name: formatMenuName(item.menuItem.name, payload.meta?.language),
+            quantity: item.quantity,
+            price: item.menuItem.price,
+            kind: items.find((i) => i.id === item.menuItem.id)?.kind ?? 'food',
+          })),
+        });
+
+        const orderItemRows: OrderItemRow[] = items.map((item) => ({
+          id: `${orderRow.id}-${item.id}`,
+          order_id: orderRow.id,
+          menu_item_id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: payload.items.find((p) => p.menuItem.id === item.id)?.menuItem.price ?? null,
+          kind: item.kind,
+          note: item.note ?? null,
+          table_id: payload.meta?.tableId ?? null,
+        }));
+
+        const staffOrder = mapSupabaseOrderToStaff({
+          ...orderRow,
+          items: orderItemRows,
+        });
+
+        upsertStaffOrder(staffOrder);
+        return staffOrder;
+      } catch (err) {
+        console.error('Failed to create order in Supabase', err);
+        return null;
+      }
     },
-    [adaptOrderItems, addStaffOrder]
+    [adaptOrderItems, mapSupabaseOrderToStaff, upsertStaffOrder]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    const loadOrders = async () => {
+      try {
+        const openOrders = await fetchOpenOrdersWithItems();
+        if (cancelled) return;
+        const mapped = openOrders.map(mapSupabaseOrderToStaff);
+        setOrders(
+          mapped.sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+        );
+      } catch (err) {
+        console.error('Failed to load orders from Supabase', err);
+      }
+    };
+
+    const handleInsert = async (row: any) => {
+      try {
+        const itemsMap = await fetchOrderItemsForOrders([row.id]);
+        if (cancelled) return;
+        const items = itemsMap.get(row.id) ?? [];
+        upsertStaffOrder(
+          mapSupabaseOrderToStaff({
+            ...(row as OrderWithItems),
+            items,
+          })
+        );
+      } catch (err) {
+        console.error('Failed to process incoming order', err);
+      }
+    };
+
+    const unsubscribeFn = subscribeToOrders((payload) => {
+      if (cancelled) return;
+      if (payload.eventType === 'INSERT' && payload.newRow) {
+        handleInsert(payload.newRow);
+      } else if (payload.eventType === 'UPDATE' && payload.newRow) {
+        setOrders((prev) => {
+          const tableLabel =
+            (payload.newRow as any).table_label ??
+            ((payload.newRow as any).table_id
+              ? getTableLabel(seedRestaurant, (payload.newRow as any).table_id)
+              : undefined);
+          const hasExisting = prev.some((order) => order.id === (payload.newRow as any).id);
+          if (!hasExisting) return prev;
+          return prev.map((order) =>
+            order.id === (payload.newRow as any).id
+              ? {
+                  ...order,
+                  status: (payload.newRow as any).status ?? order.status,
+                  note: (payload.newRow as any).note ?? order.note,
+                  tableId: (payload.newRow as any).table_id ?? order.tableId,
+                  tableLabel: tableLabel ?? order.tableLabel,
+                }
+              : order
+          );
+        });
+      } else if (payload.eventType === 'DELETE' && payload.oldRow) {
+        setOrders((prev) => prev.filter((order) => order.id !== (payload.oldRow as any).id));
+      }
+    });
+
+    unsubscribe = unsubscribeFn;
+    loadOrders();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [mapSupabaseOrderToStaff, upsertStaffOrder]);
 
   const setTableState = useCallback((tableId: string, state: TableState, startedAt?: Date | null) => {
     setTables((prev) =>
@@ -288,14 +376,17 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
 
   const closeTableSession = useCallback(
     (tableId: string) => {
-      setOrders((prev) =>
-        prev.map((order) =>
-          order.tableId === tableId ? { ...order, status: 'DELIVERED' } : order
-        )
+      const tableOrders = orders.filter(
+        (order) => order.tableId === tableId && order.status !== 'DELIVERED'
       );
+      tableOrders.forEach((order) => {
+        updateOrderStatusApi(order.id, 'DELIVERED').catch((err) =>
+          console.error('Failed to close table order in Supabase', err)
+        );
+      });
       setTableState(tableId, 'CLEANING', new Date());
     },
-    [setTableState]
+    [orders, setTableState]
   );
 
   const getOrdersForTable = useCallback(

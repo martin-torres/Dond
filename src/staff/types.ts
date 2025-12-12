@@ -56,6 +56,7 @@ export type StaffSeedContext = {
   tableId?: string | null;
   tableNumber?: number | null;
   customerName?: string;
+  customerId?: string;
   note?: string;
   language?: Language;
 };

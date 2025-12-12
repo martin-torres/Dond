@@ -20,6 +20,7 @@ import { Globe } from 'lucide-react';
 import { MenuPreview } from './components/MenuPreview';
 import { translateRestaurantMenu } from './utils/liveTranslations';
 import { useStaffData } from './staff/StaffDataProvider';
+import { createPaymentRecord, updatePaymentStatus } from './api/paymentsApi';
 
 export default function App() {
   const SUPPORTED_LANGS: Language[] = ['en', 'es', 'fr', 'de', 'ja', 'ar', 'zh'];
@@ -283,32 +284,16 @@ export default function App() {
 
     const tableNumber =
       currentRestaurant.tables.find((t) => t.id === selectedTableId)?.number ?? null;
-    staff.addCustomerOrder({
-      items: currentOrders,
-      meta: {
-        restaurant: currentRestaurant,
-        tableId: selectedTableId,
-        tableNumber,
-        language,
-      },
-    });
-
     try {
-      const { error } = await supabase.from('orders').insert([
-        {
-          restaurant_id: currentRestaurant.id,
-          restaurant_name: currentRestaurant.name,
-          table_id: selectedTableId,
-          table_number: selectedTable?.number?.toString(),
-          items: currentOrders,
+      await staff.addCustomerOrder({
+        items: currentOrders,
+        meta: {
+          restaurant: currentRestaurant,
+          tableId: selectedTableId,
+          tableNumber,
           language,
-          status: 'new',
         },
-      ]);
-
-      if (error) {
-        console.error('Error saving order to Supabase:', error.message);
-      }
+      });
     } catch (err) {
       console.error('Unexpected error saving order to Supabase:', err);
     } finally {
@@ -367,6 +352,19 @@ export default function App() {
   };
 
   const handlePaymentComplete = (paidAmount?: number, paidItems?: string[]) => {
+    const orderReference = selectedTableId ?? 'local-order';
+    if (paidAmount !== undefined) {
+      // Stubbed payment recording to keep flow integration-friendly.
+      createPaymentRecord({
+        orderId: orderReference,
+        amount: paidAmount,
+        currency: 'USD',
+        metadata: {
+          items: (paidItems ?? []).join(','),
+          restaurantId: currentRestaurant?.id ?? 'unknown',
+        },
+      }).then((record) => updatePaymentStatus(record.id, 'PAID'));
+    }
     // Reset to initial state
     setStage('qr-scan');
     setCurrentRestaurant(null);
@@ -415,7 +413,7 @@ export default function App() {
     return (
       <div className="fixed bottom-24 right-4 z-50">
         <Button
-          onClick={() => {
+          onClick={async () => {
             const payment: Payment = {
               userId: `user-${mockPayments.length + 1}`,
               userName: `Customer ${mockPayments.length + 1}`,
@@ -424,6 +422,22 @@ export default function App() {
             };
             setMockPayments(prev => [...prev, payment]);
             setBill(prev => prev ? { ...prev, payments: [...prev.payments, payment] } : null);
+            const orderReference = selectedTableId ?? 'local-order';
+            try {
+              const record = await createPaymentRecord({
+                orderId: orderReference,
+                amount: payment.amount,
+                currency: 'USD',
+                metadata: {
+                  simulated: true,
+                  userName: payment.userName,
+                  restaurantId: currentRestaurant?.id ?? 'unknown',
+                },
+              });
+              await updatePaymentStatus(record.id, 'PAID');
+            } catch (err) {
+              console.error('Failed to record simulated payment', err);
+            }
           }}
           variant="outline"
           size="sm"
