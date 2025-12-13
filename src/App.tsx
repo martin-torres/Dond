@@ -108,18 +108,28 @@ export default function App() {
 
   const appendOrders = (items: OrderItem[]) => {
     if (!items.length) return;
-    setCurrentOrders((prev) => {
-      const existingIds = new Set(prev.map((item) => item.menuItem.id));
-      setDeliveredItemIds((deliveredPrev) => {
-        const next = new Set(deliveredPrev);
-        items.forEach((item) => {
-          if (existingIds.has(item.menuItem.id)) {
-            next.add(item.menuItem.id);
-          }
-        });
-        return next;
+
+    setCurrentOrders((prevOrders) => {
+      // Create a mutable copy of the previous orders
+      const newOrders = [...prevOrders];
+
+      // Use a Map for efficient lookups of existing items by their ID
+      const orderMap = new Map(newOrders.map(order => [order.menuItem.id, order]));
+
+      items.forEach(newItem => {
+        if (orderMap.has(newItem.menuItem.id)) {
+          // If the item already exists in the order, just update its quantity
+          const existingOrder = orderMap.get(newItem.menuItem.id)!;
+          existingOrder.quantity += newItem.quantity;
+        } else {
+          // If it's a new item, add it to the end of the order list
+          newOrders.push(newItem);
+          // Also add it to our map so we can find it if it's duplicated in the `items` array
+          orderMap.set(newItem.menuItem.id, newItem);
+        }
       });
-      return [...prev, ...items];
+
+      return newOrders;
     });
   };
 
@@ -292,7 +302,7 @@ export default function App() {
       ]);
 
       if (error) {
-        console.error('Error saving order to Supabase:', error.message);
+        console.error('Error saving order to Supabase:', error);
       }
     } catch (err) {
       console.error('Unexpected error saving order to Supabase:', err);
