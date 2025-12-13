@@ -126,6 +126,28 @@ export default function App() {
       return [...prev, ...items];
     });
   };
+  
+  const submitItemsToSupabase = async (items: OrderItem[], tableId: string) => {
+    if (!currentRestaurant || items.length === 0) return;
+
+    const tableNumber =
+      currentRestaurant.tables.find((t) => t.id === tableId)?.number ?? null;
+
+    try {
+      await staff.addCustomerOrder({
+        items,
+        meta: {
+          restaurant: currentRestaurant,
+          tableId,
+          tableNumber,
+          language,
+        },
+      });
+      console.log('✅ Sent order to Supabase', { tableId, count: items.length });
+    } catch (err) {
+      console.error('❌ Failed to send order to Supabase', err);
+    }
+  };
 
   // Simulate proximity changes
   useEffect(() => {
@@ -179,6 +201,9 @@ export default function App() {
     }
     if (stagedItems.length > 0) {
       appendOrders(stagedItems);
+      if (tableId) {
+        void submitItemsToSupabase(stagedItems, tableId);
+      }
     }
     setStage('waiting');
   };
@@ -188,8 +213,14 @@ export default function App() {
   };
 
   const handleDrinkOrderPlaced = (items: OrderItem[]) => {
+    console.log('🍹 handleDrinkOrderPlaced fired', items);
     setDrinkOrders(items);
     appendOrders(items);
+
+    if (selectedTableId && items.length > 0) {
+      void submitItemsToSupabase(items, selectedTableId);
+    }
+
     setWaitSeconds(prev => {
       const base = prev ?? currentRestaurant?.waitTime ?? 0;
       if (base <= 1) return 1;
@@ -247,13 +278,21 @@ export default function App() {
   };
 
   const handleFoodOrderPlaced = (items: OrderItem[]) => {
+    console.log('🍽️ handleFoodOrderPlaced fired', items);
     const nextStage = 'order-summary';
+
     if (!selectedTableId && items.length > 0) {
       setPendingTableOrder(items);
       setStage('table-selection');
       return;
     }
+
     appendOrders(items);
+
+    if (selectedTableId && items.length > 0) {
+      void submitItemsToSupabase(items, selectedTableId);
+    }
+
     setInteractiveMenuFocusId(null);
     setMenuReturnStage(null);
     setStage(nextStage);
@@ -272,35 +311,50 @@ export default function App() {
   };
 
   const handleFinalizeOrder = () => {
+    console.log('➡️ handleFinalizeOrder fired; going to order-submit');
     setStage('order-submit');
   };
 
   const handleSubmitOrder = async () => {
+    console.log('🧾 handleSubmitOrder START', {
+      hasRestaurant: !!currentRestaurant,
+      selectedTableId,
+      currentOrdersLen: currentOrders.length,
+      stage,
+    });
+
     // If we are missing basic info, just go back to the summary for now
-    if (!currentRestaurant || !selectedTableId || currentOrders.length === 0) {
+    if (!currentRestaurant || currentOrders.length === 0) {
+      console.log('🛑 handleSubmitOrder early-exit (missing restaurant or empty orders)');
       setStage('order-summary');
       return;
     }
 
     const tableNumber =
-      currentRestaurant.tables.find((t) => t.id === selectedTableId)?.number ?? null;
+      selectedTableId
+        ? currentRestaurant.tables.find((t) => t.id === selectedTableId)?.number ?? null
+        : null;
+
     try {
+      console.log('📤 calling staff.addCustomerOrder');
       await staff.addCustomerOrder({
         items: currentOrders,
         meta: {
           restaurant: currentRestaurant,
-          tableId: selectedTableId,
+          tableId: selectedTableId ?? null,
           tableNumber,
           language,
         },
       });
+      console.log('✅ staff.addCustomerOrder done');
     } catch (err) {
-      console.error('Unexpected error saving order to Supabase:', err);
+      console.error('❌ Unexpected error saving order to Supabase:', err);
     } finally {
       // No matter what happens, show the order summary screen
       setStage('order-summary');
     }
   };
+
 
   const handleOpenMenuPreview = (menuItemId?: string) => {
     setMenuFocusItemId(menuItemId ?? null);

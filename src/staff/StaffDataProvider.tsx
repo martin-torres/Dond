@@ -96,8 +96,16 @@ const formatMenuName = (name: Record<Language, string>, language?: Language) => 
 
 export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<StaffOrder[]>([]);
-  const [tables, setTables] = useState<TableInfo[]>(() => seedTablesFromRestaurant(seedRestaurant));
-  const [kindIndex] = useState(() => buildMenuKindIndex(seedRestaurant));
+
+  const [activeRestaurantId, setActiveRestaurantId] = useState<string>(seedRestaurant?.id ?? '');
+  const activeRestaurant = useMemo(
+    () =>
+      mockRestaurants.find((restaurant) => restaurant.id === activeRestaurantId) ?? seedRestaurant,
+    [activeRestaurantId]
+  );
+
+  const [tables, setTables] = useState<TableInfo[]>(() => seedTablesFromRestaurant(activeRestaurant));
+  const kindIndex = useMemo(() => buildMenuKindIndex(activeRestaurant), [activeRestaurant]);
 
   const syncTableOccupancy = useCallback(
     (nextOrders: StaffOrder[]) => {
@@ -204,9 +212,15 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   const mapSupabaseOrderToStaff = useCallback(
     (order: OrderWithItems): StaffOrder => {
       const itemList = mapOrderItemsFromSupabase(order.items ?? []);
+      const restaurantForOrder =
+        mockRestaurants.find((restaurant) => restaurant.id === order.restaurant_id) ??
+        activeRestaurant ??
+        seedRestaurant;
+
       const tableLabel =
         order.table_label ??
-        (order.table_id ? getTableLabel(seedRestaurant, order.table_id) : undefined);
+        (order.table_id ? getTableLabel(restaurantForOrder, order.table_id) : undefined);
+
       return {
         id: order.id,
         orderType: order.order_type,
@@ -300,6 +314,12 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       try {
         const openOrders = await fetchOpenOrdersWithItems();
         if (cancelled) return;
+
+        const nextRestaurantId = openOrders.find((order) => order.restaurant_id)?.restaurant_id;
+        if (nextRestaurantId && nextRestaurantId !== activeRestaurantId) {
+          setActiveRestaurantId(nextRestaurantId);
+        }
+
         const mapped = openOrders.map(mapSupabaseOrderToStaff);
         setOrders(
           mapped.sort(
@@ -364,7 +384,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       cancelled = true;
       if (unsubscribe) unsubscribe();
     };
-  }, [mapSupabaseOrderToStaff, upsertStaffOrder]);
+  }, [mapSupabaseOrderToStaff, upsertStaffOrder, activeRestaurantId]);
 
   const setTableState = useCallback((tableId: string, state: TableState, startedAt?: Date | null) => {
     setTables((prev) =>
