@@ -3,7 +3,9 @@ import { BarView } from './staff/BarView';
 import { FohView } from './staff/FohView';
 import { KitchenView } from './staff/KitchenView';
 import { OwnerView } from './staff/OwnerView';
+import { ManagerEditConsole } from './staff/ManagerEditConsole';
 import { ManagerGate } from './staff/ManagerGate';
+
 
 const cleanPath = (pathname: string) => pathname.replace(/\/+$/, '') || '/';
 
@@ -13,6 +15,15 @@ export const RootApp = () => {
   if (path === '/kitchen') return <KitchenView />;
   if (path === '/bar') return <BarView />;
   if (path === '/foh') return <FohView />;
+
+  if (path === '/manager/edit') {
+    return (
+      <ManagerGate>
+        <ManagerEditConsole />
+      </ManagerGate>
+    );
+  }
+
   if (path === '/manager') {
     return (
       <ManagerGate>
@@ -20,6 +31,7 @@ export const RootApp = () => {
       </ManagerGate>
     );
   }
+
   if (path === '/owner') {
     return (
       <ManagerGate>

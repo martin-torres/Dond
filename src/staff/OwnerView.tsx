@@ -3,13 +3,10 @@ import { StaffLayout } from './StaffLayout';
 import { useStaffData } from './StaffDataProvider';
 import { TicketCard } from './TicketCard';
 import { filterItemsByKind } from './utils';
-import { updateOrderStatus } from './orderStatus';
 import { OrderStatus, StaffOrder } from './types';
 import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
 import { Card } from '../components/ui/card';
 import { Table } from '../types';
-import { SeedTablesToSupabase } from './SeedTablesToSupabase';
-import { ManagerTablesPanel } from './ManagerTablesPanel';
 
 const pickItemsForOwner = (order: StaffOrder) => {
   if (order.orderType === 'request') return order.items;
@@ -34,7 +31,7 @@ const getAccent = (order: StaffOrder): 'kitchen' | 'bar' | 'server' | 'owner' =>
 type VirtualTable = Table & { isVirtual: boolean; orderIds: string[] };
 
 export const OwnerView = () => {
-  const { orders, tables, singleOperatorMode } = useStaffData();
+  const { orders, tables, singleOperatorMode, updateOrderStatus } = useStaffData();
   const [selectedTableId, setSelectedTableId] = useState<string | null>(tables[0]?.id ?? null);
 
   const managerEnabled = useMemo(() => {
@@ -68,7 +65,7 @@ export const OwnerView = () => {
           number: table.tableNumber ?? 0,
           seats: table.seats ?? 4,
           location: (table.location as Table['location']) ?? 'middle',
-          available: table.state === 'READY',
+          available: table.available ?? (table.state === 'READY'),
           reserved: table.state === 'OCCUPIED' ? false : undefined,
           x: table.x ?? 0,
           y: table.y ?? 0,
@@ -184,20 +181,29 @@ export const OwnerView = () => {
       hideNav
     >
       <Card className="p-4 space-y-4 border border-slate-200 shadow-sm">
-        <SeedTablesToSupabase enabled={managerEnabled} />
-        <ManagerTablesPanel enabled={managerEnabled} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Full floor</p>
             <h2 className="text-xl font-semibold text-gray-900">Tap a table or to-go ticket</h2>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {legendPill('Request', '#f59e0b')}
-            {legendPill('Order', '#0ea5e9')}
-            {legendPill('In process', '#fb7185')}
-            {legendPill('Ready', '#10b981')}
-            {legendPill('Pickup', '#6366f1')}
-          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {managerEnabled && (
+               <a
+                   href="/manager/edit"
+                   className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+                   title="Edit restaurant configuration"
+                   aria-label="Edit restaurant configuration"
+               >
+                ✎ Edit
+             </a>
+          )}
+
+          {legendPill('Request', '#f59e0b')}
+          {legendPill('Order', '#0ea5e9')}
+          {legendPill('In process', '#fb7185')}
+          {legendPill('Ready', '#10b981')}
+          {legendPill('Pickup', '#6366f1')}
+        </div>
         </div>
 
         <div className="grid gap-4">

@@ -235,7 +235,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                   }}
                 >
                   <div style={{ fontWeight: 800, lineHeight: 1.1 }}>
-                    #{table.number}
+                    {table.label ? table.label : table.number ? `#${table.number}` : table.id}
                   </div>
                   <div
                     style={{
