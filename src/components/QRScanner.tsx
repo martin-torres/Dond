@@ -61,11 +61,11 @@ export function QRScanner({ language, onScan }: QRScannerProps) {
               <a href="/foh">FOH</a>
             </Button>
             <Button asChild variant="outline" className="w-full">
-              <a href="/owner">Owner</a>
+              <a href="/manager">Manager</a>
             </Button>
           </div>
           <p className="text-center text-xs text-gray-400">
-            Scan a staff QR to jump into management screens.
+            Use a staff QR (or the buttons above) to open staff screens.
           </p>
         </div>
       </div>

@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { mockRestaurants } from '../data/mockRestaurants';
 import { Language, OrderItem, Restaurant } from '../types';
+import { supabase } from '../lib/supabaseClient';
 import {
   createOrderWithItems,
   fetchOpenOrdersWithItems,
@@ -18,6 +19,7 @@ import {
   type OrderItemRow,
   type OrderWithItems,
 } from '../api/ordersApi';
+import { fetchRestaurantTables, type RestaurantTableRow } from '../api/restaurantTablesApi';
 import {
   ItemKind,
   OrderStatus,
@@ -89,6 +91,22 @@ const seedTablesFromRestaurant = (restaurant: Restaurant | null): TableInfo[] =>
   }));
 };
 
+const seedTablesFromDbRows = (rows: RestaurantTableRow[]): TableInfo[] => {
+  return (rows ?? []).map((row) => ({
+    id: row.id,
+    label: row.display_name ?? row.id,
+    section: titleCase(row.section ?? row.location),
+    state: row.available ? 'READY' : 'OCCUPIED',
+    cleaningStartedAt: null,
+    tableNumber: row.table_number ?? undefined,
+    seats: row.seats ?? undefined,
+    location: row.location ?? undefined,
+    available: row.available,
+    x: row.x ?? undefined,
+    y: row.y ?? undefined,
+  }));
+};
+
 const formatMenuName = (name: Record<Language, string>, language?: Language) => {
   if (language && name[language]) return name[language];
   return name.en ?? Object.values(name)[0];
@@ -97,10 +115,14 @@ const formatMenuName = (name: Record<Language, string>, language?: Language) => 
 export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<StaffOrder[]>([]);
 
-  const [activeRestaurantId, setActiveRestaurantId] = useState<string>(seedRestaurant?.id ?? '');
+  const [activeRestaurantId, setActiveRestaurantId] = useState<string>(() => {
+    if (typeof window === 'undefined') return seedRestaurant?.id ?? '';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('restaurantId') ?? seedRestaurant?.id ?? '';
+  });
+
   const activeRestaurant = useMemo(
-    () =>
-      mockRestaurants.find((restaurant) => restaurant.id === activeRestaurantId) ?? seedRestaurant,
+    () => mockRestaurants.find((r) => r.id === activeRestaurantId) ?? seedRestaurant,
     [activeRestaurantId]
   );
 
@@ -130,8 +152,31 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
 
   const updateOrderStatus = useCallback(
     (orderId: string, status: OrderStatus) => {
+      let previousStatus: OrderStatus | null = null;
+
+      // 1) Optimistic UI update: update local state immediately
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          previousStatus = order.status;
+          return { ...order, status };
+        })
+      );
+
+      // 2) Save to Supabase
       updateOrderStatusApi(orderId, status).catch((err) => {
         console.error('Failed to update order status in Supabase', err);
+
+        // 3) Roll back UI if Supabase update failed
+        if (previousStatus) {
+          setOrders((prev) =>
+            prev.map((order) =>
+              order.id === orderId ? { ...order, status: previousStatus as OrderStatus } : order
+            )
+          );
+        }
+
+        alert('Could not update order status. Please check internet/login and try again.');
       });
     },
     []
@@ -145,9 +190,76 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   }, [updateOrderStatus]);
 
   useEffect(() => {
-    syncTableOccupancy(orders);
-  }, [orders, syncTableOccupancy]);
+    let cancelled = false;
 
+    const loadTables = async () => {
+      if (!activeRestaurantId) return;
+
+      try {
+        const rows = await fetchRestaurantTables(activeRestaurantId);
+        if (cancelled) return;
+
+        if (rows.length > 0) {
+          setTables(seedTablesFromDbRows(rows));
+        } else {
+          setTables(seedTablesFromRestaurant(activeRestaurant));
+        }
+      } catch (err) {
+        console.error('Failed to load restaurant_tables from Supabase', err);
+        setTables(seedTablesFromRestaurant(activeRestaurant));
+      }
+    };
+
+    loadTables();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRestaurantId, activeRestaurant]);
+
+  useEffect(() => {
+    if (!activeRestaurantId) return;
+
+    let cancelled = false;
+
+    const reloadTables = async () => {
+      try {
+        const rows = await fetchRestaurantTables(activeRestaurantId);
+        if (cancelled) return;
+
+        if (rows.length > 0) {
+          setTables(seedTablesFromDbRows(rows));
+        } else {
+          setTables(seedTablesFromRestaurant(activeRestaurant));
+        }
+      } catch (err) {
+        console.error('Failed to reload restaurant_tables after change', err);
+      }
+    };
+
+    const channel = supabase
+      .channel(`restaurant-tables-${activeRestaurantId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'restaurant_tables',
+          filter: `restaurant_id=eq.${activeRestaurantId}`,
+        },
+        () => {
+          // Any edit in manager tools should refresh the floor plan tables quickly
+          void reloadTables();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [activeRestaurantId, activeRestaurant]);
+  
   const addStaffOrder = useCallback(
     (order: StaffOrder) => {
       setOrders((prev) => {
@@ -234,7 +346,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         station: deriveStation(itemList, order.order_type),
       };
     },
-    [mapOrderItemsFromSupabase]
+    [mapOrderItemsFromSupabase, activeRestaurant]
   );
 
   const upsertStaffOrder = useCallback((nextOrder: StaffOrder) => {
@@ -356,7 +468,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
           const tableLabel =
             (payload.newRow as any).table_label ??
             ((payload.newRow as any).table_id
-              ? getTableLabel(seedRestaurant, (payload.newRow as any).table_id)
+              ? getTableLabel(activeRestaurant, (payload.newRow as any).table_id)
               : undefined);
           const hasExisting = prev.some((order) => order.id === (payload.newRow as any).id);
           if (!hasExisting) return prev;

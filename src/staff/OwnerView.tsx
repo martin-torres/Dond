@@ -8,6 +8,8 @@ import { OrderStatus, StaffOrder } from './types';
 import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
 import { Card } from '../components/ui/card';
 import { Table } from '../types';
+import { SeedTablesToSupabase } from './SeedTablesToSupabase';
+import { ManagerTablesPanel } from './ManagerTablesPanel';
 
 const pickItemsForOwner = (order: StaffOrder) => {
   if (order.orderType === 'request') return order.items;
@@ -34,6 +36,12 @@ type VirtualTable = Table & { isVirtual: boolean; orderIds: string[] };
 export const OwnerView = () => {
   const { orders, tables, singleOperatorMode } = useStaffData();
   const [selectedTableId, setSelectedTableId] = useState<string | null>(tables[0]?.id ?? null);
+
+  const managerEnabled = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const isManagerPath = window.location.pathname.replace(/\/+$/, '') === '/manager';
+    return isManagerPath && sessionStorage.getItem('managerUnlocked') === '1';
+  }, []);
 
   const virtualTables: VirtualTable[] = useMemo(() => {
     const toGoOrders = orders.filter((order) => order.orderType === 'to_go' && !order.tableId);
@@ -176,6 +184,8 @@ export const OwnerView = () => {
       hideNav
     >
       <Card className="p-4 space-y-4 border border-slate-200 shadow-sm">
+        <SeedTablesToSupabase enabled={managerEnabled} />
+        <ManagerTablesPanel enabled={managerEnabled} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Full floor</p>
