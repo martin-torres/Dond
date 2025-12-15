@@ -488,7 +488,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       } else if (payload.eventType === 'DELETE' && payload.oldRow) {
         setOrders((prev) => prev.filter((order) => order.id !== (payload.oldRow as any).id));
       }
-    });
+    }, activeRestaurantId);
 
     unsubscribe = unsubscribeFn;
     loadOrders();

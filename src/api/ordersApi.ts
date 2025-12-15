@@ -127,13 +127,19 @@ export function subscribeToOrders(
     eventType: 'INSERT' | 'UPDATE' | 'DELETE';
     newRow?: OrderRow | null;
     oldRow?: OrderRow | null;
-  }) => void
+  }) => void,
+  restaurantId?: string | null
 ) {
   const channel = supabase
-    .channel('orders-realtime')
+    .channel(restaurantId ? `orders-realtime-${restaurantId}` : 'orders-realtime')
     .on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'orders' },
+      {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        ...(restaurantId ? { filter: `restaurant_id=eq.${restaurantId}` } : {}),
+      },
       (payload) => {
         onChange({
           eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
@@ -144,7 +150,6 @@ export function subscribeToOrders(
     )
     .subscribe();
 
-  // return an unsubscribe function
   return () => {
     supabase.removeChannel(channel);
   };
