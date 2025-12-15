@@ -94,12 +94,12 @@ export const ManagerEditConsole = () => {
               </div>
 
               {/* These are the ONLY table-config writers */}
-              <SeedTablesToSupabase enabled />
-              <ManagerTablesPanel enabled />
-
               <FloorPlanCanvasEditor
                 restaurantId={new URLSearchParams(window.location.search).get('restaurantId') ?? ''}
               />
+
+              <ManagerTablesPanel enabled />
+              <SeedTablesToSupabase enabled />
             </>
           )}
 

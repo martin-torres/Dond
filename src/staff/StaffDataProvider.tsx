@@ -51,7 +51,8 @@ let externalOrderStatusUpdater: ((orderId: string, status: OrderStatus) => void)
 
 export const getExternalOrderStatusUpdater = () => externalOrderStatusUpdater;
 
-const seedRestaurant: Restaurant | null = mockRestaurants[0] ?? null;
+const seedRestaurant: Restaurant | null =
+  mockRestaurants.find((r) => r.id === 'rest-one-maui') ?? mockRestaurants[0] ?? null;
 
 const titleCase = (value?: string | null) => {
   if (!value) return '';

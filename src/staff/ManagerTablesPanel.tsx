@@ -88,6 +88,7 @@ export function ManagerTablesPanel({ enabled }: Props) {
     try {
       await upsertRestaurantTables([row]);
       setMsg(`Saved ${row.display_name}`);
+      setMsg(`Saved ${row.display_name}`);
     } catch (e) {
       console.error('Failed to save table row', e);
       setMsg('Failed to save table (see console).');

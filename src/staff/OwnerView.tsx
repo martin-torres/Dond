@@ -4,9 +4,10 @@ import { useStaffData } from './StaffDataProvider';
 import { TicketCard } from './TicketCard';
 import { filterItemsByKind } from './utils';
 import { OrderStatus, StaffOrder } from './types';
-import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
-import { Card } from '../components/ui/card';
+import { FloorPlanCanvasView } from '../components/FloorPlanCanvasView';
+import { OpsTableGrid } from '../components/OpsTableGrid';
 import { Table } from '../types';
+import { Card } from '../components/ui/card';
 
 const pickItemsForOwner = (order: StaffOrder) => {
   if (order.orderType === 'request') return order.items;
@@ -113,6 +114,12 @@ export const OwnerView = () => {
     });
     return signalMap;
   }, [allTables, orders]);
+  
+  const activeTableIds = useMemo(() => {
+    return Object.entries(tableSignals)
+      .filter(([_, s]) => s.hasRequest || s.hasOrder || s.inProcess || s.ready || s.pickingUp)
+      .map(([id]) => id);
+  }, [tableSignals]);
 
   const tableOrdersSorted = useMemo(
     () =>
@@ -189,7 +196,7 @@ export const OwnerView = () => {
           <div className="flex flex-wrap items-center gap-2">
             {managerEnabled && (
                <a
-                   href="/manager/edit"
+                   href={`/manager/edit${typeof window !== 'undefined' ? window.location.search : ''}`}
                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
                    title="Edit restaurant configuration"
                    aria-label="Edit restaurant configuration"
@@ -207,14 +214,18 @@ export const OwnerView = () => {
         </div>
 
         <div className="grid gap-4">
-          <FloorPlanTablePicker
-            tables={allTables}
-            language="en"
-            selectedLocation="all"
-            selectedTableId={selectedTable?.id ?? null}
-            onTableClick={(table) => setSelectedTableId(table.id)}
-            tableSignals={tableSignals}
-          />
+          <OpsTableGrid
+  title="Ops tables (Maui)"
+  tables={allTables.map((t) => ({
+    id: t.id,
+    label: t.label ?? `Table ${t.number}`,
+    seats: t.seats ?? 0,
+    isVirtual: t.isVirtual,
+  }))}
+  signals={tableSignals}
+  selectedTableId={selectedTableId}
+  onSelectTableId={(id) => setSelectedTableId(id)}
+/>
 
           {selectedTable && (
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm space-y-3">

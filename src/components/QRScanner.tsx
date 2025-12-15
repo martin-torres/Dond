@@ -11,6 +11,8 @@ interface QRScannerProps {
 }
 
 export function QRScanner({ language, onScan }: QRScannerProps) {
+    const mauiId = 'rest-one-maui';
+  const maui = mockRestaurants.find((r) => r.id === mauiId);
   return (
     <PageShell
       headerSlot={
@@ -32,17 +34,17 @@ export function QRScanner({ language, onScan }: QRScannerProps) {
           <p className="text-center text-gray-500 text-sm">
             {t('simulateScan', language)}:
           </p>
-          {mockRestaurants.map((restaurant) => (
+          {maui && (
             <Button
-              key={restaurant.id}
-              onClick={() => onScan(restaurant.id)}
-              className="w-full"
-              variant="outline"
-            >
-              <QrCode className="w-4 h-4 mr-2" />
-              {restaurant.name}
-            </Button>
-          ))}
+               key={maui.id}
+               onClick={() => onScan(maui.id)}
+                className="w-full"
+                variant="outline"
+        >
+    <QrCode className="w-4 h-4 mr-2" />
+    {maui.name}
+  </Button>
+)}
         </div>
 
         <div className="w-full h-px bg-gray-100" />
@@ -51,19 +53,23 @@ export function QRScanner({ language, onScan }: QRScannerProps) {
             Staff access
           </p>
           <div className="grid grid-cols-2 gap-2">
-            <Button asChild variant="outline" className="w-full">
-              <a href="/kitchen">Kitchen</a>
-            </Button>
-            <Button asChild variant="outline" className="w-full">
-              <a href="/bar">Bar</a>
-            </Button>
-            <Button asChild variant="outline" className="w-full">
-              <a href="/foh">FOH</a>
-            </Button>
-            <Button asChild variant="outline" className="w-full">
-              <a href="/manager">Manager</a>
-            </Button>
-          </div>
+  <Button asChild variant="outline" className="w-full">
+    <a href={`/kitchen?restaurantId=${encodeURIComponent(mauiId)}`}>Kitchen</a>
+  </Button>
+
+  <Button asChild variant="outline" className="w-full">
+    <a href={`/bar?restaurantId=${encodeURIComponent(mauiId)}`}>Bar</a>
+  </Button>
+
+  <Button asChild variant="outline" className="w-full">
+    <a href={`/foh?restaurantId=${encodeURIComponent(mauiId)}`}>FOH</a>
+  </Button>
+
+  <Button asChild variant="outline" className="w-full">
+    <a href={`/manager?restaurantId=${encodeURIComponent(mauiId)}`}>Manager</a>
+  </Button>
+</div>
+
           <p className="text-center text-xs text-gray-400">
             Use a staff QR (or the buttons above) to open staff screens.
           </p>

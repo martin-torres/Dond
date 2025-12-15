@@ -64,6 +64,25 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
     };
   }, [restaurantId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      const changedRestaurantId = ce?.detail?.restaurantId as string | undefined;
+      if (!changedRestaurantId || changedRestaurantId !== restaurantId) return;
+
+      fetchRestaurantTables(restaurantId)
+        .then((t) => setRows(t))
+        .catch((err) => console.error('Failed to refresh tables', err));
+    };
+
+    window.addEventListener('restaurant-tables-changed', handler as EventListener);
+    return () => {
+      window.removeEventListener('restaurant-tables-changed', handler as EventListener);
+    };
+  }, [restaurantId]);
+
   const snap = (value: number) => {
     const g = Math.max(1, effectivePlan.grid_size || 1);
     return Math.round(value / g) * g;
