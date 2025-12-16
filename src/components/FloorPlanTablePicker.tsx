@@ -13,16 +13,50 @@ export type TableSignal = {
 
 type TableStatusKey = "request" | "order" | "inProcess" | "ready" | "pickup";
 
+type StatusPalette = {
+  bg: string;
+  border: string;
+  text: string;
+  glow: string;
+};
+
 /**
  * Palette must match the legend colours exactly.
+ * NOTE: Per your instruction, READY uses the pink (rose) palette and IN_PROCESS uses the green (emerald) palette.
  * (Local to this component — no global theme changes.)
  */
-const STATUS_PALETTE: Record<TableStatusKey, string> = {
-  request: "#f59e0b", // amber
-  order: "#0ea5e9", // sky
-  inProcess: "#fb7185", // rose
-  ready: "#10b981", // emerald
-  pickup: "#6366f1", // indigo
+const STATUS_PALETTE: Record<TableStatusKey, StatusPalette> = {
+  request: {
+    bg: "#ffedd5",
+    border: "#f59e0b",
+    text: "#92400e",
+    glow: "rgba(245,158,11,0.45)",
+  },
+  order: {
+    bg: "#e0f2fe",
+    border: "#0ea5e9",
+    text: "#075985",
+    glow: "rgba(14,165,233,0.45)",
+  },
+  // Flipped per spec: in_process is green, ready is pink
+  inProcess: {
+    bg: "#dcfce7",
+    border: "#10b981",
+    text: "#065f46",
+    glow: "rgba(16,185,129,0.45)",
+  },
+  ready: {
+    bg: "#ffe4e6",
+    border: "#fb7185",
+    text: "#9f1239",
+    glow: "rgba(251,113,133,0.45)",
+  },
+  pickup: {
+    bg: "#e0e7ff",
+    border: "#6366f1",
+    text: "#3730a3",
+    glow: "rgba(99,102,241,0.45)",
+  },
 };
 
 // PRIMARY priority: pickup > ready > inProcess > order > request
@@ -43,19 +77,6 @@ function hexToRgba(hex: string, alpha: number) {
   const g = (num >> 8) & 255;
   const b = num & 255;
   return `rgba(${r},${g},${b},${alpha})`;
-}
-
-function readableTextColor(bgHex: string) {
-  // Simple luminance check: returns either white or a very dark slate.
-  const clean = bgHex.replace("#", "").trim();
-  const full =
-    clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
-  const num = parseInt(full, 16);
-  const r = (num >> 16) & 255;
-  const g = (num >> 8) & 255;
-  const b = num & 255;
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return luminance > 0.68 ? "#0f172a" : "#ffffff";
 }
 
 function getActiveStatuses(signals: TableSignal): TableStatusKey[] {
@@ -122,10 +143,12 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
     );
   }
 
-  // IMPORTANT: You asked that status-driven table colouring ONLY applies on the FOH page.
-  // So we gate it by the route path.
+  // IMPORTANT: Status-driven table colouring applies on the FOH + Manager pages.
+  // We gate it by the route path to avoid affecting other screens.
   const enableStatusDrivenColors =
-    typeof window !== "undefined" && window.location.pathname.startsWith("/foh");
+    typeof window !== "undefined" &&
+    (window.location.pathname.startsWith("/foh") ||
+      window.location.pathname.startsWith("/manager"));
 
   const tableCount = tables.length || 1;
   const sizeScale = compact ? 0.65 : 1;
@@ -200,31 +223,32 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
             let baseBorder = table.available ? "#16a34a" : "#f97373";
             let baseText = table.available ? "#14532d" : "#991b1b";
 
-            // Status-driven override (FOH only)
+            // Status-driven override (FOH + Manager)
             const activeStatuses = getActiveStatuses(signals);
 
             // PRIMARY/SECONDARY rule:
             // - If 1 active status: fill/border = that status colour
             // - If 2+: border/glow = PRIMARY, fill = SECONDARY
             if (enableStatusDrivenColors && activeStatuses.length > 0) {
-              const primary = STATUS_PALETTE[activeStatuses[0]];
+              const primaryKey = activeStatuses[0];
+              const primary = STATUS_PALETTE[primaryKey];
 
               if (activeStatuses.length === 1) {
-                baseBg = primary;
-                baseBorder = primary;
+                baseBg = primary.bg;
+                baseBorder = primary.border;
+                baseText = primary.text;
               } else {
                 const secondary = STATUS_PALETTE[activeStatuses[1]];
-                baseBorder = primary;
-                baseBg = secondary;
+                baseBorder = primary.border;
+                baseBg = secondary.bg;
+                baseText = secondary.text;
               }
-
-              baseText = readableTextColor(baseBg);
             }
 
-            const selectionGlow =
+            const selectionRing =
               enableStatusDrivenColors && activeStatuses.length > 0
-                ? STATUS_PALETTE[activeStatuses[0]]
-                : baseBorder;
+                ? STATUS_PALETTE[activeStatuses[0]].glow
+                : hexToRgba(baseBorder, 0.6);
 
             // Shape & size based on number of seats (circles for small, squares for others)
             let width = baseSize * 1.1 * sizeScale;
@@ -282,14 +306,14 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
             if (!hideSignals) {
               if (signals.hasRequest)
                 badges.push(badge(t("badgeRequest", language), "#f59e0b"));
-              if (signals.hasOrder)
-                badges.push(badge(t("badgeOrder", language), "#0ea5e9"));
-              if (signals.inProcess)
-                badges.push(badge(t("badgeInProcess", language), "#fb7185"));
-              if (signals.ready)
-                badges.push(badge(t("badgeReady", language), "#10b981"));
-              if (signals.pickingUp)
-                badges.push(badge(t("badgePickup", language), "#6366f1"));
+            if (signals.hasOrder)
+              badges.push(badge(t("badgeOrder", language), "#0ea5e9"));
+            if (signals.inProcess)
+              badges.push(badge(t("badgeInProcess", language), "#10b981"));
+            if (signals.ready)
+              badges.push(badge(t("badgeReady", language), "#fb7185"));
+            if (signals.pickingUp)
+              badges.push(badge(t("badgePickup", language), "#6366f1"));
             }
 
             return (
@@ -312,7 +336,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                   opacity: isMuted ? 0.25 : 1,
                   cursor: "pointer",
                   boxShadow: isSelected
-                    ? `0 0 0 4px ${hexToRgba(selectionGlow, 0.6)}`
+                    ? `0 0 0 4px ${selectionRing}`
                     : "0 4px 14px rgba(15,23,42,0.12)",
                   transform: isSelected ? "scale(1.02)" : "scale(1.0)",
                   transition: "transform 120ms ease, box-shadow 120ms ease",
