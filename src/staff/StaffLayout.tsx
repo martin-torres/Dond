@@ -12,6 +12,10 @@ type StaffLayoutProps = {
   title: string;
   subtitle?: string;
   children: ReactNode;
+
+  // Optional content shown on the right side of the header (e.g. legend, manager buttons)
+  headerRight?: ReactNode;
+
   hideNav?: boolean;
   hideHeader?: boolean;
   fullBleed?: boolean;
@@ -21,6 +25,7 @@ export const StaffLayout = ({
   title,
   subtitle,
   children,
+  headerRight,
   hideNav,
   hideHeader,
   fullBleed,
@@ -38,21 +43,30 @@ export const StaffLayout = ({
               <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
               {subtitle && <p className="text-sm text-gray-600">{subtitle}</p>}
             </div>
-            {!hideNav && (
-              <div className="flex flex-wrap gap-2">
-                {navLinks.map((link) => {
-                  const isActive = path === link.href;
-                  return (
-                    <Button
-                      key={link.href}
-                      asChild
-                      variant={isActive ? 'default' : 'outline'}
-                      className={isActive ? 'shadow-md' : 'bg-white/70'}
-                    >
-                      <a href={link.href}>{link.label}</a>
-                    </Button>
-                  );
-                })}
+
+            {(headerRight || !hideNav) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {headerRight && (
+                  <div className="flex flex-wrap items-center gap-2">{headerRight}</div>
+                )}
+
+                {!hideNav && (
+                  <div className="flex flex-wrap gap-2">
+                    {navLinks.map((link) => {
+                      const isActive = path === link.href;
+                      return (
+                        <Button
+                          key={link.href}
+                          asChild
+                          variant={isActive ? 'default' : 'outline'}
+                          className={isActive ? 'shadow-md' : 'bg-white/70'}
+                        >
+                          <a href={link.href}>{link.label}</a>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </header>

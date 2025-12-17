@@ -58,8 +58,14 @@ const STATUS_STYLES: Record<TableStatusKey, StatusStyle> = {
   },
 };
 
-// Used to pick the "secondary" (border/glow) when READY is present, and to pick a primary when READY is absent.
-const SECONDARY_PRIORITY: TableStatusKey[] = ["pickup", "inProcess", "order", "request"];
+// Used to pick the "secondary" (border/glow) when READY is present,
+// and to pick a primary when READY is absent.
+const SECONDARY_PRIORITY: TableStatusKey[] = [
+  "pickup",
+  "inProcess",
+  "order",
+  "request",
+];
 
 /**
  * Returns statuses present on the table in priority order (excluding READY),
@@ -94,21 +100,6 @@ interface FloorPlanTablePickerProps {
   hideSignals?: boolean;
 }
 
-/**
- * SIMPLE, ALWAYS-VISIBLE FLOOR PLAN WITH SHAPES BY SEATS:
- * - Red dashed rectangle.
- * - Info line with tables.length + selectedLocation.
- * - Cluster of table shapes (circles / squares / rectangles).
- * - Seats-based size:
- *    - 1–2 seats: smaller circles (bar / tiny tables)
- *    - 3–4 seats: medium squares
- *    - 5–6 seats: wider rectangles
- *    - 7+ seats: largest rectangles
- * - Location filter:
- *    - Matching: normal + clickable.
- *    - Non-matching: 50% opacity + not clickable.
- * - Selected table: glow + slight scale-up.
- */
 const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
   tables,
   language,
@@ -144,6 +135,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
 
   const tableCount = tables.length || 1;
   const sizeScale = compact ? 0.65 : 1;
+
   // Base size between compact (smaller) and default (larger) depending on table count
   const minSize = compact ? 16 : 56;
   const maxSize = compact ? 28 : 96;
@@ -210,16 +202,22 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
             const isSelected = selectedTableId === table.id;
             const signals = tableSignals?.[table.id] ?? {};
 
-            // Base colours (fallback = availability, same as today)
-            let baseBg = table.available ? "#dcfce7" : "#fee2e2";
-            let baseBorder = table.available ? "#16a34a" : "#f97373";
-            let baseText = table.available ? "#14532d" : "#991b1b";
-            let selectionGlowCss = table.available
-              ? "rgba(22,163,74,0.45)"
-              : "rgba(249,115,115,0.45)";
-
-            // Status-driven override (FOH only)
+            // derive READY + other status list in priority order
             const { hasReady, others } = getStatusPresence(signals);
+
+            // Base colours (fallback = IDLE = grayscale)
+            let baseBg = "#f1f5f9"; // light slate
+            let baseBorder = "#cbd5e1"; // slate border
+            let baseText = "#334155"; // slate text
+
+            // default glow (used for selection when idle)
+            let selectionGlowCss = "rgba(203,213,225,0.65)";
+
+            const activeCount = (hasReady ? 1 : 0) + others.length;
+
+            // Idle tables render at 70% size without changing layout footprint
+            const idleVisualScale =
+              enableStatusDrivenColors && activeCount === 0 ? 0.7 : 1.0;
 
             /**
              * RULES (per FOH alert spec):
@@ -234,9 +232,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
              *    - BORDER/GLOW = highest priority status (others[0])
              *    - FILL = next highest (others[1]) (or same if only one)
              */
-            if (enableStatusDrivenColors) {
-              const activeCount = (hasReady ? 1 : 0) + others.length;
-
+            if (enableStatusDrivenColors && activeCount > 0) {
               if (activeCount === 1) {
                 const onlyKey: TableStatusKey = hasReady ? "ready" : others[0];
                 const s = STATUS_STYLES[onlyKey];
@@ -244,7 +240,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                 baseBorder = s.border;
                 baseText = s.text;
                 selectionGlowCss = s.glow;
-              } else if (activeCount >= 2 && hasReady) {
+              } else if (hasReady) {
                 const fill = STATUS_STYLES["ready"];
                 const borderKey: TableStatusKey = others[0] ?? "ready";
                 const border = STATUS_STYLES[borderKey];
@@ -253,7 +249,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                 baseBorder = border.border;
                 baseText = fill.text;
                 selectionGlowCss = border.glow;
-              } else if (activeCount >= 1 && !hasReady && others.length > 0) {
+              } else if (others.length > 0) {
                 const borderKey = others[0];
                 const fillKey = others[1] ?? others[0];
 
@@ -267,7 +263,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
               }
             }
 
-            // Shape & size based on number of seats (circles for small, squares for others)
+            // Shape & size based on number of seats
             let width = baseSize * 1.1 * sizeScale;
             let height = width;
             let borderRadius = "12px";
@@ -321,22 +317,29 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
 
             const badges: React.ReactNode[] = [];
             if (!hideSignals) {
-              if (signals.hasRequest)
+              if (signals.hasRequest) {
                 badges.push(badge(t("badgeRequest", language), "#f59e0b"));
-            if (signals.hasOrder)
-              badges.push(badge(t("badgeOrder", language), "#0ea5e9"));
-            if (signals.inProcess)
-              badges.push(badge(t("badgeInProcess", language), "#10b981"));
-            if (signals.ready)
-              badges.push(badge(t("badgeReady", language), "#fb7185"));
-            if (signals.pickingUp)
-              badges.push(badge(t("badgePickup", language), "#6366f1"));
+              }
+              if (signals.hasOrder) {
+                badges.push(badge(t("badgeOrder", language), "#0ea5e9"));
+              }
+              if (signals.inProcess) {
+                badges.push(badge(t("badgeInProcess", language), "#10b981"));
+              }
+              if (signals.ready) {
+                badges.push(badge(t("badgeReady", language), "#fb7185"));
+              }
+              if (signals.pickingUp) {
+                badges.push(badge(t("badgePickup", language), "#6366f1"));
+              }
             }
 
             return (
               <button
                 key={table.id}
-                onClick={() => onTableClick(table)}
+                onClick={() => {
+                  if (!isMuted) onTableClick(table);
+                }}
                 style={{
                   width: "100%",
                   minHeight: height + 12,
@@ -351,11 +354,13 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                   justifyContent: "space-between",
                   boxSizing: "border-box",
                   opacity: isMuted ? 0.25 : 1,
-                  cursor: "pointer",
+                  cursor: isMuted ? "not-allowed" : "pointer",
                   boxShadow: isSelected
                     ? `0 0 0 4px ${selectionGlowCss}`
                     : "0 4px 14px rgba(15,23,42,0.12)",
-                  transform: isSelected ? "scale(1.02)" : "scale(1.0)",
+                  transform: isSelected
+                    ? `scale(${idleVisualScale * 1.02})`
+                    : `scale(${idleVisualScale})`,
                   transition: "transform 120ms ease, box-shadow 120ms ease",
                   textAlign: "left",
                   padding: 10,
@@ -363,7 +368,9 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <div style={{ fontWeight: 800, fontSize: 14 }}>{table.label}</div>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>
+                    {table.label}
+                  </div>
                   <div style={{ fontSize: 11, opacity: 0.8 }}>
                     {table.seats} seats
                   </div>
