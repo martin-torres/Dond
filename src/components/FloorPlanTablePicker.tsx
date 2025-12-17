@@ -80,14 +80,33 @@ function hexToRgba(hex: string, alpha: number) {
 }
 
 function getActiveStatuses(signals: TableSignal): TableStatusKey[] {
-  const present: Partial<Record<TableStatusKey, boolean>> = {
-    pickup: !!signals.pickingUp,
-    ready: !!signals.ready,
-    inProcess: !!signals.inProcess,
-    order: !!signals.hasOrder,
-    request: !!signals.hasRequest,
-  };
-  return STATUS_PRIORITY.filter((k) => !!present[k]);
+  // Collect active states in priority order.
+  // The rule: blue ("order") shows only while *all* items are still queued.
+  // As soon as any item is in_process, ready, pickup, or delivered,
+  // the "order" state disappears.
+  const active: TableStatusKey[] = [];
+
+  if (signals.pickingUp) active.push("pickup");
+  if (signals.ready) active.push("ready");
+  if (signals.inProcess) active.push("inProcess");
+
+  // Only include "order" if there are no in-process or higher statuses.
+  const hasLaterStage = signals.inProcess || signals.ready || signals.pickingUp;
+  if (signals.hasOrder && !hasLaterStage) active.push("order");
+
+  if (signals.hasRequest) active.push("request");
+
+  // Sort by priority so the first element is always the PRIMARY colour.
+  const priority: TableStatusKey[] = [
+    "pickup",
+    "ready",
+    "inProcess",
+    "order",
+    "request",
+  ];
+  active.sort((a, b) => priority.indexOf(a) - priority.indexOf(b));
+
+  return active;
 }
 
 interface FloorPlanTablePickerProps {

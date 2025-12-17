@@ -27,7 +27,7 @@ export const RootApp = () => {
   if (path === '/manager') {
     return (
       <ManagerGate>
-        <OwnerView />
+        <FohView />
       </ManagerGate>
     );
   }

@@ -12,6 +12,7 @@ import { OrderStatus, StaffOrder } from './types';
 export const FohView = () => {
   const { tables, orders, setTableState, closeTableSession } = useStaffData();
   const [selectedTableId, setSelectedTableId] = useState<string | null>(tables[0]?.id ?? null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const selectedTable = useMemo(
     () => tables.find((table) => table.id === selectedTableId) ?? tables[0],
@@ -113,94 +114,114 @@ export const FohView = () => {
       hideNav
     >
       <Card className="p-4 space-y-4 border border-emerald-100 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
-                Floor activity
-              </p>
-              <h2 className="text-xl font-semibold text-gray-900">Tap a table to view details</h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {legendPill('Request', '#f59e0b')}
-              {legendPill('Order', '#0ea5e9')}
-              {legendPill('In process', '#fb7185')}
-              {legendPill('Ready', '#10b981')}
-              {legendPill('Pickup', '#6366f1')}
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Floor activity</p>
+            <h2 className="text-xl font-semibold text-gray-900">Tap a table to view details</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => setSidebarOpen((open) => !open)}>
+              {sidebarOpen ? 'Hide details' : 'Show details'}
+            </Button>
+
+            {legendPill('Request', '#f59e0b')}
+            {legendPill('Order', '#0ea5e9')}
+            {legendPill('In process', '#fb7185')}
+            {legendPill('Ready', '#10b981')}
+            {legendPill('Pickup', '#6366f1')}
+          </div>
+        </div>
+
+        <div className="flex gap-4">
+          <div
+            className={`transition-all duration-300 ${
+              sidebarOpen ? 'flex-1 scale-[0.8] origin-top-left' : 'flex-1'
+            }`}
+          >
+            <FloorPlanTablePicker
+              tables={tables.map(
+                (table) =>
+                  ({
+                    id: table.id,
+                    number: table.tableNumber ?? 0,
+                    seats: table.seats ?? 4,
+                    location: (table.location as Table['location']) ?? 'middle',
+                    available: table.state === 'READY',
+                    reserved: table.state === 'OCCUPIED' ? false : undefined,
+                    x: table.x ?? 0,
+                    y: table.y ?? 0,
+                  } as Table)
+              )}
+              language="en"
+              selectedLocation="all"
+              selectedTableId={selectedTable?.id ?? null}
+              onTableClick={(table) => setSelectedTableId(table.id)}
+              tableSignals={tableSignals}
+            />
           </div>
 
-        <div className="grid gap-4 lg:grid-cols-[3fr,2fr]">
-          <FloorPlanTablePicker
-            tables={tables.map(
-              (table) =>
-                ({
-                  id: table.id,
-                  number: table.tableNumber ?? 0,
-                  seats: table.seats ?? 4,
-                  location: (table.location as Table['location']) ?? 'middle',
-                  available: table.state === 'READY',
-                  reserved: table.state === 'OCCUPIED' ? false : undefined,
-                  x: table.x ?? 0,
-                  y: table.y ?? 0,
-                } as Table)
-            )}
-            language="en"
-            selectedLocation="all"
-            selectedTableId={selectedTable?.id ?? null}
-            onTableClick={(table) => setSelectedTableId(table.id)}
-            tableSignals={tableSignals}
-          />
+          <div
+            className={`transition-all duration-300 overflow-hidden ${
+              sidebarOpen ? 'w-[420px]' : 'w-0'
+            }`}
+          >
+            <div
+              className={`transition-opacity duration-300 ${
+                sidebarOpen ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              {selectedTable && (
+                <div className="rounded-lg border border-emerald-100 bg-white p-4 shadow-sm space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Table</p>
+                      <h2 className="text-xl font-semibold text-gray-900">{selectedTable.label}</h2>
+                      {selectedTable.cleaningStartedAt && selectedTable.state === 'CLEANING' && (
+                        <p className="text-xs text-blue-700 mt-1">
+                          Cleaning · {cleaningMinutes} min
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {selectedTable.state === 'CLEANING' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={() => setTableState(selectedTable.id, 'CLEANING', new Date())}
+                          >
+                            Getting table ready
+                          </Button>
+                          <Button onClick={() => setTableState(selectedTable.id, 'READY', null)}>
+                            Table ready
+                          </Button>
+                        </>
+                      )}
+                      {selectedTable.state === 'OCCUPIED' && (
+                        <Button variant="outline" onClick={() => closeTableSession(selectedTable.id)}>
+                          Close & clean
+                        </Button>
+                      )}
+                    </div>
+                  </div>
 
-          {selectedTable && (
-            <div className="rounded-lg border border-emerald-100 bg-white p-4 shadow-sm space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Table</p>
-                  <h2 className="text-xl font-semibold text-gray-900">{selectedTable.label}</h2>
-                  {selectedTable.cleaningStartedAt && selectedTable.state === 'CLEANING' && (
-                    <p className="text-xs text-blue-700 mt-1">
-                      Cleaning · {cleaningMinutes} min
-                    </p>
-                  )}
+                  <div className="space-y-3">
+                    {tableOrdersSorted.length === 0 && (
+                      <p className="text-sm text-gray-500">No active orders for this table.</p>
+                    )}
+                    {tableOrdersSorted.map((order) => (
+                      <TicketCard
+                        key={order.id}
+                        order={order}
+                        items={order.items}
+                        accent="server"
+                        actions={actionsForOrder(order)}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  {selectedTable.state === 'CLEANING' && (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={() => setTableState(selectedTable.id, 'CLEANING', new Date())}
-                      >
-                        Getting table ready
-                      </Button>
-                      <Button onClick={() => setTableState(selectedTable.id, 'READY', null)}>
-                        Table ready
-                      </Button>
-                    </>
-                  )}
-                  {selectedTable.state === 'OCCUPIED' && (
-                    <Button variant="outline" onClick={() => closeTableSession(selectedTable.id)}>
-                      Close & clean
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {tableOrdersSorted.length === 0 && (
-                  <p className="text-sm text-gray-500">No active orders for this table.</p>
-                )}
-                {tableOrdersSorted.map((order) => (
-                  <TicketCard
-                    key={order.id}
-                    order={order}
-                    items={order.items}
-                    accent="server"
-                    actions={actionsForOrder(order)}
-                  />
-                ))}
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </Card>
     </StaffLayout>
