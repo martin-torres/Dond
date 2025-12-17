@@ -13,19 +13,17 @@ export type TableSignal = {
 
 type TableStatusKey = "request" | "order" | "inProcess" | "ready" | "pickup";
 
-type StatusPalette = {
-  bg: string;
-  border: string;
-  text: string;
-  glow: string;
-};
+type StatusStyle = { bg: string; border: string; text: string; glow: string };
 
 /**
- * Palette must match the legend colours exactly.
- * NOTE: Per your instruction, READY uses the pink (rose) palette and IN_PROCESS uses the green (emerald) palette.
- * (Local to this component — no global theme changes.)
+ * Legend colours (exact shades).
+ *
+ * IMPORTANT (per your latest spec):
+ * - READY is the loud FOH alert colour (rose/pink).
+ * - IN PROCESS is green.
+ * - Order stays blue, Pickup stays indigo, Request stays amber.
  */
-const STATUS_PALETTE: Record<TableStatusKey, StatusPalette> = {
+const STATUS_STYLES: Record<TableStatusKey, StatusStyle> = {
   request: {
     bg: "#ffedd5",
     border: "#f59e0b",
@@ -38,14 +36,15 @@ const STATUS_PALETTE: Record<TableStatusKey, StatusPalette> = {
     text: "#075985",
     glow: "rgba(14,165,233,0.45)",
   },
-  // Flipped per spec: in_process is green, ready is pink
   inProcess: {
+    // swapped: IN PROCESS = green
     bg: "#dcfce7",
     border: "#10b981",
     text: "#065f46",
     glow: "rgba(16,185,129,0.45)",
   },
   ready: {
+    // swapped: READY = rose/pink
     bg: "#ffe4e6",
     border: "#fb7185",
     text: "#9f1239",
@@ -59,54 +58,28 @@ const STATUS_PALETTE: Record<TableStatusKey, StatusPalette> = {
   },
 };
 
-// PRIMARY priority: pickup > ready > inProcess > order > request
-const STATUS_PRIORITY: TableStatusKey[] = [
-  "pickup",
-  "ready",
-  "inProcess",
-  "order",
-  "request",
-];
+// Used to pick the "secondary" (border/glow) when READY is present, and to pick a primary when READY is absent.
+const SECONDARY_PRIORITY: TableStatusKey[] = ["pickup", "inProcess", "order", "request"];
 
-function hexToRgba(hex: string, alpha: number) {
-  const clean = hex.replace("#", "").trim();
-  const full =
-    clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
-  const num = parseInt(full, 16);
-  const r = (num >> 16) & 255;
-  const g = (num >> 8) & 255;
-  const b = num & 255;
-  return `rgba(${r},${g},${b},${alpha})`;
-}
+/**
+ * Returns statuses present on the table in priority order (excluding READY),
+ * plus whether READY is present.
+ */
+function getStatusPresence(signals: TableSignal): {
+  hasReady: boolean;
+  others: TableStatusKey[];
+} {
+  const hasReady = !!signals.ready;
 
-function getActiveStatuses(signals: TableSignal): TableStatusKey[] {
-  // Collect active states in priority order.
-  // The rule: blue ("order") shows only while *all* items are still queued.
-  // As soon as any item is in_process, ready, pickup, or delivered,
-  // the "order" state disappears.
-  const active: TableStatusKey[] = [];
+  const present: Partial<Record<TableStatusKey, boolean>> = {
+    pickup: !!signals.pickingUp,
+    inProcess: !!signals.inProcess,
+    order: !!signals.hasOrder,
+    request: !!signals.hasRequest,
+  };
 
-  if (signals.pickingUp) active.push("pickup");
-  if (signals.ready) active.push("ready");
-  if (signals.inProcess) active.push("inProcess");
-
-  // Only include "order" if there are no in-process or higher statuses.
-  const hasLaterStage = signals.inProcess || signals.ready || signals.pickingUp;
-  if (signals.hasOrder && !hasLaterStage) active.push("order");
-
-  if (signals.hasRequest) active.push("request");
-
-  // Sort by priority so the first element is always the PRIMARY colour.
-  const priority: TableStatusKey[] = [
-    "pickup",
-    "ready",
-    "inProcess",
-    "order",
-    "request",
-  ];
-  active.sort((a, b) => priority.indexOf(a) - priority.indexOf(b));
-
-  return active;
+  const others = SECONDARY_PRIORITY.filter((k) => !!present[k]);
+  return { hasReady, others };
 }
 
 interface FloorPlanTablePickerProps {
@@ -241,33 +214,58 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
             let baseBg = table.available ? "#dcfce7" : "#fee2e2";
             let baseBorder = table.available ? "#16a34a" : "#f97373";
             let baseText = table.available ? "#14532d" : "#991b1b";
+            let selectionGlowCss = table.available
+              ? "rgba(22,163,74,0.45)"
+              : "rgba(249,115,115,0.45)";
 
-            // Status-driven override (FOH + Manager)
-            const activeStatuses = getActiveStatuses(signals);
+            // Status-driven override (FOH only)
+            const { hasReady, others } = getStatusPresence(signals);
 
-            // PRIMARY/SECONDARY rule:
-            // - If 1 active status: fill/border = that status colour
-            // - If 2+: border/glow = PRIMARY, fill = SECONDARY
-            if (enableStatusDrivenColors && activeStatuses.length > 0) {
-              const primaryKey = activeStatuses[0];
-              const primary = STATUS_PALETTE[primaryKey];
+            /**
+             * RULES (per FOH alert spec):
+             * - If there are NO active statuses: keep availability colours exactly.
+             * - If there is exactly 1 active status:
+             *    - READY => use READY styles
+             *    - otherwise => use that status styles
+             * - If there are 2+ statuses and READY is present:
+             *    - FILL must be READY (pink)
+             *    - BORDER/GLOW must be the most important "secondary" status present (others[0])
+             * - If there are 2+ statuses and READY is NOT present:
+             *    - BORDER/GLOW = highest priority status (others[0])
+             *    - FILL = next highest (others[1]) (or same if only one)
+             */
+            if (enableStatusDrivenColors) {
+              const activeCount = (hasReady ? 1 : 0) + others.length;
 
-              if (activeStatuses.length === 1) {
-                baseBg = primary.bg;
-                baseBorder = primary.border;
-                baseText = primary.text;
-              } else {
-                const secondary = STATUS_PALETTE[activeStatuses[1]];
-                baseBorder = primary.border;
-                baseBg = secondary.bg;
-                baseText = secondary.text;
+              if (activeCount === 1) {
+                const onlyKey: TableStatusKey = hasReady ? "ready" : others[0];
+                const s = STATUS_STYLES[onlyKey];
+                baseBg = s.bg;
+                baseBorder = s.border;
+                baseText = s.text;
+                selectionGlowCss = s.glow;
+              } else if (activeCount >= 2 && hasReady) {
+                const fill = STATUS_STYLES["ready"];
+                const borderKey: TableStatusKey = others[0] ?? "ready";
+                const border = STATUS_STYLES[borderKey];
+
+                baseBg = fill.bg;
+                baseBorder = border.border;
+                baseText = fill.text;
+                selectionGlowCss = border.glow;
+              } else if (activeCount >= 1 && !hasReady && others.length > 0) {
+                const borderKey = others[0];
+                const fillKey = others[1] ?? others[0];
+
+                const border = STATUS_STYLES[borderKey];
+                const fill = STATUS_STYLES[fillKey];
+
+                baseBg = fill.bg;
+                baseBorder = border.border;
+                baseText = fill.text;
+                selectionGlowCss = border.glow;
               }
             }
-
-            const selectionRing =
-              enableStatusDrivenColors && activeStatuses.length > 0
-                ? STATUS_PALETTE[activeStatuses[0]].glow
-                : hexToRgba(baseBorder, 0.6);
 
             // Shape & size based on number of seats (circles for small, squares for others)
             let width = baseSize * 1.1 * sizeScale;
@@ -355,7 +353,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                   opacity: isMuted ? 0.25 : 1,
                   cursor: "pointer",
                   boxShadow: isSelected
-                    ? `0 0 0 4px ${selectionRing}`
+                    ? `0 0 0 4px ${selectionGlowCss}`
                     : "0 4px 14px rgba(15,23,42,0.12)",
                   transform: isSelected ? "scale(1.02)" : "scale(1.0)",
                   transition: "transform 120ms ease, box-shadow 120ms ease",

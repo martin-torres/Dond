@@ -11,7 +11,10 @@ export const KitchenView = () => {
   const tickets = useMemo(
     () =>
       orders.filter(
-        (order) => order.orderType !== 'request' && filterItemsByKind(order, 'food').length > 0
+        (order) =>
+          order.orderType !== 'request' &&
+          filterItemsByKind(order, 'food').length > 0 &&
+          (order.status === 'NEW' || order.status === 'IN_PROGRESS' || order.status === 'READY')
       ),
     [orders]
   );

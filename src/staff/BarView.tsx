@@ -10,7 +10,12 @@ export const BarView = () => {
 
   const tickets = useMemo(
     () =>
-      orders.filter((order) => filterItemsByKind(order, 'drink').length > 0 && order.orderType !== 'request'),
+      orders.filter(
+        (order) =>
+          order.orderType !== 'request' &&
+          filterItemsByKind(order, 'drink').length > 0 &&
+          (order.status === 'NEW' || order.status === 'IN_PROGRESS' || order.status === 'READY')
+      ),
     [orders]
   );
 
