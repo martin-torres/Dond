@@ -38,8 +38,11 @@ export const OwnerView = () => {
 
   const managerEnabled = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    const isManagerPath = window.location.pathname.replace(/\/+$/, '') === '/manager';
-    return isManagerPath && sessionStorage.getItem('managerUnlocked') === '1';
+
+    const cleanedPath = window.location.pathname.replace(/\/+$/, '');
+    const isManagerOrOwner = cleanedPath === '/manager' || cleanedPath === '/owner';
+
+    return isManagerOrOwner && sessionStorage.getItem('managerUnlocked') === '1';
   }, []);
 
   const virtualTables: VirtualTable[] = useMemo(() => {
@@ -184,8 +187,8 @@ export const OwnerView = () => {
       }
     >
       <div className="h-full w-full overflow-hidden p-[15px]">
-        <Card className="h-full p-4 space-y-4 border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-[15px]">
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Full floor</p>
               <h2 className="text-xl font-semibold text-gray-900">Tap a table or to-go ticket</h2>
@@ -194,7 +197,9 @@ export const OwnerView = () => {
             <div className="flex flex-wrap items-center gap-2">
               {managerEnabled && (
                 <a
-                  href={`/manager/edit${typeof window !== 'undefined' ? window.location.search : ''}`}
+                  href={`/manager/edit${
+                    typeof window !== 'undefined' ? window.location.search : ''
+                  }`}
                   className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
                   title="Edit restaurant configuration"
                   aria-label="Edit restaurant configuration"
@@ -205,7 +210,6 @@ export const OwnerView = () => {
 
               {legendPill('Request', '#f59e0b')}
               {legendPill('Order', '#0ea5e9')}
-              {/* NOTE: updated to match your verified Stage A mapping */}
               {legendPill('In process', '#10b981')}
               {legendPill('Ready', '#fb7185')}
               {legendPill('Pickup', '#6366f1')}
@@ -223,20 +227,25 @@ export const OwnerView = () => {
             >
               <div className="h-full overflow-hidden">
                 <OpsTableGrid
-                  title="Ops tables (Maui)"
-                  tables={allTables.map((t) => ({
-                    id: t.id,
-                    label: t.label ?? `Table ${t.number}`,
-                    seats: t.seats ?? 0,
-                    isVirtual: t.isVirtual,
-                  }))}
-                  signals={tableSignals}
-                  selectedTableId={selectedTableId}
-                  onSelectTableId={(id) => {
-                    setSelectedTableId(id);
-                    setSidebarOpen(true);
-                  }}
-                />
+                 title="Ops tables (Maui)"
+                 tables={allTables.map((t) => ({
+                 id: t.id,
+                 label: t.label ?? `Table ${t.number}`,
+                 seats: t.seats ?? 0,
+                 isVirtual: t.isVirtual,
+                 available: t.available,
+                 x: t.x ?? 0,
+                 y: t.y ?? 0,
+          }))}
+          signals={tableSignals}
+          selectedTableId={selectedTableId}
+          onSelectTableId={(id) => {
+            setSelectedTableId(id);
+            setSidebarOpen(true);
+  }}
+  compact={sidebarOpen}
+  hideMeta={false}
+/>
               </div>
             </div>
 

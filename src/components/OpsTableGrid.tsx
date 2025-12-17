@@ -12,8 +12,13 @@ export type OpsTableSignal = {
 export type OpsTableItem = {
   id: string;
   label?: string;
+  seats?: number;
   isVirtual?: boolean;
-  available?: boolean; // controls green vs red tile
+  available?: boolean;
+
+  // ✅ REQUIRED for stationary floor plan
+  x?: number;
+  y?: number;
 };
 
 type Props = {
@@ -22,206 +27,151 @@ type Props = {
   signals?: Record<string, OpsTableSignal>;
   selectedTableId?: string | null;
   onSelectTableId?: (id: string) => void;
+
+  // FOH-like switches
+  compact?: boolean;
+  hideMeta?: boolean;
 };
 
-const statusText = (s?: OpsTableSignal) => {
-  if (!s) return 'Idle';
-  if (s.hasRequest) return 'Request';
-  if (s.pickingUp) return 'Pickup';
-  if (s.ready) return 'Ready';
-  if (s.inProcess) return 'In process';
-  if (s.hasOrder) return 'Order';
-  return 'Idle';
-};
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-const isActiveSignal = (s?: OpsTableSignal) => {
+function hasAnySignal(s?: OpsTableSignal) {
   if (!s) return false;
-  return !!(s.hasRequest || s.hasOrder || s.inProcess || s.ready || s.pickingUp);
-};
+  return !!(s.hasRequest || s.hasOrder || s.inProcess || s.ready || s.pickingUp || s.delivered);
+}
 
-// Match old screenshot vibe: some tables are circular (Balcony/Patio/Barra)
-const tileShapeClass = (label?: string, isVirtual?: boolean) => {
-  if (isVirtual) return 'rounded-2xl';
-  const name = (label ?? '').toLowerCase();
-  if (
-    name.includes('balcony') ||
-    name.includes('patio') ||
-    name.includes('barra') ||
-    name.includes('bar')
-  ) {
-    return 'rounded-full';
-  }
-  return 'rounded-2xl';
-};
+// Same seat-based sizing feel as the editor
+function baseSizeForSeats(seats?: number) {
+  const s = seats ?? 4;
+  if (s <= 2) return 52;
+  if (s <= 4) return 68;
+  if (s <= 6) return 84;
+  return 96;
+}
 
-type Tone = {
-  border: string;
-  bg: string;
-  text: string;
-  pillBg: string;
-  pillText: string;
-};
+function borderForSignal(s?: OpsTableSignal) {
+  if (!s) return '#cbd5e1'; // slate-300-ish
+  if (s.hasRequest) return '#f59e0b'; // amber-500
+  if (s.hasOrder) return '#0ea5e9'; // sky-500
+  if (s.inProcess) return '#a855f7'; // purple-500
+  if (s.ready) return '#10b981'; // emerald-500
+  if (s.pickingUp) return '#84cc16'; // lime-500
+  if (s.delivered) return '#94a3b8'; // slate-400
+  return '#cbd5e1';
+}
 
-// Green tiles by default, red tiles if not available
-const toneFor = (available: boolean | undefined, s?: OpsTableSignal): Tone => {
-  if (available === false) {
-    return {
-      border: 'border-rose-400',
-      bg: 'bg-rose-50',
-      text: 'text-rose-700',
-      pillBg: 'bg-rose-100',
-      pillText: 'text-rose-700',
-    };
-  }
-
-  if (s?.hasRequest) {
-    return {
-      border: 'border-emerald-500',
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-900',
-      pillBg: 'bg-amber-100',
-      pillText: 'text-amber-700',
-    };
-  }
-  if (s?.inProcess) {
-    return {
-      border: 'border-emerald-500',
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-900',
-      pillBg: 'bg-rose-100',
-      pillText: 'text-rose-700',
-    };
-  }
-  if (s?.ready) {
-    return {
-      border: 'border-emerald-500',
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-900',
-      pillBg: 'bg-emerald-100',
-      pillText: 'text-emerald-700',
-    };
-  }
-  if (s?.pickingUp) {
-    return {
-      border: 'border-emerald-500',
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-900',
-      pillBg: 'bg-indigo-100',
-      pillText: 'text-indigo-700',
-    };
-  }
-  if (s?.hasOrder) {
-    return {
-      border: 'border-emerald-500',
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-900',
-      pillBg: 'bg-sky-100',
-      pillText: 'text-sky-700',
-    };
-  }
-
-  // Idle (still green tile)
-  return {
-    border: 'border-emerald-500',
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-900',
-    pillBg: 'bg-slate-100',
-    pillText: 'text-slate-600',
-  };
-};
+function bgForSignal(s?: OpsTableSignal, available?: boolean) {
+  if (available === false) return '#f8fafc'; // slate-50
+  if (!s) return '#ffffff';
+  if (s.hasRequest) return '#fffbeb'; // amber-50
+  if (s.hasOrder) return '#f0f9ff'; // sky-50
+  if (s.inProcess) return '#faf5ff'; // purple-50
+  if (s.ready) return '#ecfdf5'; // emerald-50
+  if (s.pickingUp) return '#f7fee7'; // lime-50
+  if (s.delivered) return '#f8fafc'; // slate-50
+  return '#ffffff';
+}
 
 export const OpsTableGrid = ({
-  title = 'Ops tables',
+  title,
   tables,
   signals = {},
   selectedTableId,
   onSelectTableId,
+  compact = false,
+  hideMeta = false,
 }: Props) => {
-  const tableCount = tables.length;
+  // Derive a canvas size from your saved x/y positions so we can clamp correctly.
+  // This keeps tables stationary like the editor.
+  const maxBase = Math.max(...tables.map((t) => baseSizeForSeats(t.seats)), 96);
+
+  const maxX = Math.max(...tables.map((t) => (t.x ?? 0) + maxBase), 520);
+  const maxY = Math.max(...tables.map((t) => (t.y ?? 0) + maxBase), 520);
+
+  const canvasW = maxX;
+  const canvasH = maxY;
+
+  const canvasStyle: React.CSSProperties = {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    minHeight: 520,
+    borderRadius: 16,
+    border: '1px solid #e2e8f0',
+    overflow: 'hidden',
+    backgroundSize: `10px 10px`,
+    backgroundImage:
+      'linear-gradient(to right, rgba(148,163,184,0.20) 1px, transparent 1px),' +
+      'linear-gradient(to bottom, rgba(148,163,184,0.20) 1px, transparent 1px)',
+  };
+
+  // In compact mode (when sidebar open), shrink inactive more.
+  const inactiveOpacity = compact ? 0.28 : 0.38;
 
   return (
-    <Card className="p-4 space-y-3 border border-slate-200 shadow-sm">
-      {/* Red dashed boundary + soft background like old screenshot */}
-      <div className="rounded-2xl border-2 border-dashed border-rose-300 p-4 bg-gradient-to-b from-slate-50 to-indigo-50">
-        {/* Header row like screenshot */}
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="text-xs uppercase tracking-[0.3em] text-slate-600">FLOOR PLAN</div>
-          <div className="text-xs uppercase tracking-[0.2em] text-slate-600">
-            TABLES: {tableCount} • FILTER: ALL TABLES
-          </div>
-        </div>
-
-        {/* 7 columns “board” layout */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-3">
+    <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
+      <div className="h-full w-full overflow-hidden p-[15px]">
+        <div style={canvasStyle}>
           {tables.map((t) => {
             const s = signals[t.id];
-            const active = isActiveSignal(s);
-            const status = t.isVirtual ? 'TO-GO' : statusText(s);
-            const selected = !!selectedTableId && selectedTableId === t.id;
+            const isSelected = !!selectedTableId && selectedTableId === t.id;
 
-            const shape = tileShapeClass(t.label, t.isVirtual);
-            const tone = toneFor(t.available, s);
+            const base = baseSizeForSeats(t.seats);
+            const isActive = hasAnySignal(s);
+            const isEmphasized = isSelected || isActive;
 
-            // inactive dim (but not invisible)
-            const opacity = selected ? 1 : active ? 1 : 0.65;
+            // ✅ Stationary grow/shrink like “ops” mode in the floor plan view
+            const size = isEmphasized
+              ? Math.max(140, Math.round(base * 2.0))
+              : Math.max(90, Math.round(base * 1.2));
+
+            const opacity = isEmphasized ? 1 : inactiveOpacity;
+
+            const left = clamp(t.x ?? 0, 0, Math.max(0, canvasW - size));
+            const top = clamp(t.y ?? 0, 0, Math.max(0, canvasH - size));
+
+            const borderColor = isSelected ? '#0f172a' : borderForSignal(s);
+            const background = bgForSignal(s, t.available);
 
             return (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => onSelectTableId?.(t.id)}
-                disabled={!onSelectTableId}
-                className={[
-                  'w-full h-[120px] relative',
-                  'border-2 shadow-sm hover:shadow-md transition-shadow',
-                  shape,
-                  tone.border,
-                  tone.bg,
-                  selected ? 'ring-2 ring-slate-900/20' : '',
-                ].join(' ')}
-                style={{ opacity }}
+                style={{
+                  position: 'absolute',
+                  left,
+                  top,
+                  width: size,
+                  height: size,
+                  opacity,
+                  borderRadius: t.isVirtual ? 18 : 14,
+                  border: `2px solid ${borderColor}`,
+                  background,
+                  boxShadow: '0 6px 16px rgba(15, 23, 42, 0.08)',
+                  padding: 10,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'opacity 180ms ease, transform 180ms ease',
+                }}
                 title={t.label ?? t.id}
               >
-                <div className="h-full p-3 flex flex-col justify-between">
-                  {/* Top row */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className={['font-extrabold text-sm leading-tight', tone.text].join(' ')}>
-                      {t.label ?? 'Table'}
-                    </div>
-
-                    <div className="text-xs font-semibold text-slate-700 whitespace-nowrap">
-                      {status}
-                    </div>
-                  </div>
-
-                  {/* Bottom row */}
-                  <div className="flex items-end justify-between gap-2">
-                    {!active && !t.isVirtual ? (
-                      <div className="text-xs text-slate-500">No active tickets</div>
-                    ) : (
-                      <div className="text-xs text-slate-500">{t.isVirtual ? 'To-go' : 'Active'}</div>
-                    )}
-
-                    <span
-                      className={[
-                        'inline-flex items-center rounded-full px-2 py-1 text-xs font-bold shadow-sm border',
-                        tone.pillBg,
-                        tone.pillText,
-                        'border-white/70',
-                      ].join(' ')}
-                    >
-                      {status}
-                    </span>
-                  </div>
+                <div style={{ fontWeight: 700, fontSize: 14, lineHeight: '16px' }}>
+                  {t.label ?? t.id}
                 </div>
+
+                {!hideMeta && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>
+                    {t.isVirtual ? 'to-go' : t.seats ? `${t.seats} seats` : ''}
+                  </div>
+                )}
               </button>
             );
           })}
+
+          {title ? <span className="sr-only">{title}</span> : null}
         </div>
       </div>
-
-      {/* minimal footer label */}
-      <div className="text-xs text-slate-500">{title}</div>
     </Card>
   );
 };
