@@ -119,15 +119,16 @@ export const FohView = () => {
                   tables={tables.map(
                     (table) =>
                       ({
-                        id: table.id,
-                        number: table.tableNumber ?? 0,
-                        seats: table.seats ?? 4,
-                        location: (table.location as Table['location']) ?? 'middle',
-                        available: table.state === 'READY',
-                        reserved: table.state === 'OCCUPIED' ? false : undefined,
-                        x: table.x ?? 0,
-                        y: table.y ?? 0,
-                      } as Table)
+                  id: table.id,
+                  label: table.label ?? `Table ${table.tableNumber ?? 0}`,
+                  number: table.tableNumber ?? 0,
+                  seats: table.seats ?? 4,
+                  location: (table.location as Table['location']) ?? 'middle',
+                  available: table.state === 'READY',
+                  reserved: table.state === 'OCCUPIED' ? false : undefined,
+                  x: table.x ?? 0,
+                  y: table.y ?? 0,
+                } as Table)
                   )}
                   language="en"
                   compact={sidebarOpen}
