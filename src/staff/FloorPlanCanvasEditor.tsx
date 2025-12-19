@@ -430,7 +430,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
             </div>
             {opts.isDraft && (
               <div style={{ marginTop: 6, fontSize: 11, fontWeight: 800, color: '#0f172a' }}>
-                DRAFT (not saved)
+                ADD TABLE (not saved)
               </div>
             )}
           </div>
@@ -667,6 +667,16 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
               <div
                 ref={canvasRef}
                 className="h-full w-full overflow-hidden"
+                onMouseDown={(e) => {
+                  // Only when you click the EMPTY canvas (not a table button)
+                  if (e.target === e.currentTarget) {
+                    // If you're not currently adding a table, clicking empty space should close the right panel
+                    if (!draft) {
+                      setRightOpen(false);
+                      setSelectedId(null);
+                    }
+                  }
+                }}
                 style={{
                   ...canvasStyle,
                   width: '100%',
@@ -703,7 +713,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
                 {rightOpen && (
                   <div className="flex-1 px-2">
                     <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
-                      {draft ? 'Draft' : 'Selected'}
+                      {draft ? 'Add Table' : 'Selected'}
                     </p>
                     <p className="text-sm font-semibold text-gray-900 truncate">
                       {draft?.display_name ?? selectedRow?.display_name ?? '—'}
@@ -719,7 +729,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
                     {draft ? (
                       <div className="h-full flex flex-col overflow-hidden">
                         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                          <p className="text-xs font-semibold text-slate-700">Draft settings (not saved yet)</p>
+                          <p className="text-xs font-semibold text-slate-700">Add Table settings (not saved yet)</p>
 
                           <div className="mt-3 space-y-3">
                             <label className="block text-xs text-slate-600">
