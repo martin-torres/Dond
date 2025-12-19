@@ -101,7 +101,7 @@ export const FohView = () => {
   const sidebarWidthClosed = '44px';
 
   return (
-    <StaffLayout title="FOH / Server" hideNav fullBleed>
+    <StaffLayout title="FOH / Server ✅ EDIT TEST" hideNav fullBleed>
       {/* ... */}
       <div className="h-full w-full overflow-hidden p-[15px]">
         <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col min-h-0">
@@ -109,16 +109,17 @@ export const FohView = () => {
             {/* LEFT: Floorplan card (bounded, no page scroll) */}
             <div
               className="h-full overflow-hidden"
-              style={{
-                width: sidebarOpen ? '80%' : '100%',
-                transition: 'width 300ms',
-              }}
-            >
+            style={{
+              width: sidebarOpen ? '80%' : '100%',
+              transition: 'width 300ms',
+            }}
+           >
               <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
-                <FloorPlanTablePicker
-                  tables={tables.map(
-                    (table) =>
-                      ({
+                <div className="h-full w-full p-[15px] box-border overflow-hidden">
+                  <FloorPlanTablePicker
+                    tables={tables.map(
+                      (table) =>
+                        ({
                   id: table.id,
                   label: table.label ?? `Table ${table.tableNumber ?? 0}`,
                   number: table.tableNumber ?? 0,
@@ -129,18 +130,19 @@ export const FohView = () => {
                   x: table.x ?? 0,
                   y: table.y ?? 0,
                 } as Table)
-                  )}
-                  language="en"
-                  compact={sidebarOpen}
-                  hideMeta
-                  selectedLocation="all"
-                  selectedTableId={selectedTable?.id ?? null}
-                  onTableClick={(table) => {
-                    setSelectedTableId(table.id);
-                    setSidebarOpen(true);
-                  }}
-                  tableSignals={tableSignals}
-                />
+                    )}
+                    language="en"
+                    compact={sidebarOpen}
+                    hideMeta
+                    selectedLocation="all"
+                    selectedTableId={selectedTable?.id ?? null}
+                    onTableClick={(table) => {
+                      setSelectedTableId(table.id);
+                      setSidebarOpen(true);
+                    }}
+                    tableSignals={tableSignals}
+                  />
+                </div>
               </Card>
             </div>
 

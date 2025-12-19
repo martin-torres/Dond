@@ -160,8 +160,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
   const [planDirty, setPlanDirty] = useState(false);
 
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -173,6 +172,23 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
   const [newInteractive, setNewInteractive] = useState(true);
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
+
+  // Track the actual pixel size of the visible canvas so we can auto-fit the floorplan
+  const [canvasPx, setCanvasPx] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+
+    const update = () => setCanvasPx({ w: el.clientWidth, h: el.clientHeight });
+    update();
+
+    // Auto-update when the sidebar opens/closes (canvas width changes)
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, [rightOpen]);
 
   useEffect(() => {
     let alive = true;
@@ -222,9 +238,26 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
     [rows, selectedId]
   );
 
-  const leftWidthOpen = 'clamp(280px, 22vw, 360px)';
-  const rightWidthOpen = 'clamp(320px, 24vw, 420px)';
+const rightWidthOpen = 'clamp(240px, 18vw, 315px)';
   const railWidth = '44px';
+
+  const cycleGridSize = () => {
+    const presets = [6, 8, 10, 12, 16, 20, 24, 32];
+    const cur = Number(effectivePlan.grid_size ?? 10);
+    const idx = Math.max(0, presets.indexOf(cur));
+    const next = presets[(idx + 1) % presets.length];
+
+    setPlanDirty(true);
+    setPlan((prev) => ({
+      ...(prev ?? {
+        restaurant_id: restaurantId,
+        canvas_w: 900,
+        canvas_h: 520,
+        grid_size: 10,
+      }),
+      grid_size: next,
+    }));
+  };
 
   const startDraft = () => {
     const id = getId();
@@ -321,6 +354,20 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
     return Math.round(wrapped * 10) / 10; // keep 1 decimal clean
   };
 
+  // Auto-fit the entire saved floorplan into the visible canvas space.
+  // This guarantees the sidebar never "covers" tables—everything scales to remain visible.
+  const viewScale = useMemo(() => {
+    const w = canvasPx.w || 0;
+    const h = canvasPx.h || 0;
+    if (w <= 0 || h <= 0) return 1;
+
+    const sx = w / Number(effectivePlan.canvas_w || 1);
+    const sy = h / Number(effectivePlan.canvas_h || 1);
+
+    // Never upscale above 1, and never shrink too far
+    return Math.max(0.5, Math.min(1, sx, sy));
+  }, [canvasPx.w, canvasPx.h, effectivePlan.canvas_w, effectivePlan.canvas_h]);
+
   const canvasStyle: CSSProperties = {
     position: 'relative',
     width: '100%',
@@ -328,7 +375,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
     borderRadius: 16,
     border: '1px solid #e2e8f0',
     overflow: 'hidden',
-    backgroundSize: `${effectivePlan.grid_size}px ${effectivePlan.grid_size}px`,
+    backgroundSize: `${effectivePlan.grid_size * viewScale}px ${effectivePlan.grid_size * viewScale}px`,
     backgroundImage:
       'linear-gradient(to right, rgba(148,163,184,0.25) 1px, transparent 1px),' +
       'linear-gradient(to bottom, rgba(148,163,184,0.25) 1px, transparent 1px)',
@@ -338,10 +385,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
     height: 'calc(100dvh - 120px)', // header + padding buffer
   };
 
-  const renderTableButton = (
-    r: RestaurantTableRow,
-    opts: { isDraft?: boolean } = {}
-  ): JSX.Element => {
+  const renderTableButton = (r: RestaurantTableRow, opts: { isDraft?: boolean } = {}): JSX.Element => {
     const x = r.x ?? 0;
     const y = r.y ?? 0;
     const seats = r.seats ?? 4;
@@ -349,11 +393,17 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
     const rotation = Number(r.rotation ?? 0);
 
     const geom = geometryFor(seats, shape);
-    const w = geom.w;
-    const h = geom.h;
+    const baseW = geom.w;
+    const baseH = geom.h;
 
-    const left = clamp(x, 0, Math.max(0, effectivePlan.canvas_w - w));
-    const top = clamp(y, 0, Math.max(0, effectivePlan.canvas_h - h));
+    // Clamp in DATA space (saved x/y), then scale only for drawing
+    const leftData = clamp(x, 0, Math.max(0, effectivePlan.canvas_w - baseW));
+    const topData = clamp(y, 0, Math.max(0, effectivePlan.canvas_h - baseH));
+
+    const left = leftData * viewScale;
+    const top = topData * viewScale;
+    const w = baseW * viewScale;
+    const h = baseH * viewScale;
 
     const isSelected = selectedId === r.id;
     const isPlaceholder = r.is_interactive === false;
@@ -363,12 +413,14 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
 
       const startX = e.clientX;
       const startY = e.clientY;
-      const startLeft = left;
-      const startTop = top;
+      const startLeft = leftData;
+      const startTop = topData;
 
       const handleMove = (ev: PointerEvent) => {
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
+        // Convert screen movement back into DATA movement when scaled
+        const dx = (ev.clientX - startX) / viewScale;
+        const dy = (ev.clientY - startY) / viewScale;
+
         const nx = snap(startLeft + dx, effectivePlan.grid_size);
         const ny = snap(startTop + dy, effectivePlan.grid_size);
 
@@ -404,7 +456,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
           top,
           width: w,
           height: h,
-          borderRadius: geom.borderRadius,
+          borderRadius: geom.borderRadius * viewScale,
           transform: `rotate(${rotation}deg)`,
           transformOrigin: 'center',
           border: `2px solid ${isSelected ? '#0f172a' : isPlaceholder ? '#94a3b8' : '#16a34a'}`,
@@ -412,7 +464,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
           boxShadow: opts.isDraft
             ? '0 10px 22px rgba(15, 23, 42, 0.18)'
             : '0 6px 16px rgba(15, 23, 42, 0.08)',
-          padding: 10,
+          padding: 10 * viewScale,
           textAlign: 'left',
           cursor: 'grab',
           userSelect: 'none',
@@ -422,40 +474,25 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
       >
         <div className="flex items-start justify-between gap-2">
           <div>
-            <div style={{ fontWeight: 800, fontSize: 14, lineHeight: '16px' }}>
+            <div style={{ fontWeight: 800, fontSize: 14 * viewScale, lineHeight: `${16 * viewScale}px` }}>
               {r.display_name || r.id}
             </div>
-            <div style={{ fontSize: 11, opacity: 0.85 }}>
+            <div style={{ fontSize: 11 * viewScale, opacity: 0.85 }}>
               {isPlaceholder ? 'placeholder' : `${seats} seats`}
             </div>
+
             {opts.isDraft && (
-              <div style={{ marginTop: 6, fontSize: 11, fontWeight: 800, color: '#0f172a' }}>
+              <div style={{ marginTop: 6 * viewScale, fontSize: 11 * viewScale, fontWeight: 800, color: '#0f172a' }}>
                 ADD TABLE (not saved)
               </div>
             )}
           </div>
 
-          {!opts.isDraft && (
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.stopPropagation();
-                deleteTable(r.id);
-              }}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              title="Delete"
-            >
-              ✕
-            </button>
-          )}
+          {/* Removed the circular X delete button (it wasn't working + you don't want it) */}
         </div>
       </button>
     );
   };
-
-  const tablesSorted = useMemo(() => {
-    return [...rows].sort((a, b) => (a.display_name ?? '').localeCompare(b.display_name ?? ''));
-  }, [rows]);
 
   if (loading) {
     return (
@@ -477,6 +514,20 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">Unsaved: {dirtyIds.size + (planDirty ? 1 : 0)}</span>
+
+            <button
+              type="button"
+              onClick={() => {
+                // Add Table: uses existing draft flow and opens the right sidebar editor
+                startDraft();
+                setRightOpen(true);
+              }}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+              title="Add a new table"
+            >
+              Add Table
+            </button>
+
             <button
               type="button"
               onClick={saveAll}
@@ -490,177 +541,6 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
 
         {/* MAIN 3-COLUMN WORKSPACE */}
         <div className="min-h-0 flex-1 overflow-hidden flex gap-[12px]">
-          {/* LEFT SIDEBAR */}
-          <div
-            className="h-full flex-shrink-0 overflow-hidden"
-            style={{ width: leftOpen ? leftWidthOpen : railWidth, transition: 'width 250ms' }}
-          >
-            <div className="h-full w-full overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-200 px-2 py-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => setLeftOpen((v) => !v)}
-                  aria-label={leftOpen ? 'Collapse left sidebar' : 'Expand left sidebar'}
-                  title={leftOpen ? 'Collapse' : 'Expand'}
-                >
-                  {leftOpen ? '←' : '→'}
-                </button>
-
-                {leftOpen && (
-                  <div className="flex-1 px-2">
-                    <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Tables</p>
-                    <p className="text-sm font-semibold text-gray-900 truncate">{tablesSorted.length} items</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {leftOpen && (
-                  <div className="h-full flex flex-col overflow-hidden">
-                    {/* Controls */}
-                    <div className="p-3 space-y-3 border-b border-slate-200">
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-slate-700">New item defaults</p>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                          <label className="flex items-center gap-2 text-xs text-slate-600">
-                            <input
-                              type="checkbox"
-                              checked={newInteractive}
-                              onChange={(e) => setNewInteractive(e.target.checked)}
-                            />
-                            Interactive table
-                          </label>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs text-slate-600">Shape</span>
-                          {(['auto', 'circle', 'rounded', 'rect', 'booth_u', 'booth_half_u'] as TableShape[]).map(
-                            (s) => (
-                              <IconBtn key={s} title={s} active={newShape === s} onClick={() => setNewShape(s)}>
-                                <ShapeIcon shape={s} />
-                              </IconBtn>
-                            )
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={startDraft}
-                          className="w-full inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-                        >
-                          + Add (draft)
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <label className="text-xs text-slate-600">
-                          Grid
-                          <input
-                            type="number"
-                            min={5}
-                            value={effectivePlan.grid_size}
-                            onChange={(e) => {
-                              setPlanDirty(true);
-                              setPlan((prev) => ({
-                                ...(prev ?? {
-                                  restaurant_id: restaurantId,
-                                  canvas_w: 900,
-                                  canvas_h: 520,
-                                  grid_size: 10,
-                                }),
-                                grid_size: Number(e.target.value || 10),
-                              }));
-                            }}
-                            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
-                          />
-                        </label>
-                        <label className="text-xs text-slate-600">
-                          W
-                          <input
-                            type="number"
-                            min={100}
-                            value={effectivePlan.canvas_w}
-                            onChange={(e) => {
-                              setPlanDirty(true);
-                              setPlan((prev) => ({
-                                ...(prev ?? {
-                                  restaurant_id: restaurantId,
-                                  canvas_w: 900,
-                                  canvas_h: 520,
-                                  grid_size: 10,
-                                }),
-                                canvas_w: Number(e.target.value || 900),
-                              }));
-                            }}
-                            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
-                          />
-                        </label>
-                        <label className="text-xs text-slate-600">
-                          H
-                          <input
-                            type="number"
-                            min={100}
-                            value={effectivePlan.canvas_h}
-                            onChange={(e) => {
-                              setPlanDirty(true);
-                              setPlan((prev) => ({
-                                ...(prev ?? {
-                                  restaurant_id: restaurantId,
-                                  canvas_w: 900,
-                                  canvas_h: 520,
-                                  grid_size: 10,
-                                }),
-                                canvas_h: Number(e.target.value || 520),
-                              }));
-                            }}
-                            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* List */}
-                    <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
-                      {tablesSorted.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedId(t.id);
-                            setDraft(null);
-                            setRightOpen(true);
-                          }}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm hover:bg-slate-50"
-                          style={{
-                            borderColor: selectedId === t.id ? '#0f172a' : '#e2e8f0',
-                          }}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold text-slate-900 truncate">
-                                {t.display_name || t.id}
-                              </div>
-                              <div className="text-xs text-slate-500">
-                                {t.is_interactive === false ? 'placeholder' : `${t.seats ?? 4} seats`}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-slate-400">#{t.id.slice(0, 4)}</span>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {!leftOpen && <div className="h-full w-full" />}
-              </div>
-            </div>
-          </div>
-
           {/* CENTER CANVAS */}
           <div className="h-full min-w-0 flex-1 overflow-hidden">
             <div className="h-full w-full overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm">
@@ -722,98 +602,107 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
                 )}
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-y-auto">
                 {rightOpen && (
-                  <div className="h-full flex flex-col overflow-hidden p-3">
-                    {/* If draft exists, edit draft fields. Else edit selected row. */}
-                    {draft ? (
-                      <div className="h-full flex flex-col overflow-hidden">
-                        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                          <p className="text-xs font-semibold text-slate-700">Add Table settings (not saved yet)</p>
+                  <div className="min-h-0 flex flex-col p-3">
+                    <div className="shrink-0 p-3" />
 
-                          <div className="mt-3 space-y-3">
-                            <label className="block text-xs text-slate-600">
-                              Name
-                              <input
-                                value={draft.display_name ?? ''}
-                                onChange={(e) => setDraft({ ...draft, display_name: e.target.value })}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
-                              />
-                            </label>
+                    <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                      {/* If draft exists, edit draft fields. Else edit selected row. */}
+                      {draft ? (
+                        <div className="min-h-0 flex flex-col">
+                          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <p className="text-xs font-semibold text-slate-700">Add Table settings (not saved yet)</p>
 
-                            <label className="flex items-center gap-2 text-xs text-slate-600">
-                              <input
-                                type="checkbox"
-                                checked={draft.is_interactive !== false}
-                                onChange={(e) => setDraft({ ...draft, is_interactive: e.target.checked })}
-                              />
-                              Usable table (interactive)
-                            </label>
+                            <div className="mt-3 space-y-3">
+                              <label className="block text-xs text-slate-600">
+                                Name
+                                <input
+                                  value={draft.display_name ?? ''}
+                                  onChange={(e) => setDraft({ ...draft, display_name: e.target.value })}
+                                  className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
+                                />
+                              </label>
 
-                            <label className="block text-xs text-slate-600">
-                              Seats
-                              <input
-                                type="number"
-                                min={0}
-                                value={draft.seats ?? 0}
-                                onChange={(e) => setDraft({ ...draft, seats: Number(e.target.value || 0) })}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
-                                disabled={draft.is_interactive === false}
-                              />
-                              {draft.is_interactive === false && (
-                                <div className="mt-1 text-[11px] text-slate-500">
-                                  Placeholders can keep seats at 0.
+                              <label className="flex items-center gap-2 text-xs text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={draft.is_interactive !== false}
+                                  onChange={(e) => setDraft({ ...draft, is_interactive: e.target.checked })}
+                                />
+                                Usable table (interactive)
+                              </label>
+
+                              <div className="flex items-end gap-2">
+                                <label className="block text-xs text-slate-600">
+                                  Seats
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={draft.seats ?? 0}
+                                    onChange={(e) => setDraft({ ...draft, seats: Number(e.target.value || 0) })}
+                                    className="mt-1 w-[64px] rounded-lg border border-slate-200 px-2 py-1"
+                                    disabled={draft.is_interactive === false}
+                                  />
+                                </label>
+
+                                <button
+                                  type="button"
+                                  onClick={cycleGridSize}
+                                  className="h-[34px] rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  title="Grid size (click to cycle)"
+                                >
+                                  # {effectivePlan.grid_size}
+                                </button>
+                              </div>
+
+                              <div className="space-y-2">
+                                <p className="text-xs text-slate-600">Shape</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {(
+                                    ['auto', 'circle', 'rounded', 'rect', 'booth_u', 'booth_half_u'] as TableShape[]
+                                  ).map((s) => (
+                                    <IconBtn
+                                      key={s}
+                                      title={s}
+                                      active={safeShape(draft.shape) === s}
+                                      onClick={() => setDraft({ ...draft, shape: s })}
+                                    >
+                                      <ShapeIcon shape={s} />
+                                    </IconBtn>
+                                  ))}
                                 </div>
-                              )}
-                            </label>
+                              </div>
 
-                            <div className="space-y-2">
-                              <p className="text-xs text-slate-600">Shape</p>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {(
-                                  ['auto', 'circle', 'rounded', 'rect', 'booth_u', 'booth_half_u'] as TableShape[]
-                                ).map((s) => (
+                              <div className="space-y-2">
+                                <p className="text-xs text-slate-600">Rotation (22.5° steps)</p>
+                                <div className="flex items-center gap-2">
                                   <IconBtn
-                                    key={s}
-                                    title={s}
-                                    active={safeShape(draft.shape) === s}
-                                    onClick={() => setDraft({ ...draft, shape: s })}
+                                    title="Rotate left"
+                                    onClick={() => setDraft({ ...draft, rotation: rotate(draft, 'left') })}
                                   >
-                                    <ShapeIcon shape={s} />
+                                    <RotateIcon dir="left" />
                                   </IconBtn>
-                                ))}
+                                  <IconBtn
+                                    title="Rotate right"
+                                    onClick={() => setDraft({ ...draft, rotation: rotate(draft, 'right') })}
+                                  >
+                                    <RotateIcon dir="right" />
+                                  </IconBtn>
+                                  <span className="text-xs text-slate-600">
+                                    {Number(draft.rotation ?? 0).toFixed(1)}°
+                                  </span>
+                                </div>
                               </div>
-                            </div>
 
-                            <div className="space-y-2">
-                              <p className="text-xs text-slate-600">Rotation (22.5° steps)</p>
-                              <div className="flex items-center gap-2">
-                                <IconBtn
-                                  title="Rotate left"
-                                  onClick={() => setDraft({ ...draft, rotation: rotate(draft, 'left') })}
-                                >
-                                  <RotateIcon dir="left" />
-                                </IconBtn>
-                                <IconBtn
-                                  title="Rotate right"
-                                  onClick={() => setDraft({ ...draft, rotation: rotate(draft, 'right') })}
-                                >
-                                  <RotateIcon dir="right" />
-                                </IconBtn>
-                                <span className="text-xs text-slate-600">
-                                  {Number(draft.rotation ?? 0).toFixed(1)}°
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-2 gap-2">
                               <label className="text-xs text-slate-600">
                                 X
                                 <input
                                   type="number"
                                   value={draft.x ?? 0}
                                   onChange={(e) => setDraft({ ...draft, x: Number(e.target.value || 0) })}
-                                  className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
+                                  className="mt-1 w-[72px] rounded-lg border border-slate-200 px-2 py-1"
                                 />
                               </label>
                               <label className="text-xs text-slate-600">
@@ -822,121 +711,134 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
                                   type="number"
                                   value={draft.y ?? 0}
                                   onChange={(e) => setDraft({ ...draft, y: Number(e.target.value || 0) })}
-                                  className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
+                                  className="mt-1 w-[72px] rounded-lg border border-slate-200 px-2 py-1"
                                 />
                               </label>
                             </div>
 
-                            <div className="flex items-center gap-2 pt-2">
-                              <button
-                                type="button"
-                                onClick={cancelDraft}
-                                className="flex-1 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={confirmDraft}
-                                className="flex-1 inline-flex items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-                              >
-                                Confirm / Set
-                              </button>
+                              <div className="flex items-center gap-2 pt-2">
+                                <button
+                                  type="button"
+                                  onClick={cancelDraft}
+                                  className="flex-1 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={confirmDraft}
+                                  className="flex-1 inline-flex items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+                                >
+                                  Confirm / Set
+                                </button>
+                              </div>
                             </div>
                           </div>
+
+                          <div className="mt-3 text-[11px] text-slate-500">
+                            Tip: Drag the draft onto the map first, then fine-tune rotation/seats/name here, then Confirm.
+                          </div>
                         </div>
+                      ) : selectedRow ? (
+                      <div className="min-h-0 flex flex-col">
+                          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <p className="text-xs font-semibold text-slate-700">Edit selected</p>
 
-                        <div className="mt-3 text-[11px] text-slate-500">
-                          Tip: Drag the draft onto the map first, then fine-tune rotation/seats/name here, then Confirm.
-                        </div>
-                      </div>
-                    ) : selectedRow ? (
-                      <div className="h-full flex flex-col overflow-hidden">
-                        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                          <p className="text-xs font-semibold text-slate-700">Edit selected</p>
+                            <div className="mt-3 space-y-3">
+                              <label className="block text-xs text-slate-600">
+                                Name
+                                <input
+                                  value={selectedRow.display_name ?? ''}
+                                  onChange={(e) => updateRow(selectedRow.id, { display_name: e.target.value })}
+                                  className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
+                                />
+                              </label>
 
-                          <div className="mt-3 space-y-3">
-                            <label className="block text-xs text-slate-600">
-                              Name
-                              <input
-                                value={selectedRow.display_name ?? ''}
-                                onChange={(e) => updateRow(selectedRow.id, { display_name: e.target.value })}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
-                              />
-                            </label>
+                              <label className="flex items-center gap-2 text-xs text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRow.is_interactive !== false}
+                                  onChange={(e) => updateRow(selectedRow.id, { is_interactive: e.target.checked })}
+                                />
+                                Usable table (interactive)
+                              </label>
 
-                            <label className="flex items-center gap-2 text-xs text-slate-600">
-                              <input
-                                type="checkbox"
-                                checked={selectedRow.is_interactive !== false}
-                                onChange={(e) => updateRow(selectedRow.id, { is_interactive: e.target.checked })}
-                              />
-                              Usable table (interactive)
-                            </label>
+                              <div className="flex items-end gap-2">
+                                <label className="block text-xs text-slate-600">
+                                  Seats
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={selectedRow.seats ?? 0}
+                                    onChange={(e) =>
+                                      updateRow(selectedRow.id, { seats: Number(e.target.value || 0) })
+                                    }
+                                    className="mt-1 w-[64px] rounded-lg border border-slate-200 px-2 py-1"
+                                    disabled={selectedRow.is_interactive === false}
+                                  />
+                                </label>
 
-                            <label className="block text-xs text-slate-600">
-                              Seats
-                              <input
-                                type="number"
-                                min={0}
-                                value={selectedRow.seats ?? 0}
-                                onChange={(e) => updateRow(selectedRow.id, { seats: Number(e.target.value || 0) })}
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
-                                disabled={selectedRow.is_interactive === false}
-                              />
-                            </label>
+                                <button
+                                  type="button"
+                                  onClick={cycleGridSize}
+                                  className="h-[34px] rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  title="Grid size (click to cycle)"
+                                >
+                                  # {effectivePlan.grid_size}
+                                </button>
+                              </div>
 
-                            <div className="space-y-2">
-                              <p className="text-xs text-slate-600">Shape</p>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {(
-                                  ['auto', 'circle', 'rounded', 'rect', 'booth_u', 'booth_half_u'] as TableShape[]
-                                ).map((s) => (
+                              <div className="space-y-2">
+                                <p className="text-xs text-slate-600">Shape</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {(
+                                    ['auto', 'circle', 'rounded', 'rect', 'booth_u', 'booth_half_u'] as TableShape[]
+                                  ).map((s) => (
+                                    <IconBtn
+                                      key={s}
+                                      title={s}
+                                      active={safeShape(selectedRow.shape) === s}
+                                      onClick={() => updateRow(selectedRow.id, { shape: s })}
+                                    >
+                                      <ShapeIcon shape={s} />
+                                    </IconBtn>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <p className="text-xs text-slate-600">Rotation (22.5° steps)</p>
+                                <div className="flex items-center gap-2">
                                   <IconBtn
-                                    key={s}
-                                    title={s}
-                                    active={safeShape(selectedRow.shape) === s}
-                                    onClick={() => updateRow(selectedRow.id, { shape: s })}
+                                    title="Rotate left"
+                                    onClick={() =>
+                                      updateRow(selectedRow.id, { rotation: rotate(selectedRow, 'left') })
+                                    }
                                   >
-                                    <ShapeIcon shape={s} />
+                                    <RotateIcon dir="left" />
                                   </IconBtn>
-                                ))}
+                                  <IconBtn
+                                    title="Rotate right"
+                                    onClick={() =>
+                                      updateRow(selectedRow.id, { rotation: rotate(selectedRow, 'right') })
+                                    }
+                                  >
+                                    <RotateIcon dir="right" />
+                                  </IconBtn>
+                                  <span className="text-xs text-slate-600">
+                                    {Number(selectedRow.rotation ?? 0).toFixed(1)}°
+                                  </span>
+                                </div>
                               </div>
-                            </div>
 
-                            <div className="space-y-2">
-                              <p className="text-xs text-slate-600">Rotation (22.5° steps)</p>
-                              <div className="flex items-center gap-2">
-                                <IconBtn
-                                  title="Rotate left"
-                                  onClick={() =>
-                                    updateRow(selectedRow.id, { rotation: rotate(selectedRow, 'left') })
-                                  }
-                                >
-                                  <RotateIcon dir="left" />
-                                </IconBtn>
-                                <IconBtn
-                                  title="Rotate right"
-                                  onClick={() =>
-                                    updateRow(selectedRow.id, { rotation: rotate(selectedRow, 'right') })
-                                  }
-                                >
-                                  <RotateIcon dir="right" />
-                                </IconBtn>
-                                <span className="text-xs text-slate-600">
-                                  {Number(selectedRow.rotation ?? 0).toFixed(1)}°
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
-                              <label className="text-xs text-slate-600">
-                                X
+                              <div className="grid grid-cols-2 gap-2">
+                                <label className="text-xs text-slate-600">
+                                  X
                                 <input
                                   type="number"
                                   value={selectedRow.x ?? 0}
                                   onChange={(e) => updateRow(selectedRow.id, { x: Number(e.target.value || 0) })}
-                                  className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
+                                  className="mt-1 w-[72px] rounded-lg border border-slate-200 px-2 py-1"
                                 />
                               </label>
                               <label className="text-xs text-slate-600">
@@ -945,32 +847,33 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
                                   type="number"
                                   value={selectedRow.y ?? 0}
                                   onChange={(e) => updateRow(selectedRow.id, { y: Number(e.target.value || 0) })}
-                                  className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1"
+                                  className="mt-1 w-[72px] rounded-lg border border-slate-200 px-2 py-1"
                                 />
                               </label>
                             </div>
 
-                            <div className="pt-2">
-                              <button
-                                type="button"
-                                onClick={() => deleteTable(selectedRow.id)}
-                                className="w-full inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-                              >
-                                Delete
-                              </button>
+                              <div className="pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => deleteTable(selectedRow.id)}
+                                  className="w-full inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+                                >
+                                  Delete
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="mt-3 text-[11px] text-slate-500">
-                          Drag the table on the map to move it. This panel edits geometry + metadata.
+                          <div className="mt-3 text-[11px] text-slate-500">
+                            Drag the table on the map to move it. This panel edits geometry + metadata.
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="h-full rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                        <p className="text-sm text-slate-600">Select a table, or add a draft.</p>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="h-full rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                          <p className="text-sm text-slate-600">Select a table, or add a draft.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
