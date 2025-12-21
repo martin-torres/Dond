@@ -1,9 +1,11 @@
 import { QrCode } from 'lucide-react';
-import { Language } from '../types';
+import { useEffect, useState } from 'react';
+import { Language, Restaurant } from '../types';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
-import { mockRestaurants } from '../data/mockRestaurants';
 import { PageShell } from './PageShell';
+import { fetchRestaurants } from '../data/restaurants';
+import { LiveDataUnavailable } from './LiveDataUnavailable';
 
 interface QRScannerProps {
   language: Language;
@@ -11,6 +13,33 @@ interface QRScannerProps {
 }
 
 export function QRScanner({ language, onScan }: QRScannerProps) {
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [liveUnavailable, setLiveUnavailable] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      const res = await fetchRestaurants();
+      if (!mounted) return;
+      setLoading(false);
+      if (res.liveDataUnavailable) {
+        setRestaurants([]);
+        setLiveUnavailable(true);
+        setErrorMessage(res.error ?? null);
+      } else {
+        setRestaurants(res.data);
+        setLiveUnavailable(false);
+        setErrorMessage(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <PageShell
       headerSlot={
@@ -29,20 +58,25 @@ export function QRScanner({ language, onScan }: QRScannerProps) {
         <div className="w-full h-px bg-gray-100" />
 
         <div className="w-full space-y-3">
-          <p className="text-center text-gray-500 text-sm">
-            {t('simulateScan', language)}:
-          </p>
-          {mockRestaurants.map((restaurant) => (
-            <Button
-              key={restaurant.id}
-              onClick={() => onScan(restaurant.id)}
-              className="w-full"
-              variant="outline"
-            >
-              <QrCode className="w-4 h-4 mr-2" />
-              {restaurant.name}
-            </Button>
-          ))}
+          {loading && <p className="text-center text-gray-500 text-sm">Loading restaurants…</p>}
+
+          {!loading && liveUnavailable && <LiveDataUnavailable message={errorMessage ?? undefined} />}
+
+          {!loading && !liveUnavailable && restaurants.length === 0 && (
+            <p className="text-center text-gray-500 text-sm">No restaurants available.</p>
+          )}
+
+          {!loading && !liveUnavailable && restaurants.length > 0 && (
+            <>
+              <p className="text-center text-gray-500 text-sm">{t('simulateScan', language)}:</p>
+              {restaurants.map((restaurant) => (
+                <Button key={restaurant.id} onClick={() => onScan(restaurant.id)} className="w-full" variant="outline">
+                  <QrCode className="w-4 h-4 mr-2" />
+                  {restaurant.name}
+                </Button>
+              ))}
+            </>
+          )}
         </div>
       </div>
     </PageShell>
