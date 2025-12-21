@@ -10,6 +10,7 @@ import { OrderStatus, StaffOrder } from './types';
 
 export const FohView = () => {
   const { tables, orders, setTableState, closeTableSession } = useStaffData();
+  console.log('Table data check:', tables.map(t => ({ id: t.id, x: t.x, y: t.y })));
   const [selectedTableId, setSelectedTableId] = useState<string | null>(tables[0]?.id ?? null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -81,12 +82,12 @@ export const FohView = () => {
   };
 
   const tableOrdersSorted = useMemo(
-    () =>
-      [...tableOrders].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      ),
-    [tableOrders]
-  );
+  () =>
+    [...tableOrders].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ),
+  [tableOrders] // Add this
+);
 
   const actionsForOrder = (order: StaffOrder) => {
     if (order.orderType === 'request') return requestActions(order);
@@ -103,9 +104,9 @@ export const FohView = () => {
   return (
     <StaffLayout title="FOH / Server ✅ EDIT TEST" hideNav fullBleed>
       {/* ... */}
-      <div className="h-full w-full overflow-hidden p-[15px]">
-        <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col min-h-0">
-          <div className="flex h-full w-full overflow-hidden gap-[15px] p-[15px]">
+      <div className="h-full w-full overflow-hidden p-6" style={{ height: 'calc(100vh - 20px)' }}>
+        <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col" style={{ minHeight: 0 }}>
+          <div className="flex h-full w-full overflow-hidden gap-6 p-6" style={{ minHeight: 0 }}>
             {/* LEFT: Floorplan card (bounded, no page scroll) */}
             <div
               className="h-full overflow-hidden"
@@ -115,7 +116,7 @@ export const FohView = () => {
             }}
            >
               <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
-                <div className="h-full w-full p-[15px] box-border overflow-hidden">
+                <div className="h-full w-full p-6 box-border overflow-hidden">
                   <FloorPlanTablePicker
                     tables={tables.map(
                       (table) =>
@@ -146,7 +147,7 @@ export const FohView = () => {
               </Card>
             </div>
 
-            {/* RIGHT: Sidebar card (bounded; only inner list scrolls) */}
+            {/* RIGHT: Sidebar card with internal scroll */}
             <div
               className="h-full flex-shrink-0 overflow-hidden"
               style={{
@@ -154,10 +155,10 @@ export const FohView = () => {
                 transition: 'width 300ms',
               }}
             >
-              <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
-                <div className="h-full w-full flex flex-col overflow-hidden p-[10px]">
-                  {/* Handle strip (always visible) */}
-                  <div className="flex items-center justify-between border border-slate-200 bg-white rounded-lg px-2 py-2 shadow-sm">
+              <Card className="h-full overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col">
+                <div className="h-full w-full flex flex-col overflow-hidden p-4">
+                  {/* Handle strip */}
+                  <div className="flex items-center justify-between border border-slate-200 bg-white rounded-lg px-4 py-3 shadow-sm flex-shrink-0">
                     <button
                       type="button"
                       className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -178,53 +179,53 @@ export const FohView = () => {
                     )}
                   </div>
 
-                  {/* Content area (bounded) */}
-                  <div className="min-h-0 flex-1 overflow-hidden pt-3">
+                  {/* Scrollable content area */}
+                  <div className="flex-1 overflow-hidden pt-3">
                     {sidebarOpen && selectedTable && (
-                      <div className="h-full overflow-hidden">
-                        <div className="h-full rounded-lg border border-emerald-100 bg-white p-4 shadow-sm flex flex-col overflow-hidden">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                              <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Table</p>
-                              <h2 className="text-xl font-semibold text-gray-900">
-                                {selectedTable.label}
-                              </h2>
-                              {selectedTable.cleaningStartedAt && selectedTable.state === 'CLEANING' && (
-                                <p className="text-xs text-blue-700 mt-1">
-                                  Cleaning · {cleaningMinutes} min
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex gap-2">
-                              {selectedTable.state === 'CLEANING' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                      setTableState(selectedTable.id, 'CLEANING', new Date())
-                                    }
-                                  >
-                                    Getting table ready
-                                  </Button>
-                                  <Button onClick={() => setTableState(selectedTable.id, 'READY', null)}>
-                                    Table ready
-                                  </Button>
-                                </>
-                              )}
-                              {selectedTable.state === 'OCCUPIED' && (
-                                <Button
-                                  variant="outline"
-                                  onClick={() => closeTableSession(selectedTable.id)}
-                                >
-                                  Close & clean
-                                </Button>
-                              )}
-                            </div>
+                      <div className="rounded-lg border border-emerald-100 bg-white p-6 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Table</p>
+                            <h2 className="text-xl font-semibold text-gray-900">
+                              {selectedTable.label}
+                            </h2>
+                            {selectedTable.cleaningStartedAt && selectedTable.state === 'CLEANING' && (
+                              <p className="text-xs text-blue-700 mt-1">
+                                Cleaning · {cleaningMinutes} min
+                              </p>
+                            )}
                           </div>
 
-                          {/* ONLY this list scrolls */}
-                          <div className="min-h-0 flex-1 overflow-y-auto space-y-3 pt-3">
+                          <div className="flex gap-3">
+                            {selectedTable.state === 'CLEANING' && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  onClick={() =>
+                                    setTableState(selectedTable.id, 'CLEANING', new Date())
+                                  }
+                                >
+                                  Getting table ready
+                                </Button>
+                                <Button onClick={() => setTableState(selectedTable.id, 'READY', null)}>
+                                  Table ready
+                                </Button>
+                              </>
+                            )}
+                            {selectedTable.state === 'OCCUPIED' && (
+                              <Button
+                                variant="outline"
+                                onClick={() => closeTableSession(selectedTable.id)}
+                              >
+                                Close & clean
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Orders list - ONLY THIS SCROLLS */}
+                        <div className="mt-4" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                          <div className="space-y-4">
                             {tableOrdersSorted.length === 0 && (
                               <p className="text-sm text-gray-500">
                                 No active orders for this table.
@@ -245,7 +246,7 @@ export const FohView = () => {
                     )}
 
                     {sidebarOpen && !selectedTable && (
-                      <div className="h-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                         <p className="text-sm text-gray-500">Select a table.</p>
                       </div>
                     )}

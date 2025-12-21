@@ -13,8 +13,9 @@ import { ChefPreviewScreen } from './components/ChefPreviewScreen';
 import { BillPayment } from './components/BillPayment';
 import { PaymentCompleteScreen } from './components/PaymentCompleteScreen';
 import { ProximityWarning } from './components/ProximityWarning';
-import { mockRestaurants } from './data/mockRestaurants';
 import { supabase } from './lib/supabaseClient';
+import { fetchRestaurantMenuItems } from './api/restaurantMenuApi';
+import { fetchRestaurantTables } from './api/restaurantTablesApi';
 import { Button } from './components/ui/button';
 import { Globe } from 'lucide-react';
 import { MenuPreview } from './components/MenuPreview';
@@ -38,7 +39,7 @@ export default function App() {
   const [drinkOrders, setDrinkOrders] = useState<OrderItem[]>([]);
   const [proximityDistance, setProximityDistance] = useState(10); // meters from restaurant
   const [bill, setBill] = useState<Bill | null>(null);
-  const [mockPayments, setMockPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [waitSeconds, setWaitSeconds] = useState<number | null>(null);
   const [menuFocusItemId, setMenuFocusItemId] = useState<string | null>(null);
   const [interactiveMenuFocusId, setInteractiveMenuFocusId] = useState<string | null>(null);
@@ -163,21 +164,124 @@ export default function App() {
     }
   }, [stage, drinkOrders]);
 
-  const handleQRScan = (restaurantId: string) => {
-    const restaurant = mockRestaurants.find(r => r.id === restaurantId);
-    if (restaurant) {
-      setCurrentRestaurant(restaurant);
-      setStage('restaurant-info');
-      setSelectedTableId(null);
-      setWaitSeconds(restaurant.waitTime);
-      setMenuFocusItemId(null);
-      setInteractiveMenuFocusId(null);
-      setMenuReturnStage(null);
-      setInteractiveMenuInitialTab('food');
-      setChefPreviewCategory(null);
-      setPendingTableOrder(null);
-      setDeliveredItemIds(new Set());
+  const fillLanguageRecord = (value: any): Record<Language, string> => {
+    const base: Record<string, string> =
+      value && typeof value === 'object' ? value : { en: String(value ?? '') };
+
+    const pick = (lang: Language) => {
+      const direct = base[lang];
+      if (typeof direct === 'string' && direct.trim()) return direct;
+
+      const en = base.en;
+      if (typeof en === 'string' && en.trim()) return en;
+
+      const firstKey = Object.keys(base)[0];
+      if (firstKey && typeof base[firstKey] === 'string') return base[firstKey];
+
+      return '';
+    };
+
+    return {
+      en: pick('en'),
+      es: pick('es'),
+      fr: pick('fr'),
+      de: pick('de'),
+      ja: pick('ja'),
+      ar: pick('ar'),
+      zh: pick('zh'),
+    };
+  };
+
+  // Ensures DB "location" string becomes one of your allowed UI values.
+  const normalizeTableLocation = (
+    value: any
+  ): Restaurant['tables'][number]['location'] => {
+    const v = String(value ?? '').trim();
+    if (
+      v === 'patio' ||
+      v === 'window' ||
+      v === 'balcony' ||
+      v === 'middle' ||
+      v === 'secondFloor'
+    )
+      return v;
+    return 'middle';
+  };
+
+  const handleQRScan = async (restaurantId: string) => {
+    // Load menu + tables from Supabase
+    const [menuRows, tableRows] = await Promise.all([
+      fetchRestaurantMenuItems(restaurantId),
+      fetchRestaurantTables(restaurantId),
+    ]);
+
+    if (menuRows.length === 0 && tableRows.length === 0) {
+      alert('Restaurant not found or no data available in database');
+      return;
     }
+
+    // Only show tables that are visible to customers
+    const tablesFromDb = tableRows
+      .filter((t) => t.visible_to_customers === true)
+      .map((t) => ({
+        id: String(t.id),
+        number: Number(t.table_number ?? 0),
+        seats: Number(t.seats ?? 0),
+        location: normalizeTableLocation(t.location),
+        available: Boolean(t.available ?? true),
+        reserved: false,
+        x: Number(t.x ?? 0),
+        y: Number(t.y ?? 0),
+      }));
+
+    // Convert DB menu rows into your UI MenuItem type
+    const menuItemsFromDb: MenuItem[] = menuRows.map((r) => ({
+      id: String(r.id),
+      name: fillLanguageRecord(r.name),
+      description: fillLanguageRecord(r.description ?? {}),
+      price: Number(r.price ?? 0),
+      category: String(r.category ?? ''),
+      image: String(r.image_url ?? ''),
+    }));
+
+    // Split menu by kind
+    const menuFood = menuRows
+      .filter((r) => r.kind === 'food')
+      .map((r) => menuItemsFromDb.find((i) => i.id === String(r.id))!)
+      .filter(Boolean);
+
+    const menuDrinks = menuRows
+      .filter((r) => r.kind === 'drink')
+      .map((r) => menuItemsFromDb.find((i) => i.id === String(r.id))!)
+      .filter(Boolean);
+
+    // Create minimal restaurant object from DB data
+    setCurrentRestaurant({
+      id: restaurantId,
+      name: { en: 'Restaurant', es: 'Restaurante' } as Record<Language, string>,
+      address: 'Address not available',
+      hours: { open: 'Not available', close: 'Not available' },
+      waitTime: 30,
+      distance: 0,
+      promos: [],
+      tables: tablesFromDb,
+      menu: {
+        food: menuFood,
+        drinks: menuDrinks,
+      },
+    });
+
+    // Reset flow state (same behavior as before)
+    setStage('restaurant-info');
+    setSelectedTableId(null);
+    setWaitSeconds(30);
+    setMenuFocusItemId(null);
+    setInteractiveMenuFocusId(null);
+    setMenuReturnStage(null);
+    setInteractiveMenuInitialTab('food');
+    setChefPreviewCategory(null);
+    setPendingTableOrder(null);
+    setDeliveredItemIds(new Set());
   };
 
   const handleTableSelection = (tableId: string | null) => {
@@ -400,7 +504,7 @@ export default function App() {
       tax,
       tip,
       total: subtotal + tax + tip,
-      payments: mockPayments,
+      payments: payments,
     });
     setStage('payment');
   };
@@ -460,47 +564,7 @@ export default function App() {
     </div>
   );
 
-  // Simulate other people paying at terminal
-  const SimulateTerminalPayment = () => {
-    if (stage !== 'payment' || !bill) return null;
-    
-    return (
-      <div className="fixed bottom-24 right-4 z-50">
-        <Button
-          onClick={async () => {
-            const payment: Payment = {
-              userId: `user-${mockPayments.length + 1}`,
-              userName: `Customer ${mockPayments.length + 1}`,
-              amount: 25,
-              paidAt: new Date(),
-            };
-            setMockPayments(prev => [...prev, payment]);
-            setBill(prev => prev ? { ...prev, payments: [...prev.payments, payment] } : null);
-            const orderReference = selectedTableId ?? 'local-order';
-            try {
-              const record = await createPaymentRecord({
-                orderId: orderReference,
-                amount: payment.amount,
-                currency: 'USD',
-                metadata: {
-                  simulated: true,
-                  userName: payment.userName,
-                  restaurantId: currentRestaurant?.id ?? 'unknown',
-                },
-              });
-              await updatePaymentStatus(record.id, 'PAID');
-            } catch (err) {
-              console.error('Failed to record simulated payment', err);
-            }
-          }}
-          variant="outline"
-          size="sm"
-        >
-          Simulate Terminal Payment
-        </Button>
-      </div>
-    );
-  };
+  // Removed SimulateTerminalPayment - no more mock payments
 
   return (
     <div className="min-h-screen">

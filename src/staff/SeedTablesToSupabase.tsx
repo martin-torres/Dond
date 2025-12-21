@@ -1,6 +1,5 @@
 // src/staff/SeedTablesToSupabase.tsx
 import { useMemo, useState } from 'react';
-import { mockRestaurants } from '../data/mockRestaurants';
 import { upsertRestaurantTables, type RestaurantTableRow } from '../api/restaurantTablesApi';
 
 type Props = {
@@ -8,6 +7,20 @@ type Props = {
   restaurantId?: string;
   // Optional: hide the UI unless you explicitly allow it (manager-only gate)
   enabled?: boolean;
+};
+
+export type RestaurantTableRow = {
+  id: string;
+  restaurant_id: string;
+  display_name: string;
+  table_number: number;
+  seats: number;
+  location: string;
+  section: string;
+  available: boolean;
+  visible_to_customers: boolean;
+  x: number;
+  y: number;
 };
 
 export function SeedTablesToSupabase(props: Props) {
@@ -28,27 +41,52 @@ export function SeedTablesToSupabase(props: Props) {
   const [message, setMessage] = useState<string>('');
 
   const selectedRestaurant = useMemo(
-    () => mockRestaurants.find((r) => r.id === restaurantId) ?? null,
-    [restaurantId]
+    () => {
+      if (props.restaurantId) {
+        // Find restaurant in props or create minimal one for seeding
+        return {
+          id: props.restaurantId,
+          name: { en: 'Restaurant', es: 'Restaurante' } as Record<Language, string>,
+          address: 'Address not available',
+          hours: { open: 'Not available', close: 'Not available' },
+          waitTime: 30,
+          distance: 0,
+          promos: [],
+          tables: [],
+          menu: {
+            food: [],
+            drinks: [],
+          },
+        };
+      }
+      return null; // No restaurant found
+    },
+    [props.restaurantId]
   );
 
   if (!enabled) return null;
 
   const buildRows = (): RestaurantTableRow[] => {
     if (!selectedRestaurant) return [];
-    return selectedRestaurant.tables.map((t) => ({
-      id: t.id, // MUST match orders.table_id everywhere
-      restaurant_id: selectedRestaurant.id,
-      display_name: `${(t.location ?? 'Table').toString().replace(/^\w/, (c: string) => c.toUpperCase())} ${t.number}`,
-      table_number: t.number ?? null,
-      seats: t.seats ?? null,
-      location: t.location ?? null,
-      section: null,
-      available: t.available ?? true,
-      visible_to_customers: false, // management can enable later
-      x: t.x ?? null,
-      y: t.y ?? null,
-    }));
+    
+    // Only seed if we have a selected restaurant with tables
+    if (selectedRestaurant && selectedRestaurant.tables.length > 0) {
+      return selectedRestaurant.tables.map((t) => ({
+        id: t.id, // MUST match orders.table_id everywhere
+        restaurant_id: selectedRestaurant.id,
+        display_name: `${(t.location ?? 'Table').toString().replace(/^\w/, (c: string) => c.toUpperCase())} ${t.number}`,
+        table_number: t.number ?? null,
+        seats: t.seats ?? null,
+        location: t.location ?? null,
+        section: null,
+        available: t.available ?? true,
+        visible_to_customers: false, // management can enable later
+        x: t.x ?? null,
+        y: t.y ?? null,
+      }));
+    }
+    
+    return [];
   };
 
   const handleSeed = async () => {

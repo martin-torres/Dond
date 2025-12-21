@@ -66,91 +66,95 @@ export const ManagerEditConsole = () => {
           style={{ gridTemplateColumns: consoleCollapsed ? '64px 1fr' : '240px 1fr' }}
         >
         {/* Manager Sidebar (Edit Console) */}
-        <Card
-          className={`border border-slate-200 shadow-sm h-[calc(100vh-160px)] overflow-auto ${
-            consoleCollapsed ? 'p-2' : 'p-3'
-          }`}
-        >
-          <div className={`flex items-center ${consoleCollapsed ? 'justify-center' : 'justify-between'} gap-2 mb-3`}>
-            {!consoleCollapsed && (
-              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Edit Console</div>
-            )}
+        <Card className="border border-slate-200 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
+          <div className={`h-full w-full flex flex-col overflow-hidden ${consoleCollapsed ? 'p-2' : 'p-3'}`}>
+            {/* Fixed header */}
+            <div className={`flex items-center ${consoleCollapsed ? 'justify-center' : 'justify-between'} gap-2 mb-3 flex-shrink-0`}>
+              {!consoleCollapsed && (
+                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Edit Console</div>
+              )}
 
-            <button
-              type="button"
-              onClick={toggleConsole}
-              className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              title={consoleCollapsed ? 'Expand edit console' : 'Collapse to icon rail'}
-              aria-label={consoleCollapsed ? 'Expand edit console' : 'Collapse edit console'}
-            >
-              {consoleCollapsed ? '»' : '«'}
-            </button>
-
-            {!consoleCollapsed && (
-              <a
-                href="/manager"
-                className="text-xs font-semibold text-emerald-700 hover:underline"
-                title="Back to operations"
+              <button
+                type="button"
+                onClick={toggleConsole}
+                className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                title={consoleCollapsed ? 'Expand edit console' : 'Collapse to icon rail'}
+                aria-label={consoleCollapsed ? 'Expand edit console' : 'Collapse edit console'}
               >
-                Back
-              </a>
-            )}
-          </div>
+                {consoleCollapsed ? '»' : '«'}
+              </button>
 
-          {consoleCollapsed ? (
-            <div className="flex flex-col items-center gap-2">
-              {sections.map((s) => {
-                const isActive = active === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setSection(s.id)}
-                    className={`w-12 h-12 rounded-2xl border text-sm font-extrabold transition
-                      ${isActive ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'}
-                    `}
-                    title={s.label}
-                    aria-label={s.label}
-                  >
-                    {s.label.trim().charAt(0).toUpperCase()}
-                  </button>
-                );
-              })}
-
-              <a
-                href="/manager"
-                className="mt-2 w-12 h-12 rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-sm font-extrabold text-emerald-700 hover:bg-slate-50"
-                title="Back to operations"
-                aria-label="Back to operations"
-              >
-                ↩
-              </a>
+              {!consoleCollapsed && (
+                <a
+                  href="/manager"
+                  className="text-xs font-semibold text-emerald-700 hover:underline"
+                  title="Back to operations"
+                >
+                  Back
+                </a>
+              )}
             </div>
-          ) : (
-            <>
-              <div className="space-y-1">
-                {sections.map((s) => {
-                  const isActive = active === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setSection(s.id)}
-                      className={`w-full text-left rounded-xl px-3 py-2 text-sm font-semibold transition
-                        ${isActive ? 'bg-emerald-600 text-white' : 'bg-white hover:bg-slate-50 text-slate-800'}
-                      `}
-                    >
-                      {s.label}
-                    </button>
-                  );
-                })}
-              </div>
 
-              <div className="mt-4 text-xs text-gray-500 leading-relaxed">
-                Changes made here write to Supabase and should propagate to all other screens by reload/subscription.
+            {/* Scrollable content area */}
+            <div className="flex-1 overflow-hidden">
+              <div className="h-full overflow-y-auto">
+                {consoleCollapsed ? (
+                  <div className="flex flex-col items-center gap-2">
+                    {sections.map((s) => {
+                      const isActive = active === s.id;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setSection(s.id)}
+                          className={`w-12 h-12 rounded-2xl border text-sm font-extrabold transition
+                            ${isActive ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'}
+                          `}
+                          title={s.label}
+                          aria-label={s.label}
+                        >
+                          {s.label.trim().charAt(0).toUpperCase()}
+                        </button>
+                      );
+                    })}
+
+                    <a
+                      href="/manager"
+                      className="mt-2 w-12 h-12 rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-sm font-extrabold text-emerald-700 hover:bg-slate-50"
+                      title="Back to operations"
+                      aria-label="Back to operations"
+                    >
+                      ↩
+                    </a>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      {sections.map((s) => {
+                        const isActive = active === s.id;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setSection(s.id)}
+                            className={`w-full text-left rounded-xl px-3 py-2 text-sm font-semibold transition
+                              ${isActive ? 'bg-emerald-600 text-white' : 'bg-white hover:bg-slate-50 text-slate-800'}
+                            `}
+                          >
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-4 text-xs text-gray-500 leading-relaxed">
+                      Changes made here write to Supabase and should propagate to all other screens by reload/subscription.
+                    </div>
+                  </>
+                )}
               </div>
-            </>
-          )}
+            </div>
+          </div>
         </Card>
 
         {/* Right content */}

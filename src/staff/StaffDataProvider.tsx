@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { mockRestaurants } from '../data/mockRestaurants';
 import { Language, OrderItem, Restaurant } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import {
@@ -51,8 +50,7 @@ let externalOrderStatusUpdater: ((orderId: string, status: OrderStatus) => void)
 
 export const getExternalOrderStatusUpdater = () => externalOrderStatusUpdater;
 
-const seedRestaurant: Restaurant | null =
-  mockRestaurants.find((r) => r.id === 'rest-one-maui') ?? mockRestaurants[0] ?? null;
+const seedRestaurant: Restaurant | null = null;
 
 const titleCase = (value?: string | null) => {
   if (!value) return '';
@@ -117,13 +115,13 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<StaffOrder[]>([]);
 
   const [activeRestaurantId, setActiveRestaurantId] = useState<string>(() => {
-    if (typeof window === 'undefined') return seedRestaurant?.id ?? '';
+    if (typeof window === 'undefined') return '';
     const params = new URLSearchParams(window.location.search);
-    return params.get('restaurantId') ?? seedRestaurant?.id ?? '';
+    return params.get('restaurantId') ?? '';
   });
 
   const activeRestaurant = useMemo(
-    () => mockRestaurants.find((r) => r.id === activeRestaurantId) ?? seedRestaurant,
+    () => null, // Will be loaded from Supabase when needed
     [activeRestaurantId]
   );
 
@@ -283,9 +281,8 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
 
   const adaptOrderItems = useCallback(
     (items: OrderItem[], restaurant: Restaurant | null, language?: Language) => {
-      const fallbackRestaurant = restaurant ?? seedRestaurant;
-      if (!fallbackRestaurant) return [];
-      const localKindIndex = restaurant ? buildMenuKindIndex(restaurant) : kindIndex;
+      if (!restaurant) return [];
+      const localKindIndex = buildMenuKindIndex(restaurant);
       return items
         .map<StaffOrderItem | null>((item) => {
           const kind = localKindIndex.get(item.menuItem.id) ?? 'food';
@@ -298,7 +295,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         })
         .filter(Boolean) as StaffOrderItem[];
     },
-    [kindIndex]
+    []
   );
 
   const mapOrderItemsFromSupabase = useCallback(
@@ -325,10 +322,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   const mapSupabaseOrderToStaff = useCallback(
     (order: OrderWithItems): StaffOrder => {
       const itemList = mapOrderItemsFromSupabase(order.items ?? []);
-      const restaurantForOrder =
-        mockRestaurants.find((restaurant) => restaurant.id === order.restaurant_id) ??
-        activeRestaurant ??
-        seedRestaurant;
+      const restaurantForOrder = activeRestaurant;
 
       const tableLabel =
         order.table_label ??
@@ -362,8 +356,11 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
 
   const addCustomerOrder = useCallback(
     async (payload: StaffOrderPayload): Promise<StaffOrder | null> => {
-      const restaurant = payload.meta?.restaurant ?? seedRestaurant;
-      if (!restaurant) return null;
+      const restaurant = payload.meta?.restaurant;
+      if (!restaurant) {
+        console.error('No restaurant provided in payload meta');
+        return null;
+      }
 
       const items = adaptOrderItems(payload.items, restaurant, payload.meta?.language);
       if (!items.length) return null;

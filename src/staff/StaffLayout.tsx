@@ -33,7 +33,7 @@ export const StaffLayout = ({
   const path = typeof window !== 'undefined' ? window.location.pathname : '/';
   return (
     <div className={fullBleed ? "h-[100dvh] overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100" : "min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100"}>
-      <div className={fullBleed ? "w-screen h-screen overflow-hidden" : "max-w-6xl mx-auto px-4 py-8 space-y-6"}>
+  <div className={fullBleed ? "w-full h-[100dvh] overflow-hidden" : "max-w-6xl mx-auto px-4 py-8 space-y-6"}>
         {!hideHeader && (
           <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
