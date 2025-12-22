@@ -53,39 +53,41 @@ export const TicketCard = React.memo(({ order, items, accent = 'owner', actions 
     : (accentBorder[accent] ?? accentBorder.owner);
 
   return (
-    <Card className={`p-4 space-y-3 border ${accentClass}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
+    <Card className={`p-2 space-y-0 border ${accentClass}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="space-y-0.5 flex-1 min-w-0">
           <p className="text-xs font-semibold tracking-[0.3em] text-gray-500">
             {formatHeader(order)}
           </p>
-          <div className="text-sm text-gray-800">
+          <div className="text-sm text-gray-800 leading-tight">
             {items.map((item, index) => (
               <div key={item.id} className="font-semibold">
                 {item.quantity}× {item.name}
-                {index < items.length - 1 && <span className="text-gray-400 mx-1">•</span>}
+                {index < items.length - 1 && <span className="text-gray-400 mx-0.5">•</span>}
               </div>
             ))}
           </div>
           {order.note && (
-            <p className="text-xs font-bold text-gray-700 tracking-wide">
+            <p className="text-xs font-bold text-gray-700 tracking-wide leading-tight">
               {uppercaseNote(order.note)}
             </p>
           )}
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <Badge className={statusColor[order.status]}>{order.status}</Badge>
-          <p className="text-xs text-gray-500">{timeAgo(order.createdAt)}</p>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <Badge className={`${statusColor[order.status]} text-xs px-1.5 py-0.5`}>
+            {order.status}
+          </Badge>
+          <p className="text-xs text-gray-500 leading-tight">{timeAgo(order.createdAt)}</p>
         </div>
       </div>
       {actions && actions.length > 0 && (
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-1.5 -mt-0.5">
           {actions.map((action) => (
             <Button
               key={action.label}
               onClick={action.onClick}
               variant={action.variant ?? 'default'}
-              className="flex-1 min-w-[120px]"
+              className="flex-1 min-w-[100px] h-10 text-sm opacity-85 hover:opacity-100 transition-opacity"
             >
               {action.label}
             </Button>

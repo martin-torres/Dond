@@ -20,7 +20,7 @@ export const FohView = () => {
   );
 
   const tableOrders = useMemo(
-    () => (selectedTable ? orders.filter((order) => order.tableId === selectedTable.id) : []),
+    () => (selectedTable ? orders.filter((order) => order.tableId === selectedTable.id && order.status !== 'DELIVERED') : []),
     [orders, selectedTable]
   );
 
