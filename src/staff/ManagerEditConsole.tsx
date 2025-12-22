@@ -1,19 +1,15 @@
 import { useMemo, useState } from 'react';
 import { StaffLayout } from './StaffLayout';
 import { Card } from '../components/ui/card';
-import { SeedTablesToSupabase } from './SeedTablesToSupabase';
-import { ManagerTablesPanel } from './ManagerTablesPanel';
+import { SidebarProvider } from '../components/ui/sidebar';
+import { ManagerSidebar } from '../components/ManagerSidebar';
+import { MenuEditor } from '../components/MenuEditor';
+import { PromosEventsEditor } from '../components/PromosEventsEditor';
+import { SettingsEditor } from '../components/SettingsEditor';
 import { FloorPlanCanvasEditor } from './FloorPlanCanvasEditor';
-import { SeedMenuToSupabase } from './SeedMenuToSupabase';
+import { FloorPlanSidebar } from '../components/FloorPlanSidebar';
 
 type EditSection = 'tables' | 'menu' | 'promos' | 'settings';
-
-const sections: Array<{ id: EditSection; label: string }> = [
-  { id: 'tables', label: 'Tables & Floor Plan' },
-  { id: 'menu', label: 'Menu (Food & Drinks)' },
-  { id: 'promos', label: 'Promos & Events' },
-  { id: 'settings', label: 'Settings' },
-];
 
 export const ManagerEditConsole = () => {
   const managerUnlocked = useMemo(() => {
@@ -21,31 +17,31 @@ export const ManagerEditConsole = () => {
     return sessionStorage.getItem('managerUnlocked') === '1';
   }, []);
 
-  const [active, setActive] = useState<EditSection>(() => {
+  const [activeSection, setActiveSection] = useState<EditSection>(() => {
     if (typeof window === 'undefined') return 'tables';
     const saved = sessionStorage.getItem('managerEditSection') as EditSection | null;
     return saved ?? 'tables';
   });
-  // Manager Sidebar (Edit Console) collapse state (thin icon rail)
-  const [consoleCollapsed, setConsoleCollapsed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true; // default collapsed
-    const saved = localStorage.getItem('managerEditConsoleCollapsed');
-    return saved === null ? true : saved === '1';
-  });
 
-  const toggleConsole = () => {
-    setConsoleCollapsed((prev) => {
-      const next = !prev;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('managerEditConsoleCollapsed', next ? '1' : '0');
-      }
-      return next;
-    });
+  const restaurantId = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('restaurantId') ?? '';
+  }, []);
+
+  const handleMenuUpdate = () => {
+    console.log('Menu updated');
   };
 
-  const setSection = (next: EditSection) => {
-    setActive(next);
-    sessionStorage.setItem('managerEditSection', next);
+  const handlePromoUpdate = () => {
+    console.log('Promo updated');
+  };
+
+  const handleEventUpdate = () => {
+    console.log('Event updated');
+  };
+
+  const handleSettingsUpdate = () => {
+    console.log('Settings updated');
   };
 
   if (!managerUnlocked) {
@@ -60,168 +56,129 @@ export const ManagerEditConsole = () => {
  
   return (
     <StaffLayout title="Manager edit" subtitle="Configuration changes (Supabase source of truth)" hideNav>
-      <div>
-        <div
-          className="grid gap-4 bg-background text-foreground"
-          style={{ gridTemplateColumns: consoleCollapsed ? '64px 1fr' : '240px 1fr' }}
-        >
-        {/* Manager Sidebar (Edit Console) */}
-        <Card className="border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className={`h-full w-full flex flex-col overflow-hidden ${consoleCollapsed ? 'p-2' : 'p-3'}`}>
-            {/* Fixed header */}
-            <div className={`flex items-center ${consoleCollapsed ? 'justify-center' : 'justify-between'} gap-2 mb-3 flex-shrink-0`}>
-              {!consoleCollapsed && (
-                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Edit Console</div>
-              )}
+      <div className="h-full w-full flex">
+        {/* Left Sidebar - Manager Navigation */}
+        <div className="w-[280px] flex-shrink-0">
+          <SidebarProvider>
+            <ManagerSidebar
+              activeSection={activeSection}
+              onSectionChange={setActiveSection}
+              restaurantId={restaurantId}
+            />
+          </SidebarProvider>
+        </div>
 
-              <button
-                type="button"
-                onClick={toggleConsole}
-                className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                title={consoleCollapsed ? 'Expand edit console' : 'Collapse to icon rail'}
-                aria-label={consoleCollapsed ? 'Expand edit console' : 'Collapse edit console'}
-              >
-                {consoleCollapsed ? '»' : '«'}
-              </button>
-
-              {!consoleCollapsed && (
-                <a
-                  href="/manager"
-                  className="text-xs font-semibold text-emerald-700 hover:underline"
-                  title="Back to operations"
-                >
-                  Back
-                </a>
-              )}
-            </div>
-
-            {/* Scrollable content area */}
-            <div className="flex-1 overflow-hidden">
-              <div className="h-full overflow-y-auto">
-                {consoleCollapsed ? (
-                  <div className="flex flex-col items-center gap-2">
-                    {sections.map((s) => {
-                      const isActive = active === s.id;
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => setSection(s.id)}
-                          className={`w-12 h-12 rounded-2xl border text-sm font-extrabold transition
-                            ${isActive ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'}
-                          `}
-                          title={s.label}
-                          aria-label={s.label}
-                        >
-                          {s.label.trim().charAt(0).toUpperCase()}
-                        </button>
-                      );
-                    })}
-
-                    <a
-                      href="/manager"
-                      className="mt-2 w-12 h-12 rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-sm font-extrabold text-emerald-700 hover:bg-slate-50"
-                      title="Back to operations"
-                      aria-label="Back to operations"
-                    >
-                      ↩
-                    </a>
+        {/* Main Content Area - Dynamic Center Screen */}
+        <div className="flex-1 h-full overflow-hidden min-w-0 min-w-[400px]">
+          {/* Main Content Card */}
+          <Card className="h-full border border-slate-200 shadow-sm">
+            <div className="h-full overflow-auto p-6">
+              {activeSection === 'tables' && (
+                <>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Tables</p>
+                      <h2 className="text-xl font-semibold text-gray-900">Tables & Floor Plan</h2>
+                    </div>
+                    
+                    {/* FloorPlanCanvasEditor with improved sidebar */}
+                    <FloorPlanCanvasEditor
+                      restaurantId={restaurantId}
+                    />
                   </div>
-                ) : (
-                  <>
-                    <div className="space-y-1">
-                      {sections.map((s) => {
-                        const isActive = active === s.id;
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => setSection(s.id)}
-                            className={`w-full text-left rounded-xl px-3 py-2 text-sm font-semibold transition
-                              ${isActive ? 'bg-emerald-600 text-white' : 'bg-white hover:bg-slate-50 text-slate-800'}
-                            `}
-                          >
-                            {s.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                </>
+              )}
 
-                    <div className="mt-4 text-xs text-gray-500 leading-relaxed">
-                      Changes made here write to Supabase and should propagate to all other screens by reload/subscription.
+              {activeSection === 'menu' && (
+                <>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Menu</p>
+                      <h2 className="text-xl font-semibold text-gray-900">Food & Drinks</h2>
                     </div>
-                  </>
-                )}
-              </div>
+                    
+                    <MenuEditor
+                      restaurantId={restaurantId}
+                      onMenuUpdate={handleMenuUpdate}
+                    />
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'promos' && (
+                <>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Promos</p>
+                      <h2 className="text-xl font-semibold text-gray-900">Promotions & Events</h2>
+                    </div>
+                    
+                    <PromosEventsEditor
+                      restaurantId={restaurantId}
+                      onPromoUpdate={handlePromoUpdate}
+                      onEventUpdate={handleEventUpdate}
+                    />
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'settings' && (
+                <>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Settings</p>
+                      <h2 className="text-xl font-semibold text-gray-900">Restaurant Settings</h2>
+                    </div>
+                    
+                    <SettingsEditor
+                      restaurantId={restaurantId}
+                      onSettingsUpdate={handleSettingsUpdate}
+                    />
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
 
-        {/* Right content */}
-        <Card className="p-4 border border-slate-200 shadow-sm overflow-visible space-y-4">
-          {active === 'tables' && (
-            <>
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Tables</p>
-                <h2 className="text-xl font-semibold text-gray-900">Tables & Floor Plan</h2>
-              </div>
+        {/* Right Sidebar - Contextual Tools */}
+        <div className="w-80 h-full overflow-hidden">
+          <Card className="h-full border border-slate-200 shadow-sm">
+            <div className="h-full overflow-auto p-4">
+              {activeSection === 'tables' && (
+                <FloorPlanSidebar
+                  isOpen={true}
+                  onClose={() => {}}
+                  selectedTable={null}
+                  onTableUpdate={() => {}}
+                  onTableDelete={() => {}}
+                  onTableAdd={() => {}}
+                  restaurantId={restaurantId}
+                />
+              )}
 
-              {/* FloorPlanCanvasEditor: contains all table management in sidebar */}
-              <FloorPlanCanvasEditor
-                restaurantId={new URLSearchParams(window.location.search).get('restaurantId') ?? ''}
-              />
-            </>
-          )}
+              {activeSection === 'menu' && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Menu Tools</h3>
+                  <p className="text-xs text-gray-500 mb-4">Use the menu editor to manage items</p>
+                </div>
+              )}
 
-          {active === 'menu' && (
-            <>
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Menu</p>
-                <h2 className="text-xl font-semibold text-gray-900">Food & Drinks</h2>
-              </div>
+              {activeSection === 'promos' && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Promo Tools</h3>
+                  <p className="text-xs text-gray-500 mb-4">Use the promo editor to manage offers</p>
+                </div>
+              )}
 
-              <SeedMenuToSupabase enabled />
-
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Menu</p>
-                <h2 className="text-xl font-semibold text-gray-900">Food & Drinks</h2>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-sm text-slate-700">
-                  This will be the menu editor (items, descriptions, prices, availability, categories).
-                </p>
-              </div>
-            </>
-          )}
-
-          {active === 'promos' && (
-            <>
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Promos</p>
-                <h2 className="text-xl font-semibold text-gray-900">Promotions & Events</h2>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-sm text-slate-700">
-                  This will be promos/events editor (time-bound offers, banners, special menus).
-                </p>
-              </div>
-            </>
-          )}
-
-          {active === 'settings' && (
-            <>
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Settings</p>
-                <h2 className="text-xl font-semibold text-gray-900">Restaurant Settings</h2>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-sm text-slate-700">
-                  Later: taxes, service fee, printers, receipt settings, staff roles.
-                </p>
-              </div>
-            </>
-          )}
-        </Card>
+              {activeSection === 'settings' && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Settings Tools</h3>
+                  <p className="text-xs text-gray-500 mb-4">Use the settings editor to configure</p>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
     </StaffLayout>
