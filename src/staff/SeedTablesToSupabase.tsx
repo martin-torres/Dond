@@ -1,6 +1,8 @@
 // src/staff/SeedTablesToSupabase.tsx
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { upsertRestaurantTables, type RestaurantTableRow } from '../api/restaurantTablesApi';
+import { getAllRestaurants, getCompleteRestaurant } from '../api/restaurantsApi';
+import { type Restaurant, type Language } from '../types';
 
 type Props = {
   // Optional: if you already know which restaurant this owner screen is for
@@ -9,84 +11,80 @@ type Props = {
   enabled?: boolean;
 };
 
-export type RestaurantTableRow = {
-  id: string;
-  restaurant_id: string;
-  display_name: string;
-  table_number: number;
-  seats: number;
-  location: string;
-  section: string;
-  available: boolean;
-  visible_to_customers: boolean;
-  x: number;
-  y: number;
-};
-
 export function SeedTablesToSupabase(props: Props) {
   const enabled = props.enabled ?? false;
 
-  const defaultRestaurantId = useMemo(() => {
-    if (props.restaurantId) return props.restaurantId;
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const fromUrl = params.get('restaurantId');
-      if (fromUrl) return fromUrl;
-    }
-    return mockRestaurants[0]?.id ?? '';
-  }, [props.restaurantId]);
-
-  const [restaurantId, setRestaurantId] = useState<string>(defaultRestaurantId);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [restaurantId, setRestaurantId] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>('');
 
-  const selectedRestaurant = useMemo(
-    () => {
-      if (props.restaurantId) {
-        // Find restaurant in props or create minimal one for seeding
-        return {
-          id: props.restaurantId,
-          name: { en: 'Restaurant', es: 'Restaurante' } as Record<Language, string>,
-          address: 'Address not available',
-          hours: { open: 'Not available', close: 'Not available' },
-          waitTime: 30,
-          distance: 0,
-          promos: [],
-          tables: [],
-          menu: {
-            food: [],
-            drinks: [],
-          },
-        };
+  // Load all restaurants on mount
+  useEffect(() => {
+    const loadRestaurants = async () => {
+      try {
+        const allRestaurants = await getAllRestaurants();
+        setRestaurants(allRestaurants);
+
+        // Set default restaurant ID
+        if (props.restaurantId) {
+          setRestaurantId(props.restaurantId);
+        } else if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const fromUrl = params.get('restaurantId');
+          if (fromUrl) {
+            setRestaurantId(fromUrl);
+          } else if (allRestaurants.length > 0) {
+            setRestaurantId(allRestaurants[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load restaurants:', error);
+        setMessage('Failed to load restaurants');
+      } finally {
+        setLoading(false);
       }
-      return null; // No restaurant found
-    },
-    [props.restaurantId]
-  );
+    };
+
+    if (enabled) {
+      loadRestaurants();
+    }
+  }, [enabled, props.restaurantId]);
+
+  const selectedRestaurant = useMemo(() => {
+    return restaurants.find(r => r.id === restaurantId) || null;
+  }, [restaurants, restaurantId]);
 
   if (!enabled) return null;
+  if (loading) return <div>Loading restaurants...</div>;
 
   const buildRows = (): RestaurantTableRow[] => {
     if (!selectedRestaurant) return [];
-    
-    // Only seed if we have a selected restaurant with tables
-    if (selectedRestaurant && selectedRestaurant.tables.length > 0) {
-      return selectedRestaurant.tables.map((t) => ({
-        id: t.id, // MUST match orders.table_id everywhere
-        restaurant_id: selectedRestaurant.id,
-        display_name: `${(t.location ?? 'Table').toString().replace(/^\w/, (c: string) => c.toUpperCase())} ${t.number}`,
-        table_number: t.number ?? null,
-        seats: t.seats ?? null,
-        location: t.location ?? null,
-        section: null,
-        available: t.available ?? true,
-        visible_to_customers: false, // management can enable later
-        x: t.x ?? null,
-        y: t.y ?? null,
-      }));
-    }
-    
-    return [];
+
+    // For seeding, we need to create mock tables since real restaurants might not have tables yet
+    // This creates a basic set of tables for testing
+    const mockTables = [
+      { id: 'table-1', number: 1, seats: 2, location: 'patio', available: true, x: 10, y: 10 },
+      { id: 'table-2', number: 2, seats: 4, location: 'patio', available: true, x: 30, y: 10 },
+      { id: 'table-3', number: 3, seats: 4, location: 'window', available: true, x: 50, y: 10 },
+      { id: 'table-4', number: 4, seats: 6, location: 'middle', available: true, x: 30, y: 40 },
+    ];
+
+    return mockTables.map((t) => ({
+      id: t.id,
+      restaurant_id: selectedRestaurant.id,
+      restaurant_slug: selectedRestaurant.slug || selectedRestaurant.id, // Include the text identifier
+      display_name: `${t.location.charAt(0).toUpperCase() + t.location.slice(1)} ${t.number}`,
+      table_number: t.number,
+      seats: t.seats,
+      location: t.location,
+      section: null,
+      available: t.available,
+      visible_to_customers: false, // management can enable later
+      x: t.x,
+      y: t.y,
+    }));
   };
 
   const handleSeed = async () => {
@@ -109,7 +107,7 @@ export function SeedTablesToSupabase(props: Props) {
         restaurantId: selectedRestaurant.id,
         count: rows.length,
       });
-      setMessage(`Seeded ${rows.length} tables to Supabase for ${selectedRestaurant.id}`);
+      setMessage(`Seeded ${rows.length} tables to Supabase for ${selectedRestaurant.name || selectedRestaurant.id}`);
     } catch (err) {
       console.error('❌ Failed seeding restaurant_tables', err);
       setMessage('Failed to seed tables. Check console for error details.');
@@ -130,9 +128,9 @@ export function SeedTablesToSupabase(props: Props) {
           disabled={busy}
           style={{ padding: '6px 8px' }}
         >
-          {mockRestaurants.map((r) => (
+          {restaurants.map((r) => (
             <option key={r.id} value={r.id}>
-              {r.name?.en ?? r.id}
+              {r.name || r.id}
             </option>
           ))}
         </select>
@@ -148,7 +146,7 @@ export function SeedTablesToSupabase(props: Props) {
 
       {message && <div style={{ marginTop: 8, fontSize: 12 }}>{message}</div>}
       <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-        This uploads tables from mockRestaurants into Supabase restaurant_tables. It does not expose tables to customers.
+        This creates sample tables for the selected restaurant in Supabase. Tables are not visible to customers until enabled in the floor plan editor.
       </div>
     </div>
   );

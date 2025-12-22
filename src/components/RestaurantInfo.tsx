@@ -31,7 +31,7 @@ interface RestaurantInfoProps {
   onContinue: () => void;
   onOrderFromPromo?: (promoId: string) => void;
   onViewMenu?: (menuItemId?: string) => void;
-  onViewInteractiveMenu?: (menuItemId?: string, initialTab?: 'food' | 'drinks') => void;
+  onViewInteractiveMenu?: (menuItemId?: string, initialTab?: 'food' | 'drinks', isToGo?: boolean) => void;
   onViewChefPreview?: (category?: 'food' | 'drinks') => void;
 }
 
@@ -99,17 +99,10 @@ export function RestaurantInfo({
     onContinue();
   };
 
-  const handleMenuButtonClick = () => {
-    if (onViewChefPreview) {
-      onViewChefPreview();
-      return;
-    }
+  const handleToGoButtonClick = () => {
+    // Start To Go ordering flow - go directly to food menu without table selection
     if (onViewInteractiveMenu) {
-      onViewInteractiveMenu(undefined, 'food');
-      return;
-    }
-    if (onViewMenu) {
-      onViewMenu();
+      onViewInteractiveMenu(undefined, 'food', true); // true flag indicates To Go
       return;
     }
     onContinue();
@@ -218,7 +211,7 @@ export function RestaurantInfo({
                 </Card>
               )}
               {restaurant.id === 'rest-rupestre' &&
-                restaurant.promos
+                (restaurant.promos || [])
                   .filter((promo) => promo.id === 'rup-promo-mariachi')
                   .map((promo) => {
                     const promoTitle = localizeText(promo.title, language);
@@ -264,10 +257,10 @@ export function RestaurantInfo({
           {(() => {
             const promosForList =
               restaurant.id === 'rest-rupestre'
-                ? restaurant.promos.filter((promo) => promo.id !== 'rup-promo-mariachi')
-                : restaurant.promos;
+                ? (restaurant.promos || []).filter((promo) => promo.id !== 'rup-promo-mariachi')
+                : (restaurant.promos || []);
 
-            if (promosForList.length === 0) return null;
+            if (!promosForList || promosForList.length === 0) return null;
 
             return (
               <div className="space-y-4">
@@ -344,12 +337,12 @@ export function RestaurantInfo({
 
       <BottomActionBar>
         <Button
-          onClick={handleMenuButtonClick}
+          onClick={handleToGoButtonClick}
           className="w-full sm:flex-1 text-gray-900"
           size="lg"
           variant="outline"
         >
-          {t('menu', language)}
+          {t('toGo', language)}
         </Button>
         <Button
           onClick={onContinue}

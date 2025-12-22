@@ -60,13 +60,13 @@ export const ManagerEditConsole = () => {
  
   return (
     <StaffLayout title="Manager edit" subtitle="Configuration changes (Supabase source of truth)" hideNav>
-      <div className="manager-theme">
+      <div>
         <div
           className="grid gap-4 bg-background text-foreground"
           style={{ gridTemplateColumns: consoleCollapsed ? '64px 1fr' : '240px 1fr' }}
         >
         {/* Manager Sidebar (Edit Console) */}
-        <Card className="border border-slate-200 shadow-sm h-[calc(100vh-160px)] overflow-hidden flex flex-col">
+        <Card className="border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className={`h-full w-full flex flex-col overflow-hidden ${consoleCollapsed ? 'p-2' : 'p-3'}`}>
             {/* Fixed header */}
             <div className={`flex items-center ${consoleCollapsed ? 'justify-center' : 'justify-between'} gap-2 mb-3 flex-shrink-0`}>
@@ -158,7 +158,7 @@ export const ManagerEditConsole = () => {
         </Card>
 
         {/* Right content */}
-        <Card className="p-4 border border-slate-200 shadow-sm h-[calc(100vh-160px)] overflow-auto space-y-4">
+        <Card className="p-4 border border-slate-200 shadow-sm overflow-visible space-y-4">
           {active === 'tables' && (
             <>
               <div className="space-y-1">
@@ -166,20 +166,10 @@ export const ManagerEditConsole = () => {
                 <h2 className="text-xl font-semibold text-gray-900">Tables & Floor Plan</h2>
               </div>
 
-              {/* These are the ONLY table-config writers */}
-              {/* FloorPlanCanvasEditor: fixed height (800px) */}
-              <div style={{ height: '800px', overflow: 'hidden' }}>
-                <FloorPlanCanvasEditor
-                  restaurantId={new URLSearchParams(window.location.search).get('restaurantId') ?? ''}
-                />
-              </div>
-
-              {/* ManagerTablesPanel: fixed height (400px) */}
-              <div style={{ height: '400px', overflow: 'auto' }}>
-                <ManagerTablesPanel enabled />
-              </div>
-
-              <SeedTablesToSupabase enabled />
+              {/* FloorPlanCanvasEditor: contains all table management in sidebar */}
+              <FloorPlanCanvasEditor
+                restaurantId={new URLSearchParams(window.location.search).get('restaurantId') ?? ''}
+              />
             </>
           )}
 
@@ -232,7 +222,7 @@ export const ManagerEditConsole = () => {
             </>
           )}
         </Card>
-      </div>
+        </div>
       </div>
     </StaffLayout>
   );

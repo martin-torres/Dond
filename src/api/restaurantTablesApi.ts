@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 export type RestaurantTableRow = {
   id: string;
   restaurant_id: string;
+  restaurant_slug?: string; // Human-readable restaurant identifier
 
   display_name: string | null;
   table_number: number | null;
@@ -38,6 +39,23 @@ export async function fetchRestaurantTables(restaurantId: string): Promise<Resta
 
   if (error) {
     console.error('[restaurantTablesApi] Failed to fetch restaurant_tables', error);
+    throw error;
+  }
+
+  return (data ?? []) as RestaurantTableRow[];
+}
+
+export async function fetchRestaurantTablesBySlug(restaurantSlug: string): Promise<RestaurantTableRow[]> {
+  if (!restaurantSlug) return [];
+
+  const { data, error } = await supabase
+    .from('restaurant_tables')
+    .select('*')
+    .eq('restaurant_slug', restaurantSlug)
+    .order('display_name', { ascending: true });
+
+  if (error) {
+    console.error('[restaurantTablesApi] Failed to fetch restaurant_tables by slug', error);
     throw error;
   }
 
