@@ -10,7 +10,7 @@ export type OrderStatus =
   | 'DELIVERED';
 
 export type OrderType = 'dine_in' | 'to_go' | 'request';
-export type ItemKind = 'food' | 'drink';
+export type ItemKind = 'food' | 'drink' | 'request';
 
 export type OrderItemInput = {
   menuItemId?: string; // if you have a menu table

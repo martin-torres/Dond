@@ -1,3 +1,4 @@
+import React from 'react';
 import { StaffOrder, StaffOrderItem } from './types';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -32,6 +33,9 @@ const accentBorder: Record<NonNullable<TicketCardProps['accent']>, string> = {
   owner: 'border-slate-200 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.08)]',
 };
 
+// Special styling for FOH requests (highest priority, amber background)
+const REQUEST_STYLE = 'border-amber-300 bg-amber-50 shadow-[0_0_0_4px_rgba(245,158,11,0.3)]';
+
 const formatHeader = (order: StaffOrder) => {
   if (order.orderType === 'dine_in') {
     return `DINE-IN · ${order.tableLabel ?? 'Table'}`;
@@ -42,8 +46,12 @@ const formatHeader = (order: StaffOrder) => {
   return `REQUEST · ${order.tableLabel ?? 'No table'}`;
 };
 
-export const TicketCard = ({ order, items, accent = 'owner', actions }: TicketCardProps) => {
-  const accentClass = accentBorder[accent] ?? accentBorder.owner;
+export const TicketCard = React.memo(({ order, items, accent = 'owner', actions }: TicketCardProps) => {
+  const hasRequests = items.some(item => item.kind === 'request');
+  const accentClass = hasRequests
+    ? REQUEST_STYLE
+    : (accentBorder[accent] ?? accentBorder.owner);
+
   return (
     <Card className={`p-4 space-y-3 border ${accentClass}`}>
       <div className="flex items-start justify-between gap-3">
@@ -51,8 +59,13 @@ export const TicketCard = ({ order, items, accent = 'owner', actions }: TicketCa
           <p className="text-xs font-semibold tracking-[0.3em] text-gray-500">
             {formatHeader(order)}
           </p>
-          <div className="flex items-center gap-2 text-sm text-gray-800 font-semibold">
-            <span>{summarizeItems(items)}</span>
+          <div className="text-sm text-gray-800">
+            {items.map((item, index) => (
+              <div key={item.id} className="font-semibold">
+                {item.quantity}× {item.name}
+                {index < items.length - 1 && <span className="text-gray-400 mx-1">•</span>}
+              </div>
+            ))}
           </div>
           {order.note && (
             <p className="text-xs font-bold text-gray-700 tracking-wide">
@@ -81,7 +94,4 @@ export const TicketCard = ({ order, items, accent = 'owner', actions }: TicketCa
       )}
     </Card>
   );
-};
-
-const summarizeItems = (items: StaffOrderItem[]) =>
-  items.map((item) => `${item.quantity}× ${item.name}`).join(', ');
+});

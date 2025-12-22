@@ -7,7 +7,7 @@ export type OrderStatus =
   | 'PICKING_UP'
   | 'DELIVERED';
 
-export type ItemKind = 'food' | 'drink';
+export type ItemKind = 'food' | 'drink' | 'request';
 
 export type Station = 'kitchen' | 'bar' | 'server';
 

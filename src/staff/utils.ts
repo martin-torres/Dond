@@ -1,4 +1,4 @@
-import { StaffOrder, StaffOrderItem } from './types';
+import { StaffOrder, StaffOrderItem, ItemKind } from './types';
 
 export const timeAgo = (date: Date) => {
   const minutes = Math.max(
@@ -12,7 +12,7 @@ export const timeAgo = (date: Date) => {
   return mins === 0 ? `${hours} hr ago` : `${hours}h ${mins}m ago`;
 };
 
-export const filterItemsByKind = (order: StaffOrder, kind: 'food' | 'drink') =>
+export const filterItemsByKind = (order: StaffOrder, kind: ItemKind) =>
   order.items.filter((item) => item.kind === kind);
 
 export const uppercaseNote = (note?: string) => note?.toUpperCase();

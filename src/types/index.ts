@@ -32,6 +32,7 @@ export interface Promo {
 export interface Table {
   id: string;
   number: number;
+  label?: string; // Display label like "Table 21" or custom name
   seats: number;
   location: 'patio' | 'window' | 'balcony' | 'middle' | 'secondFloor';
   available: boolean;

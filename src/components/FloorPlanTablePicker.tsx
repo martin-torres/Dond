@@ -134,7 +134,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
       window.location.pathname.startsWith("/manager"));
 
   const tableCount = tables.length || 1;
-  const sizeScale = compact ? 0.65 : 1;
+  // Dynamic sizing: tables with active orders are 65% size, inactive are even smaller
 
   // Base size between compact (smaller) and default (larger) depending on table count
   const minSize = compact ? 16 : 56;
@@ -144,7 +144,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
   const baseSize = maxSize - (maxSize - minSize) * ratio;
 
   const minHeight = compact ? 170 : 360;
-  const outerPadding = compact ? 12 : 16;
+  const outerPadding = compact ? 1 : 1;
 
   return (
     <div style={{ width: "100%" }}>
@@ -186,7 +186,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
 
         <div
           style={{
-            paddingInline: compact ? 8 : 8,
+            paddingInline: compact ? 4 : 4,
             display: "grid",
             gridTemplateColumns: compact
               ? "repeat(auto-fit, minmax(90px, 1fr))"
@@ -214,6 +214,11 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
             let selectionGlowCss = "rgba(203,213,225,0.65)";
 
             const activeCount = (hasReady ? 1 : 0) + others.length;
+
+            // Dynamic sizing: tables with active orders are 65% size, inactive are even smaller
+            const hasActiveStatuses = activeCount > 0;
+            const dynamicSizeScale = (compact ? 0.65 : 1) *
+              (hasActiveStatuses ? 0.65 : 0.45); // 65% for active, 45% for inactive
 
             // Idle tables render at 70% size without changing layout footprint
             const idleVisualScale =
@@ -264,73 +269,65 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
             }
 
             // Shape & size based on number of seats
-            let width = baseSize * 1.1 * sizeScale;
+            let width = baseSize * 1.1 * dynamicSizeScale;
             let height = width;
             let borderRadius = "12px";
 
             if (table.seats <= 2) {
-              width = baseSize * 1.0 * sizeScale;
+              width = baseSize * 1.0 * dynamicSizeScale;
               height = width;
               borderRadius = "999px"; // circle
             } else if (table.seats <= 4) {
-              width = baseSize * 1.1 * sizeScale;
+              width = baseSize * 1.1 * dynamicSizeScale;
               height = width;
               borderRadius = "12px"; // square-ish
             } else if (table.seats <= 6) {
-              width = baseSize * 1.6 * sizeScale;
-              height = baseSize * 1.05 * sizeScale;
+              width = baseSize * 1.6 * dynamicSizeScale;
+              height = baseSize * 1.05 * dynamicSizeScale;
               borderRadius = "14px"; // wider rectangle
             } else {
-              width = baseSize * 1.9 * sizeScale;
-              height = baseSize * 1.15 * sizeScale;
+              width = baseSize * 1.9 * dynamicSizeScale;
+              height = baseSize * 1.15 * dynamicSizeScale;
               borderRadius = "16px"; // largest rectangle
             }
 
-            const badge = (label: string, color: string) => (
+            const badge = (icon: string, color: string) => (
               <span
-                key={label}
+                key={icon}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 6,
+                  justifyContent: "center",
+                  width: 20,
+                  height: 20,
                   background: "#ffffffc7",
                   color,
-                  fontSize: 10,
-                  padding: "4px 8px",
+                  fontSize: 12,
                   borderRadius: 999,
                   border: `1px solid ${color}33`,
                   fontWeight: 700,
                 }}
               >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: color,
-                    display: "inline-block",
-                  }}
-                />
-                {label}
+                {icon}
               </span>
             );
 
             const badges: React.ReactNode[] = [];
             if (!hideSignals) {
               if (signals.hasRequest) {
-                badges.push(badge(t("badgeRequest", language), "#f59e0b"));
+                badges.push(badge("🔔", "#f59e0b"));
               }
               if (signals.hasOrder) {
-                badges.push(badge(t("badgeOrder", language), "#0ea5e9"));
+                badges.push(badge("📝", "#0ea5e9"));
               }
               if (signals.inProcess) {
-                badges.push(badge(t("badgeInProcess", language), "#10b981"));
+                badges.push(badge("➡️", "#10b981"));
               }
               if (signals.ready) {
-                badges.push(badge(t("badgeReady", language), "#fb7185"));
+                badges.push(badge("✅", "#dc2626"));
               }
               if (signals.pickingUp) {
-                badges.push(badge(t("badgePickup", language), "#6366f1"));
+                badges.push(badge("📦", "#6366f1"));
               }
             }
 
@@ -367,28 +364,19 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                   gap: 8,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <div style={{ fontWeight: 800, fontSize: 14 }}>
-                    {table.label}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 16 }}>🍽️</span>
+                    {table.number}
                   </div>
                   <div style={{ fontSize: 11, opacity: 0.8 }}>
-                    {table.seats} seats
+                    {table.seats}
                   </div>
                 </div>
 
-                {badges.length > 0 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {badges}
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      opacity: 0.8,
-                    }}
-                  >
-                    {t("noActiveTickets", language)}
+                {badges.length > 0 && (
+                  <div style={{ display: "flex", gap: 3, overflow: "hidden" }}>
+                    {badges.slice(0, 3)} {/* Show max 3 badges */}
                   </div>
                 )}
               </button>

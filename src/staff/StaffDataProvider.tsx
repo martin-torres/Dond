@@ -94,7 +94,7 @@ const seedTablesFromRestaurant = (restaurant: Restaurant | null): TableInfo[] =>
 const seedTablesFromDbRows = (rows: RestaurantTableRow[]): TableInfo[] => {
   return (rows ?? []).map((row) => ({
     id: row.id,
-    label: row.display_name ?? row.id,
+    label: row.display_name ?? `Table ${row.table_number ?? row.id}`,
     section: titleCase(row.section ?? row.location),
     state: row.available ? 'READY' : 'OCCUPIED',
     cleaningStartedAt: null,
