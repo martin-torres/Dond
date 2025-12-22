@@ -87,6 +87,7 @@ export const KitchenView = () => {
                         items={foodItems}
                         accent="kitchen"
                         actions={actions}
+                        hideTableInfo={true}
                       />
                     );
                   })}

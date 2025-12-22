@@ -16,21 +16,23 @@ type TicketCardProps = {
   items: StaffOrderItem[];
   accent?: 'kitchen' | 'bar' | 'server' | 'owner';
   actions?: TicketAction[];
+  hideTableInfo?: boolean; // New prop to hide table name when in grouped view
 };
 
-const statusColor: Record<StaffOrder['status'], string> = {
-  NEW: 'bg-amber-100 text-amber-700 border-amber-200',
-  IN_PROGRESS: 'bg-sky-100 text-sky-700 border-sky-200',
-  READY: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  PICKING_UP: 'bg-purple-100 text-purple-700 border-purple-200',
-  DELIVERED: 'bg-gray-100 text-gray-600 border-gray-200',
+// Color mapping that matches FloorPlanTablePicker colors
+const tableStatusColors: Record<StaffOrder['status'], string> = {
+  NEW: 'bg-blue-50 text-blue-800 border-blue-200',
+  IN_PROGRESS: 'bg-green-50 text-green-800 border-green-200',
+  READY: 'bg-rose-50 text-rose-800 border-rose-200',
+  PICKING_UP: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+  DELIVERED: 'bg-gray-50 text-gray-600 border-gray-200',
 };
 
 const accentBorder: Record<NonNullable<TicketCardProps['accent']>, string> = {
-  kitchen: 'border-orange-200 shadow-[0_8px_24px_-10px_rgba(251,146,60,0.55)]',
-  bar: 'border-blue-200 shadow-[0_8px_24px_-10px_rgba(59,130,246,0.45)]',
-  server: 'border-emerald-200 shadow-[0_8px_24px_-10px_rgba(16,185,129,0.4)]',
-  owner: 'border-slate-200 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.08)]',
+  kitchen: 'border-l-4 border-orange-200 shadow-[0_8px_24px_-10px_rgba(251,146,60,0.55)]',
+  bar: 'border-l-4 border-blue-200 shadow-[0_8px_24px_-10px_rgba(59,130,246,0.45)]',
+  server: 'border-l-4 border-emerald-200 shadow-[0_8px_24px_-10px_rgba(16,185,129,0.4)]',
+  owner: 'border-l-4 border-slate-200 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.08)]',
 };
 
 // Special styling for FOH requests (highest priority, amber background)
@@ -46,19 +48,24 @@ const formatHeader = (order: StaffOrder) => {
   return `REQUEST · ${order.tableLabel ?? 'No table'}`;
 };
 
-export const TicketCard = React.memo(({ order, items, accent = 'owner', actions }: TicketCardProps) => {
+export const TicketCard = React.memo(({ order, items, accent = 'owner', actions, hideTableInfo = false }: TicketCardProps) => {
   const hasRequests = items.some(item => item.kind === 'request');
   const accentClass = hasRequests
     ? REQUEST_STYLE
     : (accentBorder[accent] ?? accentBorder.owner);
 
+  // Use table status colors for the card background to match table colors
+  const statusClass = tableStatusColors[order.status];
+
   return (
-    <Card className={`p-2 space-y-0 border ${accentClass}`}>
+    <Card className={`p-2 space-y-0 border ${accentClass} ${statusClass}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-0.5 flex-1 min-w-0">
-          <p className="text-xs font-semibold tracking-[0.3em] text-gray-500">
-            {formatHeader(order)}
-          </p>
+          {!hideTableInfo && (
+            <p className="text-xs font-semibold tracking-[0.3em] text-gray-500">
+              {formatHeader(order)}
+            </p>
+          )}
           <div className="text-sm text-gray-800 leading-tight">
             {items.map((item, index) => (
               <div key={item.id} className="font-semibold">
@@ -74,7 +81,7 @@ export const TicketCard = React.memo(({ order, items, accent = 'owner', actions 
           )}
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <Badge className={`${statusColor[order.status]} text-xs px-1.5 py-0.5`}>
+          <Badge className={`text-xs px-1.5 py-0.5 ${statusClass}`}>
             {order.status}
           </Badge>
           <p className="text-xs text-gray-500 leading-tight">{timeAgo(order.createdAt)}</p>

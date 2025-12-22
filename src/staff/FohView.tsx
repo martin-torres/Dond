@@ -105,7 +105,7 @@ export const FohView = () => {
     <StaffLayout title="FOH / Server ✅ EDIT TEST" hideNav fullBleed>
       {/* ... */}
       <div className="h-full w-full overflow-hidden p-6" style={{ height: 'calc(100vh - 20px)' }}>
-        <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col" style={{ minHeight: 0 }}>
+        <Card className="h-full w-full overflow-hidden border border-slate-200 shadow-sm flex flex-col" style={{ minHeight: 0 }}>
           <div className="flex h-full w-full overflow-hidden gap-6 p-6" style={{ minHeight: 0 }}>
             {/* LEFT: Floorplan card (bounded, no page scroll) */}
             <div
@@ -115,7 +115,7 @@ export const FohView = () => {
               transition: 'width 300ms',
             }}
            >
-              <Card className="h-full w-full overflow-hidden border border-slate-200 bg-white shadow-sm">
+              <Card className="h-full w-full overflow-hidden border border-slate-200 shadow-sm">
                 <div className="h-full w-full p-6 box-border overflow-hidden">
                   <FloorPlanTablePicker
                     tables={tables.map(
@@ -155,13 +155,13 @@ export const FohView = () => {
                 transition: 'width 300ms',
               }}
             >
-              <Card className="h-full overflow-hidden border border-slate-200 bg-white shadow-sm flex flex-col">
+              <Card className="h-full overflow-hidden border border-slate-200 shadow-sm flex flex-col">
                 <div className="h-full w-full flex flex-col overflow-hidden p-4">
                   {/* Handle strip */}
-                  <div className="flex items-center justify-between border border-slate-200 bg-white rounded-lg px-4 py-3 shadow-sm flex-shrink-0">
+                  <div className="flex items-center justify-between border border-slate-200 rounded-lg px-4 py-3 shadow-sm flex-shrink-0">
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center justify-center rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                       onClick={() => setSidebarOpen((v) => !v)}
                       aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
                       title={sidebarOpen ? 'Collapse' : 'Expand'}
@@ -182,15 +182,11 @@ export const FohView = () => {
                   {/* Scrollable content area */}
                   <div className="flex-1 overflow-hidden pt-3">
                     {sidebarOpen && selectedTable && (
-                      <div className="rounded-lg border border-emerald-100 bg-white p-6 shadow-sm">
+                      <div className="rounded-lg border border-emerald-100 p-6 shadow-sm">
                         <div className="flex flex-wrap items-center justify-between gap-4">
                           <div>
-                            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Table</p>
-                            <h2 className="text-xl font-semibold text-gray-900">
-                              {selectedTable.label}
-                            </h2>
                             {selectedTable.cleaningStartedAt && selectedTable.state === 'CLEANING' && (
-                              <p className="text-xs text-blue-700 mt-1">
+                              <p className="text-xs text-blue-700">
                                 Cleaning · {cleaningMinutes} min
                               </p>
                             )}
@@ -238,6 +234,7 @@ export const FohView = () => {
                                 items={order.items}
                                 accent="server"
                                 actions={actionsForOrder(order)}
+                                hideTableInfo={true}
                               />
                             ))}
                           </div>

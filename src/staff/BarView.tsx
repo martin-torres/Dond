@@ -87,6 +87,7 @@ export const BarView = () => {
                         items={drinkItems}
                         accent="bar"
                         actions={actions}
+                        hideTableInfo={true}
                       />
                     );
                   })}

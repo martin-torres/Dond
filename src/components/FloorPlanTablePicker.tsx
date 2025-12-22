@@ -291,43 +291,50 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
               borderRadius = "16px"; // largest rectangle
             }
 
-            const badge = (icon: string, color: string) => (
+            const badge = (text: string, color: string) => (
               <span
-                key={icon}
+                key={text}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: 20,
+                  width: 32,
                   height: 20,
                   background: "#ffffffc7",
                   color,
-                  fontSize: 12,
+                  fontSize: 10,
                   borderRadius: 999,
                   border: `1px solid ${color}33`,
                   fontWeight: 700,
+                  padding: "0 4px",
                 }}
               >
-                {icon}
+                {text}
               </span>
             );
 
             const badges: React.ReactNode[] = [];
             if (!hideSignals) {
+              // FOH Priority Order (vertical stack):
+              // 1. REQUEST (top priority for FOH)
+              // 2. READY
+              // 3. PICKUP
+              // 4. PROCESS
+              // 5. ORDER
               if (signals.hasRequest) {
-                badges.push(badge("🔔", "#f59e0b"));
-              }
-              if (signals.hasOrder) {
-                badges.push(badge("📝", "#0ea5e9"));
-              }
-              if (signals.inProcess) {
-                badges.push(badge("➡️", "#10b981"));
+                badges.push(badge("REQUEST", "#f59e0b"));
               }
               if (signals.ready) {
-                badges.push(badge("✅", "#dc2626"));
+                badges.push(badge("READY", "#dc2626"));
               }
               if (signals.pickingUp) {
-                badges.push(badge("📦", "#6366f1"));
+                badges.push(badge("PICKUP", "#6366f1"));
+              }
+              if (signals.inProcess) {
+                badges.push(badge("PROCESS", "#10b981"));
+              }
+              if (signals.hasOrder) {
+                badges.push(badge("ORDER", "#0ea5e9"));
               }
             }
 
@@ -375,8 +382,8 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
                 </div>
 
                 {badges.length > 0 && (
-                  <div style={{ display: "flex", gap: 3, overflow: "hidden" }}>
-                    {badges.slice(0, 3)} {/* Show max 3 badges */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center", width: "100%" }}>
+                    {badges.slice(0, 3)} {/* Show max 3 badges in vertical stack, centered */}
                   </div>
                 )}
               </button>
