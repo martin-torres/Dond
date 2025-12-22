@@ -22,6 +22,7 @@ import { MenuPreview } from './components/MenuPreview';
 import { translateRestaurantMenu } from './utils/liveTranslations';
 import { useStaffData } from './staff/StaffDataProvider';
 import { createPaymentRecord, updatePaymentStatus } from './api/paymentsApi';
+import { resolveRestaurantId } from './api/restaurantsApi';
 
 export default function App() {
   const SUPPORTED_LANGS: Language[] = ['en', 'es', 'fr', 'de', 'ja', 'ar', 'zh'];
@@ -209,10 +210,17 @@ export default function App() {
   };
 
   const handleQRScan = async (restaurantId: string) => {
-    // Load menu + tables from Supabase
+    // Resolve restaurant identifier (slug) to UUID for database queries
+    const resolvedRestaurantId = await resolveRestaurantId(restaurantId);
+    if (!resolvedRestaurantId) {
+      alert('Restaurant not found in database');
+      return;
+    }
+
+    // Load menu + tables from Supabase using UUID
     const [menuRows, tableRows] = await Promise.all([
-      fetchRestaurantMenuItems(restaurantId),
-      fetchRestaurantTables(restaurantId),
+      fetchRestaurantMenuItems(resolvedRestaurantId),
+      fetchRestaurantTables(resolvedRestaurantId),
     ]);
 
     if (menuRows.length === 0 && tableRows.length === 0) {
@@ -257,8 +265,8 @@ export default function App() {
 
     // Create minimal restaurant object from DB data
     setCurrentRestaurant({
-      id: restaurantId,
-      name: { en: 'Restaurant', es: 'Restaurante' } as Record<Language, string>,
+      id: resolvedRestaurantId,
+      name: 'Maui',
       address: 'Address not available',
       hours: { open: 'Not available', close: 'Not available' },
       waitTime: 30,
@@ -530,7 +538,7 @@ export default function App() {
     setCurrentOrders([]);
     setDrinkOrders([]);
     setBill(null);
-    setMockPayments([]);
+    setPayments([]);
     setMenuFocusItemId(null);
     setInteractiveMenuFocusId(null);
     setMenuReturnStage(null);
@@ -569,7 +577,6 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <LanguageSelector />
-      <SimulateTerminalPayment />
       
       {stage === 'waiting' && drinkOrders.length > 0 && (
         <ProximityWarning 

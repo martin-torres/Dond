@@ -1,5 +1,6 @@
 export interface Restaurant {
   id: string;
+  slug?: string; // Optional for hybrid slug + UUID support
   name: string;
   address: string;
   hours: {
@@ -8,12 +9,14 @@ export interface Restaurant {
   };
   waitTime: number; // in minutes
   distance: number; // in meters
-  promos: Promo[];
-  tables: Table[];
-  menu: {
+  promos?: Promo[]; // Optional for database-only restaurants
+  tables?: Table[]; // Optional for database-only restaurants
+  menu?: {
     food: MenuItem[];
     drinks: MenuItem[];
-  };
+  }; // Optional for database-only restaurants
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Promo {

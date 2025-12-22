@@ -19,6 +19,7 @@ import {
   type OrderWithItems,
 } from '../api/ordersApi';
 import { fetchRestaurantTables, type RestaurantTableRow } from '../api/restaurantTablesApi';
+import { getRestaurant } from '../api/restaurantsApi';
 import {
   ItemKind,
   OrderStatus,
@@ -100,7 +101,7 @@ const seedTablesFromDbRows = (rows: RestaurantTableRow[]): TableInfo[] => {
     tableNumber: row.table_number ?? undefined,
     seats: row.seats ?? undefined,
     location: row.location ?? undefined,
-    available: row.available,
+    available: row.available ?? undefined,
     x: row.x ?? undefined,
     y: row.y ?? undefined,
   }));
@@ -195,7 +196,14 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       if (!activeRestaurantId) return;
 
       try {
-        const rows = await fetchRestaurantTables(activeRestaurantId);
+        // Convert slug to UUID before querying
+        const restaurant = await getRestaurant(activeRestaurantId);
+        if (!restaurant) {
+          console.error('Restaurant not found:', activeRestaurantId);
+          return;
+        }
+
+        const rows = await fetchRestaurantTables(restaurant.id);
         if (cancelled) return;
 
         if (rows.length > 0) {
@@ -223,7 +231,14 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
 
     const reloadTables = async () => {
       try {
-        const rows = await fetchRestaurantTables(activeRestaurantId);
+        // Convert slug to UUID before querying
+        const restaurant = await getRestaurant(activeRestaurantId);
+        if (!restaurant) {
+          console.error('Restaurant not found for reload:', activeRestaurantId);
+          return;
+        }
+
+        const rows = await fetchRestaurantTables(restaurant.id);
         if (cancelled) return;
 
         if (rows.length > 0) {
@@ -236,26 +251,41 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    const channel = supabase
-      .channel(`restaurant-tables-${activeRestaurantId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'restaurant_tables',
-          filter: `restaurant_id=eq.${activeRestaurantId}`,
-        },
-        () => {
-          // Any edit in manager tools should refresh the floor plan tables quickly
-          void reloadTables();
-        }
-      )
-      .subscribe();
+    const setupTableSubscription = async () => {
+      // Resolve restaurant identifier to UUID for database filtering
+      const resolvedRestaurantId = await getRestaurant(activeRestaurantId);
+      if (!resolvedRestaurantId) {
+        console.error('Could not resolve restaurant identifier for table subscription:', activeRestaurantId);
+        return;
+      }
+
+      const channel = supabase
+        .channel(`restaurant-tables-${resolvedRestaurantId.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'restaurant_tables',
+            filter: `restaurant_id=eq.${resolvedRestaurantId.id}`,
+          },
+          () => {
+            // Any edit in manager tools should refresh the floor plan tables quickly
+            void reloadTables();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    const cleanup = setupTableSubscription();
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      cleanup?.then(cleanupFn => cleanupFn?.());
     };
   }, [activeRestaurantId, activeRestaurant]);
   
@@ -457,37 +487,41 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    const unsubscribeFn = subscribeToOrders((payload) => {
-      if (cancelled) return;
-      if (payload.eventType === 'INSERT' && payload.newRow) {
-        handleInsert(payload.newRow);
-      } else if (payload.eventType === 'UPDATE' && payload.newRow) {
-        setOrders((prev) => {
-          const tableLabel =
-            (payload.newRow as any).table_label ??
-            ((payload.newRow as any).table_id
-              ? getTableLabel(activeRestaurant, (payload.newRow as any).table_id)
-              : undefined);
-          const hasExisting = prev.some((order) => order.id === (payload.newRow as any).id);
-          if (!hasExisting) return prev;
-          return prev.map((order) =>
-            order.id === (payload.newRow as any).id
-              ? {
-                  ...order,
-                  status: (payload.newRow as any).status ?? order.status,
-                  note: (payload.newRow as any).note ?? order.note,
-                  tableId: (payload.newRow as any).table_id ?? order.tableId,
-                  tableLabel: tableLabel ?? order.tableLabel,
-                }
-              : order
-          );
-        });
-      } else if (payload.eventType === 'DELETE' && payload.oldRow) {
-        setOrders((prev) => prev.filter((order) => order.id !== (payload.oldRow as any).id));
-      }
-    }, activeRestaurantId);
+    const setupSubscription = async () => {
+      const unsubscribeFn = await subscribeToOrders((payload) => {
+        if (cancelled) return;
+        if (payload.eventType === 'INSERT' && payload.newRow) {
+          handleInsert(payload.newRow);
+        } else if (payload.eventType === 'UPDATE' && payload.newRow) {
+          setOrders((prev) => {
+            const tableLabel =
+              (payload.newRow as any).table_label ??
+              ((payload.newRow as any).table_id
+                ? getTableLabel(activeRestaurant, (payload.newRow as any).table_id)
+                : undefined);
+            const hasExisting = prev.some((order) => order.id === (payload.newRow as any).id);
+            if (!hasExisting) return prev;
+            return prev.map((order) =>
+              order.id === (payload.newRow as any).id
+                ? {
+                    ...order,
+                    status: (payload.newRow as any).status ?? order.status,
+                    note: (payload.newRow as any).note ?? order.note,
+                    tableId: (payload.newRow as any).table_id ?? order.tableId,
+                    tableLabel: tableLabel ?? order.tableLabel,
+                  }
+                : order
+            );
+          });
+        } else if (payload.eventType === 'DELETE' && payload.oldRow) {
+          setOrders((prev) => prev.filter((order) => order.id !== (payload.oldRow as any).id));
+        }
+      }, activeRestaurantId);
 
-    unsubscribe = unsubscribeFn;
+      unsubscribe = unsubscribeFn;
+    };
+
+    setupSubscription();
     loadOrders();
 
     return () => {

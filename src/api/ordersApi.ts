@@ -1,5 +1,6 @@
 // src/api/ordersApi.ts
 import { supabase } from '../lib/supabaseClient';
+import { resolveRestaurantId } from './restaurantsApi';
 
 export type OrderStatus =
   | 'NEW'
@@ -122,7 +123,7 @@ export async function fetchOpenOrdersWithItems(): Promise<OrderWithItems[]> {
  * Call this once (e.g. in a useEffect) and update your local state
  * inside the callback.
  */
-export function subscribeToOrders(
+export async function subscribeToOrders(
   onChange: (payload: {
     eventType: 'INSERT' | 'UPDATE' | 'DELETE';
     newRow?: OrderRow | null;
@@ -130,15 +131,26 @@ export function subscribeToOrders(
   }) => void,
   restaurantId?: string | null
 ) {
+  // Resolve restaurant identifier to UUID for database filtering
+  let resolvedRestaurantId = restaurantId;
+  if (restaurantId) {
+    resolvedRestaurantId = await resolveRestaurantId(restaurantId);
+    if (!resolvedRestaurantId) {
+      console.error('Could not resolve restaurant identifier:', restaurantId);
+      // Fall back to no filter if resolution fails
+      resolvedRestaurantId = null;
+    }
+  }
+
   const channel = supabase
-    .channel(restaurantId ? `orders-realtime-${restaurantId}` : 'orders-realtime')
+    .channel(resolvedRestaurantId ? `orders-realtime-${resolvedRestaurantId}` : 'orders-realtime')
     .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'orders',
-        ...(restaurantId ? { filter: `restaurant_id=eq.${restaurantId}` } : {}),
+        ...(resolvedRestaurantId ? { filter: `restaurant_id=eq.${resolvedRestaurantId}` } : {}),
       },
       (payload) => {
         onChange({
