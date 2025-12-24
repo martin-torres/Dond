@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import type {
   AppFee,
   CreateAppFee,
@@ -207,37 +207,50 @@ export const analyticsApi = {
     avg_duration: number;
     event_types: Array<{ event_type: string; count: number }>;
   }> {
-    const { data, error } = await supabase
+    // Get total count
+    const { count: totalCount, error: countError } = await supabase
       .from('restaurant_analytics')
-      .select(`
-        event_type,
-        duration_ms,
-        count(*) over() as total_count,
-        avg(duration_ms) over() as avg_duration
-      `)
+      .select('*', { count: 'exact', head: true })
+      .eq('restaurant_id', restaurantId);
+
+    if (countError) throw countError;
+
+    // Get average duration
+    const { data: durationData, error: durationError } = await supabase
+      .from('restaurant_analytics')
+      .select('duration_ms')
       .eq('restaurant_id', restaurantId)
-      .limit(1000);
+      .not('duration_ms', 'is', null);
 
-    if (error) throw error;
+    if (durationError) throw durationError;
 
-    const total_events = data.length > 0 ? parseInt(data[0].total_count) : 0;
-    const avg_duration = data.length > 0 ? parseFloat(data[0].avg_duration) : 0;
+    const avg_duration = durationData && durationData.length > 0
+      ? durationData.reduce((sum, item) => sum + (item.duration_ms || 0), 0) / durationData.length
+      : 0;
 
-    // Group by event type
-    const eventTypes = data.reduce((acc: Array<{ event_type: string; count: number }>, item: any) => {
-      const existing = acc.find((e: any) => e.event_type === item.event_type);
-      if (existing) {
-        existing.count++;
-      } else {
-        acc.push({ event_type: item.event_type, count: 1 });
-      }
-      return acc;
-    }, []);
+    // Get event types count
+    const { data: eventData, error: eventError } = await supabase
+      .from('restaurant_analytics')
+      .select('event_type')
+      .eq('restaurant_id', restaurantId);
+
+    if (eventError) throw eventError;
+
+    // Count event types
+    const eventTypeCount: { [key: string]: number } = {};
+    eventData?.forEach((item: any) => {
+      eventTypeCount[item.event_type] = (eventTypeCount[item.event_type] || 0) + 1;
+    });
+
+    const event_types = Object.entries(eventTypeCount).map(([event_type, count]) => ({
+      event_type,
+      count
+    }));
 
     return {
-      total_events,
+      total_events: totalCount || 0,
       avg_duration,
-      event_types: eventTypes
+      event_types
     };
   }
 };
@@ -399,23 +412,28 @@ export const dataImportsApi = {
 // Dashboard API
 export const dashboardApi = {
   async getStats(): Promise<DashboardStats> {
-    const { data, error } = await supabase
-      .rpc('get_dashboard_stats');
-    
-    if (error) throw error;
-    return data;
+    // Get basic stats from restaurants table
+    const { data: restaurants, error: restaurantsError } = await supabase
+      .from('restaurants')
+      .select('id, name, created_at');
+
+    if (restaurantsError) throw restaurantsError;
+
+    // For now, return basic counts - we can enhance this later with order data
+    return {
+      total_restaurants: restaurants?.length || 0,
+      active_restaurants: restaurants?.length || 0, // Simplified
+      total_orders: 0, // Would need orders table
+      pending_communications: 0, // Would need communications table
+      recent_imports: 0, // Would need data_imports table
+      total_revenue: 0 // Would need orders/payments tables
+    };
   },
 
   async getRestaurantStats(filter?: RestaurantFilter): Promise<PaginatedResponse<RestaurantStats>> {
-    // This would need a custom RPC function in Supabase
-    // For now, we'll implement basic filtering
     let queryBuilder = supabase
       .from('restaurants')
-      .select(`
-        id,
-        name,
-        created_at
-      `);
+      .select('id, name, created_at');
 
     if (filter?.search) {
       queryBuilder = queryBuilder.ilike('name', `%${filter.search}%`);
@@ -430,17 +448,17 @@ export const dashboardApi = {
     }
 
     if (filter?.order_by) {
-      queryBuilder = queryBuilder.order(filter.order_by, { 
-        ascending: filter.order_direction === 'asc' 
+      queryBuilder = queryBuilder.order(filter.order_by, {
+        ascending: filter.order_direction === 'asc'
       });
     }
 
     const { data, error } = await queryBuilder;
-    
+
     if (error) throw error;
 
     // Convert to RestaurantStats format (simplified)
-    const stats: RestaurantStats[] = data.map((restaurant: any) => ({
+    const stats: RestaurantStats[] = (data || []).map((restaurant: any) => ({
       id: restaurant.id,
       name: restaurant.name,
       total_orders: 0, // Would need to be calculated from orders table

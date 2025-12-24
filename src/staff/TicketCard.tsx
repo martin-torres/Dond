@@ -23,8 +23,8 @@ type TicketCardProps = {
 const tableStatusColors: Record<StaffOrder['status'], string> = {
   NEW: 'bg-blue-50 text-blue-800 border-blue-200',
   IN_PROGRESS: 'bg-green-50 text-green-800 border-green-200',
-  READY: 'bg-rose-50 text-rose-800 border-rose-200',
-  PICKING_UP: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+  READY: 'bg-rose-100 text-rose-800 border-rose-300',
+  PICKING_UP: 'bg-indigo-100 text-indigo-800 border-indigo-300',
   DELIVERED: 'bg-gray-50 text-gray-600 border-gray-200',
 };
 
@@ -58,7 +58,7 @@ export const TicketCard = React.memo(({ order, items, accent = 'owner', actions,
   const statusClass = tableStatusColors[order.status];
 
   return (
-    <Card className={`p-2 space-y-0 border ${accentClass} ${statusClass}`}>
+    <Card className={`p-2 space-y-0 border ${statusClass} ${accentClass}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-0.5 flex-1 min-w-0">
           {!hideTableInfo && (

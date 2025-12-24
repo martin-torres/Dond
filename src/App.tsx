@@ -13,6 +13,8 @@ import { ChefPreviewScreen } from './components/ChefPreviewScreen';
 import { BillPayment } from './components/BillPayment';
 import { PaymentCompleteScreen } from './components/PaymentCompleteScreen';
 import { ProximityWarning } from './components/ProximityWarning';
+import { FloorPlanTestPage } from './components/FloorPlanTestPage';
+import CreatorDashboard from './staff/CreatorDashboard';
 import { supabase } from './lib/supabaseClient';
 import { fetchRestaurantMenuItems } from './api/restaurantMenuApi';
 import { fetchRestaurantTables } from './api/restaurantTablesApi';
@@ -30,6 +32,14 @@ export default function App() {
     SUPPORTED_LANGS.includes(value as Language) ? (value as Language) : 'es';
 
   const staff = useStaffData();
+
+  // Check if we're on the test page
+  const isTestPage = typeof window !== 'undefined' && window.location.pathname === '/test-floor-plan';
+
+  // Check if we're accessing the admin dashboard
+  const isAdminDashboard = typeof window !== 'undefined' &&
+    (window.location.search.includes('admin=true') ||
+     window.location.pathname === '/admin');
 
   // Detect phone language (simulated - in real app would use navigator.language)
   const [language, setLanguage] = useState<Language>('es');
@@ -574,6 +584,11 @@ export default function App() {
 
   // Removed SimulateTerminalPayment - no more mock payments
 
+  // Render test page if on test route
+  if (isTestPage) {
+    return <FloorPlanTestPage />;
+  }
+
   return (
     <div className="min-h-screen">
       <LanguageSelector />
@@ -737,6 +752,9 @@ export default function App() {
           onPaymentComplete={handlePaymentComplete}
         />
       )}
+
+      {/* Admin Dashboard */}
+      {isAdminDashboard && <CreatorDashboard />}
     </div>
   );
 }
