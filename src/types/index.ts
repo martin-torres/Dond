@@ -10,6 +10,7 @@ export interface Restaurant {
   waitTime: number; // in minutes
   distance: number; // in meters
   promos?: Promo[]; // Optional for database-only restaurants
+  events?: Event[]; // Optional for database-only restaurants
   tables?: Table[]; // Optional for database-only restaurants
   menu?: {
     food: MenuItem[];
@@ -27,6 +28,17 @@ export interface Promo {
   imageUrl?: string; // optional image for visual appeal
   menuItemId?: string; // optional menu item to jump to
   menuCategory?: 'food' | 'drinks';
+}
+
+export interface Event {
+  id: string;
+  title: Record<Language, string>;
+  description: Record<Language, string>;
+  imageUrl?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
 }
 
 export interface Table {

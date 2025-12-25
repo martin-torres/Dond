@@ -130,14 +130,14 @@ INSERT INTO promos (
   '2025-12-31'
 ),
 
--- Machacado Special (links to specific menu item)
+-- Machacado Special (general food promo - no specific menu item link)
 ('115e05ba-f4ea-4013-837d-70b88acbf565',
   '{"en": "Machacado Morning", "es": "Machacado Matutino"}',
   '{"en": "Try our traditional Machacado con Huevo, a true norteño breakfast classic", "es": "Prueba nuestro tradicional Machacado con Huevo, un clásico norteño del desayuno"}',
   10.00,
   0.00,
   'https://images.unsplash.com/photo-1614094082869-7f63da5e5249?auto=format&fit=crop&w=800&q=80',
-  (SELECT id FROM restaurant_menu_items WHERE restaurant_id = '115e05ba-f4ea-4013-837d-70b88acbf565' AND name->>'en' = 'Machacado con Huevo'),
+  NULL,
   'food',
   'full_width',
   true,
@@ -145,14 +145,14 @@ INSERT INTO promos (
   '2025-12-31'
 ),
 
--- Caldo de Res Comfort (links to specific menu item)
+-- Caldo de Res Comfort (general food promo - no specific menu item link)
 ('115e05ba-f4ea-4013-837d-70b88acbf565',
   '{"en": "Comfort Soup", "es": "Sopa Confort"}',
   '{"en": "Warm up with our traditional Caldo de Res, the perfect comfort food", "es": "Calientate con nuestro tradicional Caldo de Res, la comida reconfortante perfecta"}',
   5.00,
   0.00,
   'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=800&q=80',
-  (SELECT id FROM restaurant_menu_items WHERE restaurant_id = '115e05ba-f4ea-4013-837d-70b88acbf565' AND name->>'en' = 'Caldo de Res'),
+  NULL,
   'food',
   'two_column',
   true,
@@ -217,11 +217,73 @@ INSERT INTO events (
 )
 ON CONFLICT DO NOTHING;
 
+-- Insert Tables for LasComidas (7 tables for full demo experience)
+INSERT INTO restaurant_tables (
+  restaurant_id,
+  restaurant_slug,
+  display_name,
+  table_number,
+  seats,
+  location,
+  section,
+  available,
+  visible_to_customers,
+  x,
+  y,
+  shape,
+  rotation,
+  is_interactive
+) VALUES
+-- Indoor tables (4 tables)
+('115e05ba-f4ea-4013-837d-70b88acbf565', 'Rest-one-lascomidas', 'Mesa 1', 1, 4, 'middle', 'Centro', true, true, 50, 50, 'auto', 0, true),
+('115e05ba-f4ea-4013-837d-70b88acbf565', 'Rest-one-lascomidas', 'Mesa 2', 2, 6, 'window', 'Ventana', true, true, 200, 50, 'auto', 0, true),
+('115e05ba-f4ea-4013-837d-70b88acbf565', 'Rest-one-lascomidas', 'Mesa 3', 3, 4, 'middle', 'Centro', true, true, 350, 50, 'auto', 0, true),
+('115e05ba-f4ea-4013-837d-70b88acbf565', 'Rest-one-lascomidas', 'Mesa 4', 4, 2, 'middle', 'Centro', true, true, 500, 50, 'auto', 0, true),
+
+-- Outdoor/Patio tables (3 tables)
+('115e05ba-f4ea-4013-837d-70b88acbf565', 'Rest-one-lascomidas', 'Terraza 1', 5, 4, 'patio', 'Terraza', true, true, 100, 200, 'auto', 0, true),
+('115e05ba-f4ea-4013-837d-70b88acbf565', 'Rest-one-lascomidas', 'Terraza 2', 6, 6, 'patio', 'Terraza', true, true, 300, 200, 'auto', 0, true),
+('115e05ba-f4ea-4013-837d-70b88acbf565', 'Rest-one-lascomidas', 'Terraza 3', 7, 4, 'patio', 'Terraza', true, true, 500, 200, 'auto', 0, true)
+ON CONFLICT (id) DO UPDATE SET
+  restaurant_id = EXCLUDED.restaurant_id,
+  restaurant_slug = EXCLUDED.restaurant_slug,
+  display_name = EXCLUDED.display_name,
+  table_number = EXCLUDED.table_number,
+  seats = EXCLUDED.seats,
+  location = EXCLUDED.location,
+  section = EXCLUDED.section,
+  available = EXCLUDED.available,
+  visible_to_customers = EXCLUDED.visible_to_customers,
+  x = EXCLUDED.x,
+  y = EXCLUDED.y,
+  shape = EXCLUDED.shape,
+  rotation = EXCLUDED.rotation,
+  is_interactive = EXCLUDED.is_interactive;
+
+-- Insert Floor Plan for LasComidas
+INSERT INTO restaurant_floor_plans (
+  restaurant_id,
+  canvas_w,
+  canvas_h,
+  grid_size
+) VALUES (
+  '115e05ba-f4ea-4013-837d-70b88acbf565',
+  700,
+  400,
+  10
+)
+ON CONFLICT (restaurant_id) DO UPDATE SET
+  canvas_w = EXCLUDED.canvas_w,
+  canvas_h = EXCLUDED.canvas_h,
+  grid_size = EXCLUDED.grid_size;
+
 -- Add indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_promos_restaurant_id_lascomidas ON promos(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_promos_active_lascomidas ON promos(is_active);
 CREATE INDEX IF NOT EXISTS idx_events_restaurant_id_lascomidas ON events(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_events_active_lascomidas ON events(is_active);
+CREATE INDEX IF NOT EXISTS idx_tables_restaurant_id_lascomidas ON restaurant_tables(restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_tables_available_lascomidas ON restaurant_tables(available, visible_to_customers);
 
 -- Verification queries (run these separately if needed):
 

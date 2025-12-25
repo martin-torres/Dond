@@ -146,12 +146,18 @@ export function RestaurantInfo({
                   {restaurant.name.slice(0, 1)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-lg sm:text-xl font-semibold text-gray-900 leading-tight truncate">
+                  <h1 className={`text-lg sm:text-xl font-semibold leading-tight truncate ${
+                    restaurant.name === 'Restaurant' ? 'text-blue-600' : 'text-gray-900'
+                  }`}>
                     {restaurant.name}
                   </h1>
                   <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
                     <MapPin className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                    <span className="truncate">{restaurant.address}</span>
+                    <span className={`truncate ${
+                      restaurant.address === 'Address not available' ? 'text-blue-600' : ''
+                    }`}>
+                      {restaurant.address}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -253,6 +259,62 @@ export function RestaurantInfo({
                   })}
             </>
           )}
+
+          {/* EVENTS SECTION - Above Promos */}
+          {(() => {
+            const eventsForList = (restaurant as any).events || [];
+
+            if (!eventsForList || eventsForList.length === 0) return null;
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">{t('upcomingEvents', language)}</h2>
+                </div>
+
+                {/* EVENTS: ONE PER LINE */}
+                <div className="space-y-3">
+                  {eventsForList.map((event: any) => {
+                    const eventTitle = localizeText(event.title, language);
+                    const eventDescription = localizeText(event.description, language);
+                    return (
+                      <Card
+                        key={event.id}
+                        className="overflow-hidden border border-blue-200 shadow-sm"
+                      >
+                        {event.imageUrl && (
+                          <div className="relative h-24 w-full overflow-hidden">
+                            <ImageWithFallback
+                              src={event.imageUrl}
+                              alt={eventTitle}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                            <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
+                              <h3 className="text-sm font-semibold line-clamp-1">{eventTitle}</h3>
+                            </div>
+                          </div>
+                        )}
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <h3 className="text-gray-900 text-base font-semibold line-clamp-2">
+                              {eventTitle}
+                            </h3>
+                            <div className="text-right text-xs text-gray-500 flex-shrink-0">
+                              <p>{new Date(event.date).toLocaleDateString(language)}</p>
+                              <p>{event.startTime} - {event.endTime}</p>
+                            </div>
+                          </div>
+                          <p className="text-gray-600 text-sm line-clamp-2">{eventDescription}</p>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {(() => {
             const promosForList =

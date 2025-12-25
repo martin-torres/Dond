@@ -349,6 +349,38 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
     return undefined;
   };
 
+  // Get all relevant stations for an order (for UI filtering)
+  const getRelevantStations = (items: StaffOrderItem[], orderType: OrderType): Station[] => {
+    const stations = new Set<Station>();
+    
+    if (orderType === 'request') {
+      stations.add('server');
+      return Array.from(stations);
+    }
+    
+    const hasFood = items.some((item) => item.kind === 'food');
+    const hasDrinks = items.some((item) => item.kind === 'drink');
+    
+    if (hasFood) stations.add('kitchen');
+    if (hasDrinks) stations.add('bar');
+    
+    return Array.from(stations);
+  };
+
+  // Filter items by station for UI display
+  const filterItemsByStation = (items: StaffOrderItem[], station: Station): StaffOrderItem[] => {
+    if (station === 'kitchen') {
+      return items.filter(item => item.kind === 'food');
+    }
+    if (station === 'bar') {
+      return items.filter(item => item.kind === 'drink');
+    }
+    if (station === 'server') {
+      return items; // FOH sees all items for requests
+    }
+    return items; // Default fallback
+  };
+
   const mapSupabaseOrderToStaff = useCallback(
     (order: OrderWithItems): StaffOrder => {
       const itemList = mapOrderItemsFromSupabase(order.items ?? []);
@@ -455,9 +487,12 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         const openOrders = await fetchOpenOrdersWithItems();
         if (cancelled) return;
 
-        const nextRestaurantId = openOrders.find((order) => order.restaurant_id)?.restaurant_id;
-        if (nextRestaurantId && nextRestaurantId !== activeRestaurantId) {
-          setActiveRestaurantId(nextRestaurantId);
+        // Only switch restaurant if URL doesn't specify one (prevents overriding URL selection)
+        if (!activeRestaurantId) {
+          const nextRestaurantId = openOrders.find((order) => order.restaurant_id)?.restaurant_id;
+          if (nextRestaurantId) {
+            setActiveRestaurantId(nextRestaurantId);
+          }
         }
 
         const mapped = openOrders.map(mapSupabaseOrderToStaff);
@@ -569,8 +604,10 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       setTableState,
       closeTableSession,
       getOrdersForTable,
+      getRelevantStations,
+      filterItemsByStation,
     }),
-    [addCustomerOrder, addStaffOrder, closeTableSession, getOrdersForTable, orders, setTableState, tables, updateOrderStatus]
+    [addCustomerOrder, addStaffOrder, closeTableSession, getOrdersForTable, orders, setTableState, tables, updateOrderStatus, getRelevantStations, filterItemsByStation]
   );
 
   return <StaffDataContext.Provider value={value}>{children}</StaffDataContext.Provider>;

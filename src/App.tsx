@@ -18,13 +18,14 @@ import CreatorDashboard from './staff/CreatorDashboard';
 import { supabase } from './lib/supabaseClient';
 import { fetchRestaurantMenuItems } from './api/restaurantMenuApi';
 import { fetchRestaurantTables } from './api/restaurantTablesApi';
+import { fetchRestaurantPromos, fetchRestaurantEvents } from './api/promosEventsApi';
 import { Button } from './components/ui/button';
 import { Globe } from 'lucide-react';
 import { MenuPreview } from './components/MenuPreview';
 import { translateRestaurantMenu } from './utils/liveTranslations';
 import { useStaffData } from './staff/StaffDataProvider';
 import { createPaymentRecord, updatePaymentStatus } from './api/paymentsApi';
-import { resolveRestaurantId } from './api/restaurantsApi';
+import { resolveRestaurantId, getRestaurant } from './api/restaurantsApi';
 
 export default function App() {
   const SUPPORTED_LANGS: Language[] = ['en', 'es', 'fr', 'de', 'ja', 'ar', 'zh'];
@@ -227,10 +228,12 @@ export default function App() {
       return;
     }
 
-    // Load menu + tables from Supabase using UUID
-    const [menuRows, tableRows] = await Promise.all([
+    // Load menu, tables, promos, and events from Supabase using UUID
+    const [menuRows, tableRows, promoRows, eventRows] = await Promise.all([
       fetchRestaurantMenuItems(resolvedRestaurantId),
       fetchRestaurantTables(resolvedRestaurantId),
+      fetchRestaurantPromos(resolvedRestaurantId),
+      fetchRestaurantEvents(resolvedRestaurantId),
     ]);
 
     if (menuRows.length === 0 && tableRows.length === 0) {
@@ -273,20 +276,68 @@ export default function App() {
       .map((r) => menuItemsFromDb.find((i) => i.id === String(r.id))!)
       .filter(Boolean);
 
-    // Create minimal restaurant object from DB data
+    // Convert DB promo rows to UI Promo type
+    const promosFromDb = promoRows.map((p) => ({
+      id: String(p.id),
+      title: fillLanguageRecord(p.title),
+      description: fillLanguageRecord(p.description ?? {}),
+      discount: Number(p.discount_percent ?? 0),
+      discountType: (p.discount_percent > 0 ? 'percentage' : 'fixed') as 'percentage' | 'fixed',
+      imageUrl: String(p.image_url ?? ''),
+      menuItemId: p.menu_item_id ? String(p.menu_item_id) : undefined,
+      menuCategory: (p.menu_category === 'food' || p.menu_category === 'drinks') ? p.menu_category as 'food' | 'drinks' : undefined,
+      isActive: Boolean(p.is_active ?? true),
+      startDate: p.start_date || new Date().toISOString().split('T')[0],
+      endDate: p.end_date || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
+    }));
+
+    // Convert DB event rows to UI Event type
+    const eventsFromDb = eventRows.map((e) => ({
+      id: String(e.id),
+      title: fillLanguageRecord(e.title),
+      description: fillLanguageRecord(e.description ?? {}),
+      imageUrl: String(e.image_url ?? ''),
+      date: e.event_date,
+      startTime: e.start_time,
+      endTime: e.end_time,
+      isActive: Boolean(e.is_active ?? true),
+    }));
+
+    // Get restaurant basic info from database
+    const restaurantInfo = await getRestaurant(restaurantId);
+
+    // Process name and address through fillLanguageRecord like other fields
+    const localizedName = fillLanguageRecord(restaurantInfo?.name);
+    const localizedAddress = fillLanguageRecord(restaurantInfo?.address);
+
+    // Create complete restaurant object from DB data
+    const dbName = localizedName[language] || localizedName['es'] || 'Restaurant';
+    const dbAddress = localizedAddress[language] || localizedAddress['es'] || 'Address not available';
+    const isFromDatabase = !!restaurantInfo;
+
     setCurrentRestaurant({
       id: resolvedRestaurantId,
-      name: 'Maui',
-      address: 'Address not available',
-      hours: { open: 'Not available', close: 'Not available' },
-      waitTime: 30,
-      distance: 0,
-      promos: [],
+      name: dbName,
+      address: dbAddress,
+      hours: restaurantInfo?.hours || { open: '9:00 AM', close: '10:00 PM' },
+      waitTime: restaurantInfo?.waitTime || 30,
+      distance: restaurantInfo?.distance || 0,
+      promos: promosFromDb,
+      events: eventsFromDb, // Add events to restaurant object
       tables: tablesFromDb,
       menu: {
         food: menuFood,
         drinks: menuDrinks,
       },
+    });
+
+    // Log what data came from database vs fallbacks
+    console.log('🍽️ Restaurant data loaded:', {
+      fromDatabase: !!restaurantInfo,
+      name: dbName,
+      address: dbAddress,
+      waitTime: restaurantInfo?.waitTime,
+      distance: restaurantInfo?.distance
     });
 
     // Reset flow state (same behavior as before)
