@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { StaffLayout } from './StaffLayout';
 import { useStaffData } from './StaffDataProvider';
 import { TicketCard } from './TicketCard';
-import { updateOrderStatus } from './orderStatus';
-import { Button } from '../components/ui/button';import { Card } from '../components/ui/card';
+import { markStationPickedUp, markStationDelivered } from './orderStatus';
+import { Button } from '../components/ui/button';
+import { Card } from '../components/ui/card';
 import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
 import { Table } from '../types';
 import { OrderStatus, StaffOrder } from './types';
@@ -20,7 +21,15 @@ export const FohView = () => {
   );
 
   const tableOrders = useMemo(
-    () => (selectedTable ? orders.filter((order) => order.tableId === selectedTable.id && order.status !== 'DELIVERED') : []),
+    () =>
+      selectedTable
+        ? orders.filter(
+            (order) =>
+              order.tableId === selectedTable.id &&
+              order.station !== 'server' &&
+              order.status !== 'DELIVERED'
+          )
+        : [],
     [orders, selectedTable]
   );
 
@@ -76,7 +85,7 @@ export const FohView = () => {
 
     return baseActions.map((action) => ({
       label: action.label,
-      onClick: () => updateOrderStatus(request.id, action.next),
+      onClick: () => {},
       variant: action.variant,
     }));
   };
@@ -90,11 +99,12 @@ export const FohView = () => {
 );
 
   const actionsForOrder = (order: StaffOrder) => {
-    if (order.orderType === 'request') return requestActions(order);
-    if (order.status === 'READY')
-      return [{ label: 'Picking up', onClick: () => updateOrderStatus(order.id, 'PICKING_UP') }];
-    if (order.status === 'PICKING_UP')
-      return [{ label: 'Delivered', onClick: () => updateOrderStatus(order.id, 'DELIVERED') }];
+    if (order.orderType === 'request') return [];
+    // FOH controls pickup/delivery per station ticket.
+    if (order.status === 'READY' && (order.station === 'kitchen' || order.station === 'bar'))
+      return [{ label: `Pick up ${order.station === 'bar' ? 'drinks' : 'food'}`, onClick: () => markStationPickedUp(order.id, order.station) }];
+    if (order.status === 'PICKING_UP' && (order.station === 'kitchen' || order.station === 'bar'))
+      return [{ label: `Delivered ${order.station === 'bar' ? 'drinks' : 'food'}`, onClick: () => markStationDelivered(order.id, order.station) }];
     return [];
   };
 
@@ -229,7 +239,7 @@ export const FohView = () => {
                             )}
                             {tableOrdersSorted.map((order) => (
                               <TicketCard
-                                key={order.id}
+                                key={order.ticketId ?? order.id}
                                 order={order}
                                 items={order.items}
                                 accent="server"

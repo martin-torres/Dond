@@ -302,7 +302,7 @@ export const OwnerView = () => {
                           )}
                           {tableOrdersSorted.map((order) => (
                             <TicketCard
-                              key={order.id}
+                              key={order.ticketId ?? order.id}
                               order={order}
                               items={pickItemsForOwner(order)}
                               accent={getAccent(order)}

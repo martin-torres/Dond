@@ -56,6 +56,40 @@ export function updateOrderStatus(orderId: string, newStatus: OrderStatus) {
 }
 
 /**
+ * Station-level order updates are now supported.
+ * These helpers call into StaffDataProvider if mounted.
+ */
+import type { ProductionStatus, Station } from './types';
+import { getExternalStationStatusUpdater, getExternalStationPickupUpdater, getExternalStationDeliveredUpdater } from './StaffDataProvider';
+
+export function updateStationStatus(orderId: string, station: Station, status: ProductionStatus) {
+  const updater = getExternalStationStatusUpdater();
+  if (!updater) {
+    console.warn('No staff data provider is mounted; unable to update station status.');
+    return;
+  }
+  updater(orderId, station, status);
+}
+
+export function markStationPickedUp(orderId: string, station: Exclude<Station, 'server'>) {
+  const updater = getExternalStationPickupUpdater();
+  if (!updater) {
+    console.warn('No staff data provider is mounted; unable to mark station picked up.');
+    return;
+  }
+  updater(orderId, station);
+}
+
+export function markStationDelivered(orderId: string, station: Station) {
+  const updater = getExternalStationDeliveredUpdater();
+  if (!updater) {
+    console.warn('No staff data provider is mounted; unable to mark station delivered.');
+    return;
+  }
+  updater(orderId, station);
+}
+
+/**
  * Rollback helper that only allows valid backward status changes
  */
 export function rollbackOrderStatus(orderId: string, currentStatus: OrderStatus, targetStatus: OrderStatus) {

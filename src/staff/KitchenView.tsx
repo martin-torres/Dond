@@ -3,7 +3,7 @@ import { useStaffData } from './StaffDataProvider';
 import { StaffLayout } from './StaffLayout';
 import { TicketCard } from './TicketCard';
 import { filterItemsByKind } from './utils';
-import { updateOrderStatus } from './orderStatus';
+import { updateStationStatus } from './orderStatus';
 import { StaffOrder } from './types';
 
 export const KitchenView = () => {
@@ -16,8 +16,9 @@ export const KitchenView = () => {
     orders.forEach((order) => {
       if (
         order.orderType !== 'request' &&
+        order.station === 'kitchen' &&
         filterItemsByKind(order, 'food').length > 0 &&
-        (order.status === 'NEW' || order.status === 'IN_PROGRESS') &&
+        (order.status === 'NEW' || order.status === 'IN_PROGRESS' || order.status === 'READY') &&
         order.tableId
       ) {
         if (!tableMap.has(order.tableId)) {
@@ -75,14 +76,14 @@ export const KitchenView = () => {
                     const foodItems = filterItemsByKind(order, 'food');
                     const actions =
                       order.status === 'NEW'
-                        ? [{ label: 'Start', onClick: () => updateOrderStatus(order.id, 'IN_PROGRESS') }]
+                        ? [{ label: 'Start', onClick: () => updateStationStatus(order.id, 'kitchen', 'IN_PROGRESS') }]
                         : order.status === 'IN_PROGRESS'
-                          ? [{ label: 'Ready', onClick: () => updateOrderStatus(order.id, 'READY') }]
+                          ? [{ label: 'Ready', onClick: () => updateStationStatus(order.id, 'kitchen', 'READY') }]
                           : [];
 
                     return (
                       <TicketCard
-                        key={order.id}
+                        key={order.ticketId ?? order.id}
                         order={order}
                         items={foodItems}
                         accent="kitchen"

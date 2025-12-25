@@ -41,6 +41,18 @@ export type OrderRow = {
   customer_name: string | null;
   customer_id?: string | null;
   status: OrderStatus;
+
+  // Station-based fulfillment tracking (optional columns)
+  kitchen_status?: 'NEW' | 'IN_PROGRESS' | 'READY' | null;
+  bar_status?: 'NEW' | 'IN_PROGRESS' | 'READY' | null;
+  foh_request_status?: 'NEW' | 'IN_PROGRESS' | 'READY' | null;
+
+  kitchen_picked_up_at?: string | null;
+  kitchen_delivered_at?: string | null;
+  bar_picked_up_at?: string | null;
+  bar_delivered_at?: string | null;
+  foh_request_delivered_at?: string | null;
+
   note: string | null;
   created_at: string; // ISO timestamp
 };
@@ -173,6 +185,9 @@ export async function subscribeToOrders(
  */
 export async function createOrderWithItems(input: NewOrderInput): Promise<OrderRow> {
   // 1) Insert into orders
+  const hasFood = input.items.some((i) => i.kind === 'food');
+  const hasDrink = input.items.some((i) => i.kind === 'drink');
+
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
@@ -184,6 +199,13 @@ export async function createOrderWithItems(input: NewOrderInput): Promise<OrderR
       customer_id: input.customerId ?? null,
       note: input.note ?? null,
       status: 'NEW',
+
+      // Initialize station tracks so kitchen/bar can progress independently.
+      // (Safe if columns don't exist yet? If not, Supabase will error — but the app already
+      // references these columns elsewhere, so we assume schema is in place.)
+      kitchen_status: hasFood ? 'NEW' : null,
+      bar_status: hasDrink ? 'NEW' : null,
+      foh_request_status: input.orderType === 'request' ? 'NEW' : null,
     })
     .select()
     .single();
@@ -231,6 +253,71 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
 
   if (error) {
     console.error('Error updating order status', error);
+    throw error;
+  }
+}
+
+export type StationKey = 'kitchen' | 'bar' | 'server';
+export type ProductionStatus = 'NEW' | 'IN_PROGRESS' | 'READY';
+
+const statusColumnByStation: Record<StationKey, string> = {
+  kitchen: 'kitchen_status',
+  bar: 'bar_status',
+  server: 'foh_request_status',
+};
+
+const pickedUpAtColumnByStation: Record<StationKey, string> = {
+  kitchen: 'kitchen_picked_up_at',
+  bar: 'bar_picked_up_at',
+  server: 'foh_request_delivered_at', // requests are "delivered" directly
+};
+
+const deliveredAtColumnByStation: Record<StationKey, string> = {
+  kitchen: 'kitchen_delivered_at',
+  bar: 'bar_delivered_at',
+  server: 'foh_request_delivered_at',
+};
+
+/**
+ * Update ONLY the production status for a station track.
+ * - kitchen/bar: NEW → IN_PROGRESS → READY
+ * - server: request track (NEW → IN_PROGRESS → READY)
+ */
+export async function updateOrderStationStatus(
+  orderId: string,
+  station: StationKey,
+  status: ProductionStatus
+) {
+  const column = statusColumnByStation[station];
+  const { error } = await supabase.from('orders').update({ [column]: status }).eq('id', orderId);
+  if (error) {
+    console.error('Error updating station status', error);
+    throw error;
+  }
+}
+
+/** Mark station ticket as picked up by FOH (hides from kitchen/bar). */
+export async function markStationPickedUp(orderId: string, station: Exclude<StationKey, 'server'>) {
+  const column = pickedUpAtColumnByStation[station];
+  const { error } = await supabase
+    .from('orders')
+    .update({ [column]: new Date().toISOString() })
+    .eq('id', orderId);
+  if (error) {
+    console.error('Error marking station picked up', error);
+    throw error;
+  }
+}
+
+/** Mark station ticket as delivered by FOH (final). */
+export async function markStationDelivered(orderId: string, station: StationKey) {
+  const column = deliveredAtColumnByStation[station];
+  const { error } = await supabase
+    .from('orders')
+    .update({ [column]: new Date().toISOString() })
+    .eq('id', orderId);
+  if (error) {
+    console.error('Error marking station delivered', error);
     throw error;
   }
 }

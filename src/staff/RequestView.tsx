@@ -3,7 +3,7 @@ import { useStaffData } from './StaffDataProvider';
 import { StaffLayout } from './StaffLayout';
 import { TicketCard } from './TicketCard';
 import { filterItemsByKind } from './utils';
-import { updateOrderStatus } from './orderStatus';
+import { updateStationStatus, markStationDelivered } from './orderStatus';
 
 export const RequestView = () => {
   const { orders } = useStaffData();
@@ -12,9 +12,9 @@ export const RequestView = () => {
     () =>
       orders.filter(
         (order) =>
-          order.orderType !== 'request' &&
+          order.station === 'server' &&
           filterItemsByKind(order, 'request').length > 0 &&
-          (order.status === 'NEW' || order.status === 'IN_PROGRESS' || order.status === 'DELIVERED')
+          (order.status === 'NEW' || order.status === 'IN_PROGRESS' || order.status === 'READY')
       ),
     [orders]
   );
@@ -30,13 +30,15 @@ export const RequestView = () => {
           const requestItems = filterItemsByKind(order, 'request');
           const actions =
             order.status === 'NEW'
-              ? [{ label: 'Handle', onClick: () => updateOrderStatus(order.id, 'IN_PROGRESS') }]
+              ? [{ label: 'Handle', onClick: () => updateStationStatus(order.id, 'server', 'IN_PROGRESS') }]
               : order.status === 'IN_PROGRESS'
-                ? [{ label: 'Delivered', onClick: () => updateOrderStatus(order.id, 'DELIVERED') }]
+                ? [{ label: 'Ready', onClick: () => updateStationStatus(order.id, 'server', 'READY') }]
+                : order.status === 'READY'
+                  ? [{ label: 'Delivered', onClick: () => markStationDelivered(order.id, 'server') }]
                 : [];
           return (
             <TicketCard
-              key={order.id}
+              key={order.ticketId ?? order.id}
               order={order}
               items={requestItems}
               accent="server"

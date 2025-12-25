@@ -11,6 +11,9 @@ export type ItemKind = 'food' | 'drink' | 'request';
 
 export type Station = 'kitchen' | 'bar' | 'server';
 
+// Production status for kitchen/bar/server request track.
+export type ProductionStatus = 'NEW' | 'IN_PROGRESS' | 'READY';
+
 export type OrderType = 'dine_in' | 'to_go' | 'request';
 
 export type TableState = 'EMPTY' | 'OCCUPIED' | 'PAYING' | 'CLEANING' | 'READY';
@@ -39,6 +42,8 @@ export type StaffOrderItem = {
 
 export type StaffOrder = {
   id: string;
+  /** When one DB order expands into multiple station tickets, this disambiguates them. */
+  ticketId?: string;
   orderType: OrderType;
   items: StaffOrderItem[];
   tableId?: string;
@@ -49,6 +54,10 @@ export type StaffOrder = {
   createdAt: Date;
   status: OrderStatus;
   station?: Station;
+
+  // Station fulfillment timestamps (used mainly for kitchen/bar tickets).
+  pickedUpAt?: Date | null;
+  deliveredAt?: Date | null;
 };
 
 export type StaffSeedContext = {

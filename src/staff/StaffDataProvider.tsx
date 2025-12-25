@@ -15,6 +15,9 @@ import {
   fetchOrderItemsForOrders,
   subscribeToOrders,
   updateOrderStatus as updateOrderStatusApi,
+  updateOrderStationStatus as updateOrderStationStatusApi,
+  markStationPickedUp as markStationPickedUpApi,
+  markStationDelivered as markStationDeliveredApi,
   type OrderItemRow,
   type OrderWithItems,
 } from '../api/ordersApi';
@@ -28,6 +31,7 @@ import {
   StaffOrderItem,
   StaffOrderPayload,
   Station,
+  ProductionStatus,
   StaffSeedContext,
   TableInfo,
   TableState,
@@ -38,6 +42,9 @@ type StaffContextValue = {
   tables: TableInfo[];
   singleOperatorMode: boolean;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  updateStationStatus: (orderId: string, station: Station, status: ProductionStatus) => void;
+  markStationPickedUp: (orderId: string, station: Exclude<Station, 'server'>) => void;
+  markStationDelivered: (orderId: string, station: Station) => void;
   addStaffOrder: (order: StaffOrder) => void;
   addCustomerOrder: (payload: StaffOrderPayload) => Promise<StaffOrder | null>;
   setTableState: (tableId: string, state: TableState, startedAt?: Date | null) => void;
@@ -48,8 +55,20 @@ type StaffContextValue = {
 const StaffDataContext = createContext<StaffContextValue | null>(null);
 const SINGLE_OPERATOR_MODE = false;
 let externalOrderStatusUpdater: ((orderId: string, status: OrderStatus) => void) | null = null;
+let externalStationStatusUpdater:
+  | ((orderId: string, station: Station, status: ProductionStatus) => void)
+  | null = null;
+let externalStationPickupUpdater:
+  | ((orderId: string, station: Exclude<Station, 'server'>) => void)
+  | null = null;
+let externalStationDeliveredUpdater:
+  | ((orderId: string, station: Station) => void)
+  | null = null;
 
 export const getExternalOrderStatusUpdater = () => externalOrderStatusUpdater;
+export const getExternalStationStatusUpdater = () => externalStationStatusUpdater;
+export const getExternalStationPickupUpdater = () => externalStationPickupUpdater;
+export const getExternalStationDeliveredUpdater = () => externalStationDeliveredUpdater;
 
 const seedRestaurant: Restaurant | null = null;
 
@@ -61,14 +80,14 @@ const titleCase = (value?: string | null) => {
 const buildMenuKindIndex = (restaurant?: Restaurant | null) => {
   const index = new Map<string, ItemKind>();
   if (!restaurant) return index;
-  restaurant.menu.food.forEach((item) => index.set(item.id, 'food'));
-  restaurant.menu.drinks.forEach((item) => index.set(item.id, 'drink'));
+  restaurant.menu?.food?.forEach((item) => index.set(item.id, 'food'));
+  restaurant.menu?.drinks?.forEach((item) => index.set(item.id, 'drink'));
   return index;
 };
 
 const getTableLabel = (restaurant: Restaurant | null, tableId?: string | null) => {
   if (!restaurant || !tableId) return undefined;
-  const table = restaurant.tables.find((t) => t.id === tableId);
+  const table = restaurant.tables?.find((t) => t.id === tableId);
   if (!table) return undefined;
   const section = titleCase(table.location);
   return `${section} ${table.number}`;
@@ -76,7 +95,7 @@ const getTableLabel = (restaurant: Restaurant | null, tableId?: string | null) =
 
 const seedTablesFromRestaurant = (restaurant: Restaurant | null): TableInfo[] => {
   if (!restaurant) return [];
-  return restaurant.tables.map((table) => ({
+  return (restaurant.tables ?? []).map((table) => ({
     id: table.id,
     label: `${titleCase(table.location)} ${table.number}`,
     section: titleCase(table.location),
@@ -182,12 +201,76 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
     []
   );
 
+  const updateStationStatus = useCallback(
+    (orderId: string, station: Station, status: ProductionStatus) => {
+      // optimistic update
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          if (order.station !== station) return order;
+          return { ...order, status };
+        })
+      );
+
+      updateOrderStationStatusApi(orderId, station, status).catch((err) => {
+        console.error('Failed to update station status in Supabase', err);
+        alert('Could not update station status. Please check internet/login and try again.');
+      });
+
+      // NOTE: We intentionally do NOT update the top-level `orders.status` column here.
+      // Kitchen/bar should progress independently; FOH delivery is tracked per station.
+    },
+    []
+  );
+
+  const markStationPickedUp = useCallback(
+    (orderId: string, station: Exclude<Station, 'server'>) => {
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          if (order.station !== station) return order;
+          return { ...order, pickedUpAt: new Date(), status: 'PICKING_UP' };
+        })
+      );
+
+      markStationPickedUpApi(orderId, station).catch((err) => {
+        console.error('Failed to mark station picked up', err);
+        alert('Could not mark picked up. Please check internet/login and try again.');
+      });
+    },
+    []
+  );
+
+  const markStationDelivered = useCallback(
+    (orderId: string, station: Station) => {
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          if (order.station !== station) return order;
+          return { ...order, deliveredAt: new Date(), status: 'DELIVERED' };
+        })
+      );
+
+      markStationDeliveredApi(orderId, station).catch((err) => {
+        console.error('Failed to mark station delivered', err);
+        alert('Could not mark delivered. Please check internet/login and try again.');
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     externalOrderStatusUpdater = updateOrderStatus;
+    externalStationStatusUpdater = updateStationStatus;
+    externalStationPickupUpdater = markStationPickedUp;
+    externalStationDeliveredUpdater = markStationDelivered;
     return () => {
       externalOrderStatusUpdater = null;
+      externalStationStatusUpdater = null;
+      externalStationPickupUpdater = null;
+      externalStationDeliveredUpdater = null;
     };
-  }, [updateOrderStatus]);
+  }, [updateOrderStatus, updateStationStatus, markStationPickedUp, markStationDelivered]);
 
   useEffect(() => {
     let cancelled = false;
@@ -382,7 +465,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const mapSupabaseOrderToStaff = useCallback(
-    (order: OrderWithItems): StaffOrder => {
+    (order: OrderWithItems): StaffOrder[] => {
       const itemList = mapOrderItemsFromSupabase(order.items ?? []);
       const restaurantForOrder = activeRestaurant;
 
@@ -390,27 +473,90 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         order.table_label ??
         (order.table_id ? getTableLabel(restaurantForOrder, order.table_id) : undefined);
 
-      return {
-        id: order.id,
-        orderType: order.order_type,
-        items: itemList,
-        tableId: order.table_id ?? undefined,
-        tableLabel,
-        customerName: order.customer_name ?? undefined,
-        note: order.note ?? undefined,
-        status: order.status,
-        createdAt: new Date(order.created_at ?? Date.now()),
-        station: deriveStation(itemList, order.order_type),
-      };
+      const createdAt = new Date(order.created_at ?? Date.now());
+
+      // Request-only orders are FOH tickets.
+      if (order.order_type === 'request') {
+        const deliveredAt = order.foh_request_delivered_at
+          ? new Date(order.foh_request_delivered_at)
+          : null;
+        const productionStatus = (order.foh_request_status ?? order.status ?? 'NEW') as OrderStatus;
+        return [
+          {
+            id: order.id,
+            ticketId: `${order.id}-server`,
+            orderType: order.order_type,
+            items: itemList,
+            tableId: order.table_id ?? undefined,
+            tableLabel,
+            customerName: order.customer_name ?? undefined,
+            note: order.note ?? undefined,
+            status: deliveredAt ? 'DELIVERED' : productionStatus,
+            createdAt,
+            station: 'server',
+            deliveredAt,
+          },
+        ];
+      }
+
+      // Non-request orders can expand into up to 2 station tickets.
+      const tickets: StaffOrder[] = [];
+
+      const foodItems = itemList.filter((i) => i.kind === 'food');
+      if (foodItems.length) {
+        const pickedUpAt = order.kitchen_picked_up_at ? new Date(order.kitchen_picked_up_at) : null;
+        const deliveredAt = order.kitchen_delivered_at ? new Date(order.kitchen_delivered_at) : null;
+        const productionStatus = (order.kitchen_status ?? order.status ?? 'NEW') as OrderStatus;
+        tickets.push({
+          id: order.id,
+          ticketId: `${order.id}-kitchen`,
+          orderType: order.order_type,
+          items: foodItems,
+          tableId: order.table_id ?? undefined,
+          tableLabel,
+          customerName: order.customer_name ?? undefined,
+          note: order.note ?? undefined,
+          status: deliveredAt ? 'DELIVERED' : pickedUpAt ? 'PICKING_UP' : productionStatus,
+          createdAt,
+          station: 'kitchen',
+          pickedUpAt,
+          deliveredAt,
+        });
+      }
+
+      const drinkItems = itemList.filter((i) => i.kind === 'drink');
+      if (drinkItems.length) {
+        const pickedUpAt = order.bar_picked_up_at ? new Date(order.bar_picked_up_at) : null;
+        const deliveredAt = order.bar_delivered_at ? new Date(order.bar_delivered_at) : null;
+        const productionStatus = (order.bar_status ?? order.status ?? 'NEW') as OrderStatus;
+        tickets.push({
+          id: order.id,
+          ticketId: `${order.id}-bar`,
+          orderType: order.order_type,
+          items: drinkItems,
+          tableId: order.table_id ?? undefined,
+          tableLabel,
+          customerName: order.customer_name ?? undefined,
+          note: order.note ?? undefined,
+          status: deliveredAt ? 'DELIVERED' : pickedUpAt ? 'PICKING_UP' : productionStatus,
+          createdAt,
+          station: 'bar',
+          pickedUpAt,
+          deliveredAt,
+        });
+      }
+
+      return tickets;
     },
     [mapOrderItemsFromSupabase, activeRestaurant]
   );
 
   const upsertStaffOrder = useCallback((nextOrder: StaffOrder) => {
     setOrders((prev) => {
-      const exists = prev.some((order) => order.id === nextOrder.id);
+      const nextKey = nextOrder.ticketId ?? nextOrder.id;
+      const exists = prev.some((order) => (order.ticketId ?? order.id) === nextKey);
       if (exists) {
-        return prev.map((order) => (order.id === nextOrder.id ? nextOrder : order));
+        return prev.map((order) => ((order.ticketId ?? order.id) === nextKey ? nextOrder : order));
       }
       return [nextOrder, ...prev];
     });
@@ -463,13 +609,13 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
           table_id: payload.meta?.tableId ?? null,
         }));
 
-        const staffOrder = mapSupabaseOrderToStaff({
+        const staffOrders = mapSupabaseOrderToStaff({
           ...orderRow,
           items: orderItemRows,
         });
 
-        upsertStaffOrder(staffOrder);
-        return staffOrder;
+        staffOrders.forEach(upsertStaffOrder);
+        return staffOrders[0] ?? null;
       } catch (err) {
         console.error('Failed to create order in Supabase', err);
         return null;
@@ -495,7 +641,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        const mapped = openOrders.map(mapSupabaseOrderToStaff);
+        const mapped = openOrders.flatMap(mapSupabaseOrderToStaff);
         setOrders(
           mapped.sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -511,12 +657,10 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         const itemsMap = await fetchOrderItemsForOrders([row.id]);
         if (cancelled) return;
         const items = itemsMap.get(row.id) ?? [];
-        upsertStaffOrder(
-          mapSupabaseOrderToStaff({
-            ...(row as OrderWithItems),
-            items,
-          })
-        );
+        mapSupabaseOrderToStaff({
+          ...(row as OrderWithItems),
+          items,
+        }).forEach(upsertStaffOrder);
       } catch (err) {
         console.error('Failed to process incoming order', err);
       }
@@ -528,28 +672,21 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         if (payload.eventType === 'INSERT' && payload.newRow) {
           handleInsert(payload.newRow);
         } else if (payload.eventType === 'UPDATE' && payload.newRow) {
-          setOrders((prev) => {
-            const tableLabel =
-              (payload.newRow as any).table_label ??
-              ((payload.newRow as any).table_id
-                ? getTableLabel(activeRestaurant, (payload.newRow as any).table_id)
-                : undefined);
-            const hasExisting = prev.some((order) => order.id === (payload.newRow as any).id);
-            if (!hasExisting) return prev;
-            return prev.map((order) =>
-              order.id === (payload.newRow as any).id
-                ? {
-                    ...order,
-                    status: (payload.newRow as any).status ?? order.status,
-                    note: (payload.newRow as any).note ?? order.note,
-                    tableId: (payload.newRow as any).table_id ?? order.tableId,
-                    tableLabel: tableLabel ?? order.tableLabel,
-                  }
-                : order
-            );
-          });
+          // Recompute station tickets from the updated DB order to avoid clobbering
+          // kitchen_status / bar_status changes with the legacy `orders.status` column.
+          const updatedOrder = payload.newRow as any as OrderWithItems;
+          fetchOrderItemsForOrders([updatedOrder.id])
+            .then((itemsMap) => {
+              const items = itemsMap.get(updatedOrder.id) ?? [];
+              const nextTickets = mapSupabaseOrderToStaff({ ...updatedOrder, items });
+              nextTickets.forEach(upsertStaffOrder);
+            })
+            .catch((err) => {
+              console.error('Failed to refresh order items after UPDATE', err);
+            });
         } else if (payload.eventType === 'DELETE' && payload.oldRow) {
-          setOrders((prev) => prev.filter((order) => order.id !== (payload.oldRow as any).id));
+          const deletedId = (payload.oldRow as any).id;
+          setOrders((prev) => prev.filter((order) => order.id !== deletedId));
         }
       }, activeRestaurantId);
 
@@ -579,9 +716,13 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         (order) => order.tableId === tableId && order.status !== 'DELIVERED'
       );
       tableOrders.forEach((order) => {
-        updateOrderStatusApi(order.id, 'DELIVERED').catch((err) =>
-          console.error('Failed to close table order in Supabase', err)
-        );
+        // With per-station tickets, we only need to close each DB order once.
+        // Picking the first ticket per DB order prevents duplicate updates.
+        if (!order.ticketId || order.ticketId.endsWith('-kitchen')) {
+          updateOrderStatusApi(order.id, 'DELIVERED').catch((err) =>
+            console.error('Failed to close table order in Supabase', err)
+          );
+        }
       });
       setTableState(tableId, 'CLEANING', new Date());
     },
@@ -599,6 +740,9 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       tables,
       singleOperatorMode: SINGLE_OPERATOR_MODE,
       updateOrderStatus,
+      updateStationStatus,
+      markStationPickedUp,
+      markStationDelivered,
       addStaffOrder,
       addCustomerOrder,
       setTableState,
@@ -607,7 +751,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       getRelevantStations,
       filterItemsByStation,
     }),
-    [addCustomerOrder, addStaffOrder, closeTableSession, getOrdersForTable, orders, setTableState, tables, updateOrderStatus, getRelevantStations, filterItemsByStation]
+    [addCustomerOrder, addStaffOrder, closeTableSession, getOrdersForTable, orders, setTableState, tables, updateOrderStatus, updateStationStatus, markStationPickedUp, markStationDelivered, getRelevantStations, filterItemsByStation]
   );
 
   return <StaffDataContext.Provider value={value}>{children}</StaffDataContext.Provider>;
