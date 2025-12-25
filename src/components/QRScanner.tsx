@@ -25,7 +25,7 @@ export function QRScanner({ language, onScan }: QRScannerProps) {
 
         // Get restaurantId from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const restaurantId = urlParams.get('restaurantId') || 'rest-one-maui'; // Default to maui
+        const restaurantId = urlParams.get('restaurantId') || 'Rest-one-maui'; // Default to maui (capital R)
         setCurrentRestaurantId(restaurantId);
 
         console.log('QR Scanner: Loading restaurant:', restaurantId);

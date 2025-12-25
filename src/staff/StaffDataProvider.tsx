@@ -41,6 +41,7 @@ type StaffContextValue = {
   orders: StaffOrder[];
   tables: TableInfo[];
   singleOperatorMode: boolean;
+  setSingleOperatorMode: (enabled: boolean) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   updateStationStatus: (orderId: string, station: Station, status: ProductionStatus) => void;
   markStationPickedUp: (orderId: string, station: Exclude<Station, 'server'>) => void;
@@ -53,7 +54,7 @@ type StaffContextValue = {
 };
 
 const StaffDataContext = createContext<StaffContextValue | null>(null);
-const SINGLE_OPERATOR_MODE = false;
+const SINGLE_OPERATOR_MODE_DEFAULT = false;
 let externalOrderStatusUpdater: ((orderId: string, status: OrderStatus) => void) | null = null;
 let externalStationStatusUpdater:
   | ((orderId: string, station: Station, status: ProductionStatus) => void)
@@ -133,6 +134,25 @@ const formatMenuName = (name: Record<Language, string>, language?: Language) => 
 
 export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<StaffOrder[]>([]);
+
+  // Demo helper: enable auto-selection/auto-opening behaviours in FOH.
+  // Sources (priority): URL ?singleOperator=1 > localStorage > default.
+  const [singleOperatorMode, setSingleOperatorMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return SINGLE_OPERATOR_MODE_DEFAULT;
+    const params = new URLSearchParams(window.location.search);
+    const qp = params.get('singleOperator');
+    if (qp === '1' || qp === 'true') return true;
+    if (qp === '0' || qp === 'false') return false;
+    const stored = window.localStorage.getItem('dond_singleOperatorMode');
+    if (stored === '1') return true;
+    if (stored === '0') return false;
+    return SINGLE_OPERATOR_MODE_DEFAULT;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('dond_singleOperatorMode', singleOperatorMode ? '1' : '0');
+  }, [singleOperatorMode]);
 
   const [activeRestaurantId, setActiveRestaurantId] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
@@ -738,7 +758,8 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       orders,
       tables,
-      singleOperatorMode: SINGLE_OPERATOR_MODE,
+      singleOperatorMode,
+      setSingleOperatorMode,
       updateOrderStatus,
       updateStationStatus,
       markStationPickedUp,
@@ -748,10 +769,21 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       setTableState,
       closeTableSession,
       getOrdersForTable,
-      getRelevantStations,
-      filterItemsByStation,
     }),
-    [addCustomerOrder, addStaffOrder, closeTableSession, getOrdersForTable, orders, setTableState, tables, updateOrderStatus, updateStationStatus, markStationPickedUp, markStationDelivered, getRelevantStations, filterItemsByStation]
+    [
+      addCustomerOrder,
+      addStaffOrder,
+      closeTableSession,
+      getOrdersForTable,
+      markStationDelivered,
+      markStationPickedUp,
+      orders,
+      setTableState,
+      tables,
+      singleOperatorMode,
+      updateOrderStatus,
+      updateStationStatus,
+    ]
   );
 
   return <StaffDataContext.Provider value={value}>{children}</StaffDataContext.Provider>;

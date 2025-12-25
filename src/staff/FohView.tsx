@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StaffLayout } from './StaffLayout';
 import { useStaffData } from './StaffDataProvider';
 import { TicketCard } from './TicketCard';
@@ -10,10 +10,54 @@ import { Table } from '../types';
 import { OrderStatus, StaffOrder } from './types';
 
 export const FohView = () => {
-  const { tables, orders, setTableState, closeTableSession } = useStaffData();
-  console.log('Table data check:', tables.map(t => ({ id: t.id, x: t.x, y: t.y })));
+  const { tables, orders, setTableState, closeTableSession, singleOperatorMode, setSingleOperatorMode } = useStaffData();
   const [selectedTableId, setSelectedTableId] = useState<string | null>(tables[0]?.id ?? null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // In single-operator mode, automatically focus the most urgent table and keep sidebar open.
+  // Priority: request > ready > in_progress > new.
+  const preferredTableId = useMemo(() => {
+    if (!tables.length) return null;
+
+    const weightFor = (signal: TableSignal): number => {
+      if (signal.hasRequest) return 400;
+      if (signal.pickingUp) return 300;
+      if (signal.ready) return 250;
+      if (signal.inProcess) return 150;
+      if (signal.hasOrder) return 100;
+      return 0;
+    };
+
+    let bestId: string | null = null;
+    let bestScore = -1;
+
+    for (const table of tables) {
+      const active = orders.filter((order) => order.tableId === table.id && order.status !== 'DELIVERED');
+      if (!active.length) continue;
+      const hasRequest = active.some((order) => order.orderType === 'request');
+      const hasOrder = active.some((order) => order.orderType !== 'request' && order.status === 'NEW');
+      const inProcess = active.some((order) => order.status === 'IN_PROGRESS');
+      const ready = active.some((order) => order.status === 'READY');
+      const pickingUp = active.some((order) => order.status === 'PICKING_UP');
+      const score = weightFor({ hasRequest, hasOrder, inProcess, ready, pickingUp });
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = table.id;
+      }
+    }
+
+    return bestId ?? tables[0]?.id ?? null;
+  }, [orders, tables]);
+
+  // React to changes after new orders arrive.
+  // (We keep it minimal to avoid disrupting manual selection in normal mode.)
+  useEffect(() => {
+    if (!singleOperatorMode) return;
+    if (!preferredTableId) return;
+    if (selectedTableId === preferredTableId) return;
+    setSelectedTableId(preferredTableId);
+    setSidebarOpen(true);
+  }, [preferredTableId, selectedTableId, singleOperatorMode]);
 
   const selectedTable = useMemo(
     () => tables.find((table) => table.id === selectedTableId) ?? tables[0],
@@ -62,34 +106,6 @@ export const FohView = () => {
       ? Math.floor((Date.now() - new Date(selectedTable.cleaningStartedAt).getTime()) / 60000)
       : 0;
 
-  const requestActions = (request: StaffOrder) => {
-    const baseActions: { label: string; next: OrderStatus; variant?: 'outline' | 'secondary' }[] =
-      request.status === 'NEW'
-        ? [
-            { label: 'Handle now', next: 'DELIVERED' },
-            { label: 'Acknowledge', next: 'IN_PROGRESS', variant: 'outline' },
-          ]
-        : request.status === 'IN_PROGRESS'
-          ? [
-              { label: 'Ready', next: 'READY' },
-              { label: 'Done', next: 'DELIVERED', variant: 'outline' },
-            ]
-          : request.status === 'READY'
-            ? [
-                { label: 'Picking up', next: 'PICKING_UP' },
-                { label: 'Delivered', next: 'DELIVERED', variant: 'outline' },
-              ]
-            : request.status === 'PICKING_UP'
-              ? [{ label: 'Delivered', next: 'DELIVERED' }]
-              : [];
-
-    return baseActions.map((action) => ({
-      label: action.label,
-      onClick: () => {},
-      variant: action.variant,
-    }));
-  };
-
   const tableOrdersSorted = useMemo(
   () =>
     [...tableOrders].sort(
@@ -101,10 +117,23 @@ export const FohView = () => {
   const actionsForOrder = (order: StaffOrder) => {
     if (order.orderType === 'request') return [];
     // FOH controls pickup/delivery per station ticket.
-    if (order.status === 'READY' && (order.station === 'kitchen' || order.station === 'bar'))
-      return [{ label: `Pick up ${order.station === 'bar' ? 'drinks' : 'food'}`, onClick: () => markStationPickedUp(order.id, order.station) }];
-    if (order.status === 'PICKING_UP' && (order.station === 'kitchen' || order.station === 'bar'))
-      return [{ label: `Delivered ${order.station === 'bar' ? 'drinks' : 'food'}`, onClick: () => markStationDelivered(order.id, order.station) }];
+    const station = order.station;
+    if (order.status === 'READY' && (station === 'kitchen' || station === 'bar')) {
+      return [
+        {
+          label: `Pick up ${station === 'bar' ? 'drinks' : 'food'}`,
+          onClick: () => markStationPickedUp(order.id, station),
+        },
+      ];
+    }
+    if (order.status === 'PICKING_UP' && (station === 'kitchen' || station === 'bar')) {
+      return [
+        {
+          label: `Delivered ${station === 'bar' ? 'drinks' : 'food'}`,
+          onClick: () => markStationDelivered(order.id, station),
+        },
+      ];
+    }
     return [];
   };
 
@@ -112,7 +141,7 @@ export const FohView = () => {
   const sidebarWidthClosed = '44px';
 
   return (
-    <StaffLayout title="FOH / Server ✅ EDIT TEST" hideNav fullBleed>
+    <StaffLayout title="FOH / Server" hideNav fullBleed>
       {/* ... */}
       <div className="h-full w-full overflow-hidden p-6" style={{ height: 'calc(100vh - 20px)' }}>
         <Card className="h-full w-full overflow-hidden border border-slate-200 shadow-sm flex flex-col" style={{ minHeight: 0 }}>
@@ -186,6 +215,21 @@ export const FohView = () => {
                           {selectedTable?.label ?? '—'}
                         </p>
                       </div>
+                    )}
+
+                    {sidebarOpen && (
+                      <button
+                        type="button"
+                        className={`ml-2 inline-flex items-center justify-center rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                          singleOperatorMode
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                        onClick={() => setSingleOperatorMode(!singleOperatorMode)}
+                        title="Single-operator demo mode"
+                      >
+                        1-op: {singleOperatorMode ? 'ON' : 'OFF'}
+                      </button>
                     )}
                   </div>
 

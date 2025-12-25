@@ -2,8 +2,15 @@ import React from 'react';
 import { StaffOrder, StaffOrderItem } from './types';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
 import { uppercaseNote, timeAgo } from './utils';
+
+import {
+  STATUS_STYLES,
+  getStatusPresence,
+  mapOrderStatusToVisualKey,
+  type TableSignal,
+  type TableStatusKey,
+} from '../utils/statusVisual';
 
 type TicketAction = {
   label: string;
@@ -17,15 +24,8 @@ type TicketCardProps = {
   accent?: 'kitchen' | 'bar' | 'server' | 'owner';
   actions?: TicketAction[];
   hideTableInfo?: boolean; // New prop to hide table name when in grouped view
-};
-
-// Color mapping that matches FloorPlanTablePicker colors
-const tableStatusColors: Record<StaffOrder['status'], string> = {
-  NEW: 'bg-blue-50 text-blue-800 border-blue-200',
-  IN_PROGRESS: 'bg-green-50 text-green-800 border-green-200',
-  READY: 'bg-rose-100 text-rose-800 border-rose-300',
-  PICKING_UP: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-  DELIVERED: 'bg-gray-50 text-gray-600 border-gray-200',
+  /** If true and there is exactly 1 action, the whole card becomes the button (demo-friendly). */
+  wholeCardClickable?: boolean;
 };
 
 const accentBorder: Record<NonNullable<TicketCardProps['accent']>, string> = {
@@ -48,17 +48,123 @@ const formatHeader = (order: StaffOrder) => {
   return `REQUEST · ${order.tableLabel ?? 'No table'}`;
 };
 
-export const TicketCard = React.memo(({ order, items, accent = 'owner', actions, hideTableInfo = false }: TicketCardProps) => {
+function deriveTicketSignals(order: StaffOrder, items: StaffOrderItem[]): TableSignal {
+  // Requests should always show as request, regardless of production status.
+  if (order.orderType === 'request' || items.some((i) => i.kind === 'request')) {
+    return {
+      hasRequest: true,
+      inProcess: order.status === 'IN_PROGRESS',
+      ready: order.status === 'READY',
+      pickingUp: order.status === 'PICKING_UP',
+      delivered: order.status === 'DELIVERED',
+    };
+  }
+
+  const v = mapOrderStatusToVisualKey(order.status);
+  return {
+    hasOrder: v === 'order',
+    inProcess: v === 'inProcess',
+    ready: v === 'ready',
+    pickingUp: v === 'pickup',
+    delivered: order.status === 'DELIVERED',
+  };
+}
+
+function computeTicketVisual(signals: TableSignal): {
+  bg: string;
+  border: string;
+  text: string;
+  glow: string;
+  fillKey: TableStatusKey | null;
+  borderKey: TableStatusKey | null;
+} {
+  const { hasReady, others } = getStatusPresence(signals);
+  const activeCount = (hasReady ? 1 : 0) + others.length;
+
+  // Base (idle)
+  let fillKey: TableStatusKey | null = null;
+  let borderKey: TableStatusKey | null = null;
+
+  if (activeCount === 1) {
+    fillKey = hasReady ? 'ready' : (others[0] ?? null);
+    borderKey = fillKey;
+  } else if (activeCount >= 2) {
+    if (hasReady) {
+      fillKey = 'ready';
+      borderKey = (others[0] ?? 'ready');
+    } else {
+      borderKey = (others[0] ?? null);
+      fillKey = (others[1] ?? others[0] ?? null);
+    }
+  }
+
+  if (!fillKey || !borderKey) {
+    return {
+      bg: '#f8fafc',
+      border: '#e2e8f0',
+      text: '#334155',
+      glow: 'rgba(203,213,225,0.65)',
+      fillKey,
+      borderKey,
+    };
+  }
+
+  const fill = STATUS_STYLES[fillKey];
+  const border = STATUS_STYLES[borderKey];
+
+  return {
+    bg: fill.bg,
+    border: border.border,
+    text: fill.text,
+    glow: border.glow,
+    fillKey,
+    borderKey,
+  };
+}
+
+export const TicketCard = React.memo(({ order, items, accent = 'owner', actions, hideTableInfo = false, wholeCardClickable = true }: TicketCardProps) => {
+  // Per your spec: keep ticket text readable (black) while using colored backgrounds/borders
+  // to indicate status. (We do NOT use the palette `visual.text` for actual text color.)
+  const TICKET_TEXT_COLOR = '#0f172a'; // slate-900-ish
+
   const hasRequests = items.some(item => item.kind === 'request');
   const accentClass = hasRequests
     ? REQUEST_STYLE
     : (accentBorder[accent] ?? accentBorder.owner);
 
-  // Use table status colors for the card background to match table colors
-  const statusClass = tableStatusColors[order.status];
+  const signals = deriveTicketSignals(order, items);
+  const visual = computeTicketVisual(signals);
+
+  const singleAction = actions && actions.length === 1 ? actions[0] : null;
+  const isClickable = wholeCardClickable && !!singleAction;
+
+  // Card should visually shrink when READY (matches your spec).
+  const compactReady = order.status === 'READY';
 
   return (
-    <Card className={`p-2 space-y-0 border ${statusClass} ${accentClass}`}>
+    <Card
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={isClickable ? singleAction!.onClick : undefined}
+      onKeyDown={
+        isClickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                singleAction!.onClick();
+              }
+            }
+          : undefined
+      }
+      className={`space-y-0 border ${accentClass} ${isClickable ? 'cursor-pointer select-none' : ''} ${compactReady ? 'opacity-95 scale-[0.98]' : ''}`}
+      style={{
+        background: visual.bg,
+        borderColor: visual.border,
+        color: TICKET_TEXT_COLOR,
+        boxShadow: `0 0 0 0px transparent, 0 8px 24px -12px rgba(15,23,42,0.18)`,
+      }}
+    >
+      <div className="p-2">
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-0.5 flex-1 min-w-0">
           {!hideTableInfo && (
@@ -81,26 +187,50 @@ export const TicketCard = React.memo(({ order, items, accent = 'owner', actions,
           )}
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <Badge className={`text-xs px-1.5 py-0.5 ${statusClass}`}>
+          <Badge
+            className="text-xs px-1.5 py-0.5"
+            style={{
+              background: visual.bg,
+              border: `1px solid ${visual.border}`,
+              color: TICKET_TEXT_COLOR,
+            }}
+          >
             {order.status}
           </Badge>
           <p className="text-xs text-gray-500 leading-tight">{timeAgo(order.createdAt)}</p>
         </div>
       </div>
-      {actions && actions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 -mt-0.5">
-          {actions.map((action) => (
-            <Button
-              key={action.label}
-              onClick={action.onClick}
-              variant={action.variant ?? 'default'}
-              className="flex-1 min-w-[100px] h-10 text-sm opacity-85 hover:opacity-100 transition-opacity"
+      {(actions && actions.length > 0) && (
+        <div className="pt-2">
+          {isClickable ? (
+            <div
+              className="w-full text-center text-xs font-extrabold tracking-[0.25em] uppercase"
+              style={{ color: TICKET_TEXT_COLOR }}
             >
-              {action.label}
-            </Button>
-          ))}
+              {singleAction!.label}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {actions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={action.onClick}
+                  className="flex-1 min-w-[100px] h-10 text-sm font-semibold opacity-90 hover:opacity-100 transition-opacity rounded-lg"
+                  style={{
+                    background: 'rgba(255,255,255,0.55)',
+                    border: `1px solid ${visual.border}55`,
+                    color: TICKET_TEXT_COLOR,
+                  }}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
+      </div>
     </Card>
   );
 });

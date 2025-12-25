@@ -54,13 +54,13 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true,
-    // ⬇️ ONLY ADD THESE 3 SETTINGS ⬇️
+    // Force the browser to open the local URL (not the 0.0.0.0 bind address)
+    open: 'http://localhost:3000/',
     host: '0.0.0.0',
     strictPort: true,
     hmr: {
       clientPort: 3000,
-      protocol: 'ws'
+      protocol: 'ws',
     },
   },
 });

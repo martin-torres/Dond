@@ -53,12 +53,19 @@ export type StaffOrder = {
   note?: string;
   createdAt: Date;
   status: OrderStatus;
+  /** For station tickets this will always be set. Keep optional for backward compatibility. */
   station?: Station;
 
   // Station fulfillment timestamps (used mainly for kitchen/bar tickets).
   pickedUpAt?: Date | null;
   deliveredAt?: Date | null;
 };
+
+/**
+ * A station ticket is a StaffOrder that is guaranteed to be associated with a station.
+ * This helps avoid TS issues when a view requires station-specific actions.
+ */
+export type StaffStationTicket = StaffOrder & { station: Station };
 
 export type StaffSeedContext = {
   restaurant?: Restaurant | null;

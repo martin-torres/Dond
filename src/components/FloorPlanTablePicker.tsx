@@ -2,91 +2,14 @@ import React from "react";
 import { Table, Language } from "../types";
 import { t } from "../utils/translations";
 
-export type TableSignal = {
-  hasRequest?: boolean;
-  hasOrder?: boolean;
-  inProcess?: boolean;
-  ready?: boolean;
-  pickingUp?: boolean;
-  delivered?: boolean;
-};
+import {
+  getStatusPresence,
+  STATUS_STYLES,
+  type TableSignal,
+  type TableStatusKey,
+} from "../utils/statusVisual";
 
-type TableStatusKey = "request" | "order" | "inProcess" | "ready" | "pickup";
-
-type StatusStyle = { bg: string; border: string; text: string; glow: string };
-
-/**
- * Legend colours (exact shades).
- *
- * IMPORTANT (per your latest spec):
- * - READY is the loud FOH alert colour (rose/pink).
- * - IN PROCESS is green.
- * - Order stays blue, Pickup stays indigo, Request stays amber.
- */
-const STATUS_STYLES: Record<TableStatusKey, StatusStyle> = {
-  request: {
-    bg: "#ffedd5",
-    border: "#f59e0b",
-    text: "#92400e",
-    glow: "rgba(245,158,11,0.45)",
-  },
-  order: {
-    bg: "#e0f2fe",
-    border: "#0ea5e9",
-    text: "#075985",
-    glow: "rgba(14,165,233,0.45)",
-  },
-  inProcess: {
-    // swapped: IN PROCESS = green
-    bg: "#dcfce7",
-    border: "#10b981",
-    text: "#065f46",
-    glow: "rgba(16,185,129,0.45)",
-  },
-  ready: {
-    // swapped: READY = rose/pink
-    bg: "#ffe4e6",
-    border: "#fb7185",
-    text: "#9f1239",
-    glow: "rgba(251,113,133,0.45)",
-  },
-  pickup: {
-    bg: "#e0e7ff",
-    border: "#6366f1",
-    text: "#3730a3",
-    glow: "rgba(99,102,241,0.45)",
-  },
-};
-
-// Used to pick the "secondary" (border/glow) when READY is present,
-// and to pick a primary when READY is absent.
-const SECONDARY_PRIORITY: TableStatusKey[] = [
-  "pickup",
-  "inProcess",
-  "order",
-  "request",
-];
-
-/**
- * Returns statuses present on the table in priority order (excluding READY),
- * plus whether READY is present.
- */
-function getStatusPresence(signals: TableSignal): {
-  hasReady: boolean;
-  others: TableStatusKey[];
-} {
-  const hasReady = !!signals.ready;
-
-  const present: Partial<Record<TableStatusKey, boolean>> = {
-    pickup: !!signals.pickingUp,
-    inProcess: !!signals.inProcess,
-    order: !!signals.hasOrder,
-    request: !!signals.hasRequest,
-  };
-
-  const others = SECONDARY_PRIORITY.filter((k) => !!present[k]);
-  return { hasReady, others };
-}
+export type { TableSignal };
 
 interface FloorPlanTablePickerProps {
   tables: Table[];
