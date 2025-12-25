@@ -331,11 +331,12 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   const mapOrderItemsFromSupabase = useCallback(
     (items: OrderItemRow[]): StaffOrderItem[] =>
       (items ?? []).map((item) => ({
-        id: item.menu_item_id ?? item.id,
+        id: item.id, // ✅ Use order_items.id (row ID) for API calls
         quantity: item.quantity,
         name: item.name,
         kind: item.kind,
         note: item.note ?? undefined,
+        status: item.status as OrderStatus | undefined,
       })),
     []
   );

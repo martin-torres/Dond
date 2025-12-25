@@ -57,6 +57,15 @@ export type OrderItemRow = {
   status?: string | null;
   table_id?: string | null;
   created_at?: string;
+  assigned_station?: string | null;
+  status_updated_at?: string | null;
+  orders?: {
+    restaurant_id: string;
+    table_id?: string | null;
+    table_label?: string | null;
+    customer_name?: string | null;
+    created_at?: string;
+  } | null;
 };
 
 export type OrderWithItems = OrderRow & { items: OrderItemRow[] };
@@ -131,28 +140,55 @@ export async function subscribeToOrders(
   }) => void,
   restaurantId?: string | null
 ) {
+  console.log('📡 [ordersApi] Setting up subscription:', {
+    restaurantId,
+    resolvedRestaurantId: restaurantId
+  });
+
   // Resolve restaurant identifier to UUID for database filtering
   let resolvedRestaurantId = restaurantId;
   if (restaurantId) {
     resolvedRestaurantId = await resolveRestaurantId(restaurantId);
     if (!resolvedRestaurantId) {
-      console.error('Could not resolve restaurant identifier:', restaurantId);
+      console.error('❌ [ordersApi] Could not resolve restaurant identifier:', restaurantId);
       // Fall back to no filter if resolution fails
       resolvedRestaurantId = null;
+    } else {
+      console.log('✅ [ordersApi] Resolved restaurant ID:', {
+        original: restaurantId,
+        resolved: resolvedRestaurantId
+      });
     }
   }
 
+  const channelName = resolvedRestaurantId ? `orders-${resolvedRestaurantId}` : 'orders-all';
+  const filter = resolvedRestaurantId ? `restaurant_id=eq.${resolvedRestaurantId}` : undefined;
+
+  console.log('📡 [ordersApi] Creating channel:', {
+    channelName,
+    filter,
+    hasFilter: !!filter
+  });
+
   const channel = supabase
-    .channel(resolvedRestaurantId ? `orders-realtime-${resolvedRestaurantId}` : 'orders-realtime')
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'orders',
-        ...(resolvedRestaurantId ? { filter: `restaurant_id=eq.${resolvedRestaurantId}` } : {}),
+        ...(filter ? { filter } : {}),
       },
       (payload) => {
+        console.log('📥 [ordersApi] Received order update:', {
+          restaurantId: resolvedRestaurantId,
+          eventType: payload.eventType,
+          newStatus: (payload.new as any)?.status,
+          oldStatus: (payload.old as any)?.status,
+          orderId: (payload.new as any)?.id || (payload.old as any)?.id
+        });
+        
         onChange({
           eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
           newRow: (payload.new || null) as OrderRow | null,
@@ -162,7 +198,10 @@ export async function subscribeToOrders(
     )
     .subscribe();
 
+  console.log('✅ [ordersApi] Subscription active:', { channelName });
+
   return () => {
+    console.log('📡 [ordersApi] Removing channel:', channelName);
     supabase.removeChannel(channel);
   };
 }
@@ -233,4 +272,203 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
     console.error('Error updating order status', error);
     throw error;
   }
+}
+
+/**
+ * NEW: Update the status of an individual order item.
+ * Used by kitchen/bar to update specific items without affecting other items in the same order.
+ */
+export async function updateOrderItemStatus(itemId: string, status: OrderStatus) {
+  const { error } = await supabase
+    .from('order_items')
+    .update({ 
+      status,
+      status_updated_at: new Date().toISOString()
+    })
+    .eq('id', itemId);
+
+  if (error) {
+    console.error('Error updating order item status', error);
+    throw error;
+  }
+}
+
+/**
+ * NEW: Update multiple order items status at once (batch operation).
+ * Used when a station completes multiple items for the same order.
+ */
+export async function updateOrderItemsStatus(itemIds: string[], status: OrderStatus) {
+  const { error } = await supabase
+    .from('order_items')
+    .update({ 
+      status,
+      status_updated_at: new Date().toISOString()
+    })
+    .in('id', itemIds);
+
+  if (error) {
+    console.error('Error updating order items status', error);
+    throw error;
+  }
+}
+
+/**
+ * NEW: Get order items by station and status for staff views.
+ * Returns items filtered by station (kitchen/bar/server) and status.
+ */
+export async function fetchItemsByStationAndStatus(
+  restaurantId: string,
+  station: 'kitchen' | 'bar' | 'server',
+  statuses: OrderStatus[]
+): Promise<OrderItemRow[]> {
+  const { data, error } = await supabase
+    .from('order_items')
+    .select(`
+      *,
+      orders!inner(restaurant_id, table_id, table_label, customer_name, created_at)
+    `)
+    .eq('orders.restaurant_id', restaurantId)
+    .eq('assigned_station', station)
+    .in('status', statuses)
+    .order('orders.created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching items by station', error);
+    throw error;
+  }
+
+  return data as OrderItemRow[];
+}
+
+/**
+ * NEW: Get all items for a specific order with their individual statuses.
+ */
+export async function fetchOrderItemsWithStatuses(orderId: string): Promise<OrderItemRow[]> {
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching order items with statuses', error);
+    throw error;
+  }
+
+  return data as OrderItemRow[];
+}
+
+/**
+ * NEW: Get order summary with item-level status breakdown.
+ * Used by FOH view to show which items are ready for pickup.
+ */
+export async function getOrderSummaryWithStatuses(orderId: string): Promise<{
+  orderId: string;
+  tableId?: string;
+  tableLabel?: string;
+  customerName?: string;
+  items: OrderItemRow[];
+  statusBreakdown: {
+    food: { ready: number; inProgress: number; new: number };
+    drinks: { ready: number; inProgress: number; new: number };
+    requests: { ready: number; inProgress: number; new: number };
+  };
+}> {
+  const items = await fetchOrderItemsWithStatuses(orderId);
+  
+  // Get order info
+  const { data: orderData, error: orderError } = await supabase
+    .from('orders')
+    .select('table_id, table_label, customer_name')
+    .eq('id', orderId)
+    .single();
+
+  if (orderError) {
+    console.error('Error fetching order info', orderError);
+    throw orderError;
+  }
+
+  // Calculate status breakdown
+  const statusBreakdown = {
+    food: { ready: 0, inProgress: 0, new: 0 },
+    drinks: { ready: 0, inProgress: 0, new: 0 },
+    requests: { ready: 0, inProgress: 0, new: 0 }
+  };
+
+  items.forEach(item => {
+    const category = item.kind === 'food' ? 'food' : 
+                    item.kind === 'drink' ? 'drinks' : 'requests';
+    
+    if (item.status === 'READY') statusBreakdown[category].ready++;
+    else if (item.status === 'IN_PROGRESS') statusBreakdown[category].inProgress++;
+    else statusBreakdown[category].new++;
+  });
+
+  return {
+    orderId,
+    tableId: orderData?.table_id,
+    tableLabel: orderData?.table_label,
+    customerName: orderData?.customer_name,
+    items,
+    statusBreakdown
+  };
+}
+
+/**
+ * NEW: Get items ready for pickup by station.
+ * Used by FOH to show what needs to be picked up.
+ */
+export async function getItemsReadyForPickup(
+  restaurantId: string,
+  station?: 'kitchen' | 'bar' | 'server'
+): Promise<{
+  orders: Array<{
+    orderId: string;
+    tableId?: string;
+    tableLabel?: string;
+    customerName?: string;
+    readyItems: OrderItemRow[];
+    station: 'kitchen' | 'bar' | 'server';
+  }>;
+}> {
+  const query = supabase
+    .from('order_items')
+    .select(`
+      *,
+      orders!inner(restaurant_id, table_id, table_label, customer_name, created_at)
+    `)
+    .eq('orders.restaurant_id', restaurantId)
+    .eq('status', 'READY');
+
+  if (station) {
+    query.eq('assigned_station', station);
+  }
+
+  const { data, error } = await query.order('orders.created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching items ready for pickup', error);
+    throw error;
+  }
+
+  // Group by order
+  const ordersMap = new Map<string, any>();
+  (data as OrderItemRow[]).forEach(item => {
+    const orderId = item.order_id;
+    if (!ordersMap.has(orderId)) {
+      ordersMap.set(orderId, {
+        orderId,
+        tableId: item.orders?.table_id,
+        tableLabel: item.orders?.table_label,
+        customerName: item.orders?.customer_name,
+        readyItems: [],
+        station: item.assigned_station as 'kitchen' | 'bar' | 'server'
+      });
+    }
+    ordersMap.get(orderId).readyItems.push(item);
+  });
+
+  return {
+    orders: Array.from(ordersMap.values())
+  };
 }

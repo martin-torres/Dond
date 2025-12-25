@@ -15,6 +15,9 @@ import { PaymentCompleteScreen } from './components/PaymentCompleteScreen';
 import { ProximityWarning } from './components/ProximityWarning';
 import { FloorPlanTestPage } from './components/FloorPlanTestPage';
 import CreatorDashboard from './staff/CreatorDashboard';
+import { KitchenView } from './staff/KitchenView';
+import { BarView } from './staff/BarView';
+import { FohView } from './staff/FohView';
 import { supabase } from './lib/supabaseClient';
 import { fetchRestaurantMenuItems } from './api/restaurantMenuApi';
 import { fetchRestaurantTables } from './api/restaurantTablesApi';
@@ -41,6 +44,15 @@ export default function App() {
   const isAdminDashboard = typeof window !== 'undefined' &&
     (window.location.search.includes('admin=true') ||
      window.location.pathname === '/admin');
+
+  // Check if we're accessing staff views
+  const isKitchenView = typeof window !== 'undefined' && window.location.pathname === '/kitchen';
+  const isBarView = typeof window !== 'undefined' && window.location.pathname === '/bar';
+  const isFohView = typeof window !== 'undefined' && window.location.pathname === '/foh';
+  
+  // Get restaurant ID from URL parameters
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const urlRestaurantId = urlParams?.get('restaurantId');
 
   // Detect phone language (simulated - in real app would use navigator.language)
   const [language, setLanguage] = useState<Language>('es');
@@ -806,6 +818,11 @@ export default function App() {
 
       {/* Admin Dashboard */}
       {isAdminDashboard && <CreatorDashboard />}
+
+      {/* Staff Views */}
+      {isKitchenView && urlRestaurantId && <KitchenView />}
+      {isBarView && urlRestaurantId && <BarView />}
+      {isFohView && urlRestaurantId && <FohView />}
     </div>
   );
 }

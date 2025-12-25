@@ -35,6 +35,7 @@ export type StaffOrderItem = {
   quantity: number;
   kind: ItemKind;
   note?: string;
+  status?: OrderStatus;
 };
 
 export type StaffOrder = {
