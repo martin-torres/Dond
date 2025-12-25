@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { StaffLayout } from './StaffLayout';
 import { useStaffData } from './StaffDataProvider';
 import { TicketCard } from './TicketCard';
@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
 import { Table } from '../types';
-import { OrderStatus, StaffOrder } from './types';
+import { OrderStatus, StaffOrder, TableInfo } from './types';
 
 export const FohView = () => {
   const { tables, orders, setTableState, closeTableSession, singleOperatorMode, setSingleOperatorMode } = useStaffData();
@@ -49,6 +49,35 @@ export const FohView = () => {
     return bestId ?? tables[0]?.id ?? null;
   }, [orders, tables]);
 
+  // Enhanced priority detection for auto-select
+  const getHighestPriorityTable = useCallback((tables: TableInfo[], orders: StaffOrder[]): TableInfo | null => {
+    // Find tables with READY items first (highest priority)
+    const readyTables = tables.filter(table =>
+      orders.some(order =>
+        order.tableId === table.id &&
+        (order.status === 'READY' || order.status === 'PICKING_UP')
+      )
+    );
+
+    if (readyTables.length > 0) {
+      // Sort by oldest READY order (time-based tiebreaker)
+      return readyTables.sort((a, b) => {
+        const aReadyOrders = orders.filter(o => o.tableId === a.id && o.status === 'READY');
+        const bReadyOrders = orders.filter(o => o.tableId === b.id && o.status === 'READY');
+        const aOldest = Math.min(...aReadyOrders.map(o => new Date(o.createdAt).getTime()));
+        const bOldest = Math.min(...bReadyOrders.map(o => new Date(o.createdAt).getTime()));
+        return aOldest - bOldest; // Oldest first
+      })[0];
+    }
+
+    // Fallback to any table with active orders if no READY items
+    const tablesWithOrders = tables.filter(table =>
+      orders.some(order => order.tableId === table.id && order.status !== 'DELIVERED')
+    );
+
+    return tablesWithOrders.length > 0 ? tablesWithOrders[0] : null;
+  }, []);
+
   // React to changes after new orders arrive.
   // (We keep it minimal to avoid disrupting manual selection in normal mode.)
   useEffect(() => {
@@ -58,6 +87,18 @@ export const FohView = () => {
     setSelectedTableId(preferredTableId);
     setSidebarOpen(true);
   }, [preferredTableId, selectedTableId, singleOperatorMode]);
+
+  // Enhanced auto-select logic for seamless updates
+  useEffect(() => {
+    // Only auto-select on initial load or when no table is manually selected
+    if (selectedTableId) return; // Don't override manual selection
+
+    const priorityTable = getHighestPriorityTable(tables, orders);
+    if (priorityTable) {
+      setSelectedTableId(priorityTable.id);
+      setSidebarOpen(true);
+    }
+  }, [tables, orders, selectedTableId, getHighestPriorityTable]);
 
   const selectedTable = useMemo(
     () => tables.find((table) => table.id === selectedTableId) ?? tables[0],
