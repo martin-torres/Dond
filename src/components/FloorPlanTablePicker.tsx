@@ -21,6 +21,7 @@ interface FloorPlanTablePickerProps {
   compact?: boolean;
   hideMeta?: boolean;
   hideSignals?: boolean;
+  gridMode?: boolean; // Enable coordinate-based grid layout
 }
 
 const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
@@ -33,6 +34,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
   compact = false,
   hideMeta = false,
   hideSignals = false,
+  gridMode = false,
 }) => {
   if (!tables || tables.length === 0) {
     return (
@@ -69,251 +71,329 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
   const minHeight = compact ? 170 : 360;
   const outerPadding = compact ? 1 : 1;
 
-  return (
-    <div style={{ width: "100%" }}>
-      <div
+  // Grid mode: calculate canvas size from table positions
+  const maxTableWidth = Math.max(...tables.map(table => {
+    let width = baseSize * 1.1;
+    if (table.seats <= 2) width = baseSize * 1.0;
+    else if (table.seats <= 4) width = baseSize * 1.1;
+    else if (table.seats <= 6) width = baseSize * 1.6;
+    else width = baseSize * 1.9;
+    return width;
+  }));
+
+  const maxTableHeight = Math.max(...tables.map(table => {
+    let height = baseSize * 1.1;
+    if (table.seats <= 2) height = baseSize * 1.0;
+    else if (table.seats <= 4) height = baseSize * 1.1;
+    else if (table.seats <= 6) height = baseSize * 1.05;
+    else height = baseSize * 1.15;
+    return height;
+  }));
+
+  const maxX = Math.max(...tables.map(t => (t.x ?? 0) + maxTableWidth), 800);
+  const maxY = Math.max(...tables.map(t => (t.y ?? 0) + maxTableHeight), 600);
+
+  // Render table cards - this function is used in both grid and flex modes
+  const renderTableCard = (table: Table) => {
+    const matchesLocation =
+      selectedLocation === "all" || table.location === selectedLocation;
+    const isMuted = !matchesLocation;
+
+    const isSelected = selectedTableId === table.id;
+    const signals = tableSignals?.[table.id] ?? {};
+
+    // derive READY + other status list in priority order
+    const { hasReady, others } = getStatusPresence(signals);
+
+    // Base colours (fallback = IDLE = grayscale)
+    let baseBg = "#f1f5f9"; // light slate
+    let baseBorder = "#cbd5e1"; // slate border
+    let baseText = "#334155"; // slate text
+
+    // default glow (used for selection when idle)
+    let selectionGlowCss = "rgba(203,213,225,0.65)";
+
+    const activeCount = (hasReady ? 1 : 0) + others.length;
+
+    // Dynamic sizing: tables with active orders are 65% size, inactive are even smaller
+    const hasActiveStatuses = activeCount > 0;
+    const dynamicSizeScale = (compact ? 0.65 : 1) *
+      (hasActiveStatuses ? 0.65 : 0.45); // 65% for active, 45% for inactive
+
+    // Idle tables render at 70% size without changing layout footprint
+    const idleVisualScale =
+      enableStatusDrivenColors && activeCount === 0 ? 0.7 : 1.0;
+
+    /**
+     * RULES (per FOH alert spec):
+     * - If there are NO active statuses: keep availability colours exactly.
+     * - If there is exactly 1 active status:
+     *    - READY => use READY styles
+     *    - otherwise => use that status styles
+     * - If there are 2+ statuses and READY is present:
+     *    - FILL must be READY (pink)
+     *    - BORDER/GLOW must be the most important "secondary" status present (others[0])
+     * - If there are 2+ statuses and READY is NOT present:
+     *    - BORDER/GLOW = highest priority status (others[0])
+     *    - FILL = next highest (others[1]) (or same if only one)
+     */
+    if (enableStatusDrivenColors && activeCount > 0) {
+      if (activeCount === 1) {
+        const onlyKey: TableStatusKey = hasReady ? "ready" : others[0];
+        const s = STATUS_STYLES[onlyKey];
+        baseBg = s.bg;
+        baseBorder = s.border;
+        baseText = s.text;
+        selectionGlowCss = s.glow;
+      } else if (hasReady) {
+        const fill = STATUS_STYLES["ready"];
+        const borderKey: TableStatusKey = others[0] ?? "ready";
+        const border = STATUS_STYLES[borderKey];
+
+        baseBg = fill.bg;
+        baseBorder = border.border;
+        baseText = fill.text;
+        selectionGlowCss = border.glow;
+      } else if (others.length > 0) {
+        const borderKey = others[0];
+        const fillKey = others[1] ?? others[0];
+
+        const border = STATUS_STYLES[borderKey];
+        const fill = STATUS_STYLES[fillKey];
+
+        baseBg = fill.bg;
+        baseBorder = border.border;
+        baseText = fill.text;
+        selectionGlowCss = border.glow;
+      }
+    }
+
+    // Shape & size based on number of seats
+    let width = baseSize * 1.1 * dynamicSizeScale;
+    let height = width;
+    let borderRadius = "12px";
+
+    if (table.seats <= 2) {
+      width = baseSize * 1.0 * dynamicSizeScale;
+      height = width;
+      borderRadius = "999px"; // circle
+    } else if (table.seats <= 4) {
+      width = baseSize * 1.1 * dynamicSizeScale;
+      height = width;
+      borderRadius = "12px"; // square-ish
+    } else if (table.seats <= 6) {
+      width = baseSize * 1.6 * dynamicSizeScale;
+      height = baseSize * 1.05 * dynamicSizeScale;
+      borderRadius = "14px"; // wider rectangle
+    } else {
+      width = baseSize * 1.9 * dynamicSizeScale;
+      height = baseSize * 1.15 * dynamicSizeScale;
+      borderRadius = "16px"; // largest rectangle
+    }
+
+    const badge = (text: string, color: string) => (
+      <span
+        key={text}
         style={{
-          position: "relative",
-          width: "100%",
-          minHeight,
-          border: "2px dashed #ef4444",
-          borderRadius: 16,
-          padding: outerPadding,
-          boxSizing: "border-box",
-          background: "rgba(255,255,255,0.55)",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 32,
+          height: 20,
+          background: "#ffffffc7",
+          color,
+          fontSize: 10,
+          borderRadius: 999,
+          border: `1px solid ${color}33`,
+          fontWeight: 700,
+          padding: "0 4px",
         }}
       >
-        {!hideMeta && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: 12,
-              fontWeight: 600,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
-          >
-            <span>{t("floorPlan", language)}</span>
-            <span>
-              {t("tablesLabel", language)}: {tables.length} •{" "}
-              {t("filter", language)}:{" "}
-              {selectedLocation === "all"
-                ? t("allTables", language)
-                : selectedLocation}
-            </span>
+        {text}
+      </span>
+    );
+
+    const badges: React.ReactNode[] = [];
+    if (!hideSignals) {
+      // FOH Priority Order (vertical stack):
+      // 1. REQUEST (top priority for FOH)
+      // 2. READY
+      // 3. PICKUP
+      // 4. PROCESS
+      // 5. ORDER
+      if (signals.hasRequest) {
+        badges.push(badge("REQUEST", "#f59e0b"));
+      }
+      if (signals.ready) {
+        badges.push(badge("READY", "#dc2626"));
+      }
+      if (signals.pickingUp) {
+        badges.push(badge("PICKUP", "#6366f1"));
+      }
+      if (signals.inProcess) {
+        badges.push(badge("PROCESS", "#10b981"));
+      }
+      if (signals.hasOrder) {
+        badges.push(badge("ORDER", "#0ea5e9"));
+      }
+    }
+
+    return (
+      <button
+        key={table.id}
+        onClick={() => {
+          if (!isMuted) onTableClick(table);
+        }}
+        style={{
+          width: gridMode ? "auto" : "100%",
+          minHeight: height + 12,
+          borderRadius,
+          border: `2px solid ${baseBorder}`,
+          background: baseBg,
+          color: baseText,
+          fontSize: 12,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "stretch",
+          justifyContent: "space-between",
+          boxSizing: "border-box",
+          opacity: isMuted ? 0.25 : 1,
+          cursor: isMuted ? "not-allowed" : "pointer",
+          boxShadow: isSelected
+            ? `0 0 0 4px ${selectionGlowCss}`
+            : "0 4px 14px rgba(15,23,42,0.12)",
+          transform: isSelected
+            ? `scale(${idleVisualScale * 1.02})`
+            : `scale(${idleVisualScale})`,
+          transition: "transform 120ms ease, box-shadow 120ms ease",
+          textAlign: "left",
+          padding: 10,
+          gap: 8,
+          ...(gridMode ? {
+            position: "absolute",
+            left: `${table.x ?? 0}px`,
+            top: `${table.y ?? 0}px`,
+          } : {}),
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 16 }}>🍽️</span>
+            {table.number}
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.8 }}>
+            {table.seats}
+          </div>
+        </div>
+
+        {badges.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center", width: "100%" }}>
+            {badges.slice(0, 3)} {/* Show max 3 badges in vertical stack, centered */}
           </div>
         )}
+      </button>
+    );
+  };
 
+  return (
+    <div style={{ width: "100%" }}>
+      {gridMode ? (
+        <div style={{ width: "100%", height: "100%", minHeight: 600 }}>
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              height: `${maxY}px`,
+              minHeight: 600,
+              border: "2px dashed #ef4444",
+              borderRadius: 16,
+              padding: outerPadding,
+              boxSizing: "border-box",
+              background: "rgba(255,255,255,0.55)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              backgroundImage:
+                'linear-gradient(to right, rgba(148,163,184,0.15) 1px, transparent 1px),' +
+                'linear-gradient(to bottom, rgba(148,163,184,0.15) 1px, transparent 1px)',
+              backgroundSize: "20px 20px",
+            }}
+          >
+            {!hideMeta && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 12,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                <span>{t("floorPlan", language)}</span>
+                <span>
+                  {t("tablesLabel", language)}: {tables.length} •{" "}
+                  {t("filter", language)}:{" "}
+                  {selectedLocation === "all"
+                    ? t("allTables", language)
+                    : selectedLocation}
+                </span>
+              </div>
+            )}
+
+            {tables.map(renderTableCard)}
+          </div>
+        </div>
+      ) : (
         <div
           style={{
-            paddingInline: compact ? 4 : 4,
-            display: "grid",
-            gridTemplateColumns: compact
-              ? "repeat(auto-fit, minmax(90px, 1fr))"
-              : "repeat(auto-fit, minmax(120px, 1fr))",
-            gap: compact ? 12 : 12,
+            position: "relative",
+            width: "100%",
+            minHeight,
+            border: "2px dashed #ef4444",
+            borderRadius: 16,
+            padding: outerPadding,
+            boxSizing: "border-box",
+            background: "rgba(255,255,255,0.55)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
           }}
         >
-          {tables.map((table) => {
-            const matchesLocation =
-              selectedLocation === "all" || table.location === selectedLocation;
-            const isMuted = !matchesLocation;
-
-            const isSelected = selectedTableId === table.id;
-            const signals = tableSignals?.[table.id] ?? {};
-
-            // derive READY + other status list in priority order
-            const { hasReady, others } = getStatusPresence(signals);
-
-            // Base colours (fallback = IDLE = grayscale)
-            let baseBg = "#f1f5f9"; // light slate
-            let baseBorder = "#cbd5e1"; // slate border
-            let baseText = "#334155"; // slate text
-
-            // default glow (used for selection when idle)
-            let selectionGlowCss = "rgba(203,213,225,0.65)";
-
-            const activeCount = (hasReady ? 1 : 0) + others.length;
-
-            // Dynamic sizing: tables with active orders are 65% size, inactive are even smaller
-            const hasActiveStatuses = activeCount > 0;
-            const dynamicSizeScale = (compact ? 0.65 : 1) *
-              (hasActiveStatuses ? 0.65 : 0.45); // 65% for active, 45% for inactive
-
-            // Idle tables render at 70% size without changing layout footprint
-            const idleVisualScale =
-              enableStatusDrivenColors && activeCount === 0 ? 0.7 : 1.0;
-
-            /**
-             * RULES (per FOH alert spec):
-             * - If there are NO active statuses: keep availability colours exactly.
-             * - If there is exactly 1 active status:
-             *    - READY => use READY styles
-             *    - otherwise => use that status styles
-             * - If there are 2+ statuses and READY is present:
-             *    - FILL must be READY (pink)
-             *    - BORDER/GLOW must be the most important "secondary" status present (others[0])
-             * - If there are 2+ statuses and READY is NOT present:
-             *    - BORDER/GLOW = highest priority status (others[0])
-             *    - FILL = next highest (others[1]) (or same if only one)
-             */
-            if (enableStatusDrivenColors && activeCount > 0) {
-              if (activeCount === 1) {
-                const onlyKey: TableStatusKey = hasReady ? "ready" : others[0];
-                const s = STATUS_STYLES[onlyKey];
-                baseBg = s.bg;
-                baseBorder = s.border;
-                baseText = s.text;
-                selectionGlowCss = s.glow;
-              } else if (hasReady) {
-                const fill = STATUS_STYLES["ready"];
-                const borderKey: TableStatusKey = others[0] ?? "ready";
-                const border = STATUS_STYLES[borderKey];
-
-                baseBg = fill.bg;
-                baseBorder = border.border;
-                baseText = fill.text;
-                selectionGlowCss = border.glow;
-              } else if (others.length > 0) {
-                const borderKey = others[0];
-                const fillKey = others[1] ?? others[0];
-
-                const border = STATUS_STYLES[borderKey];
-                const fill = STATUS_STYLES[fillKey];
-
-                baseBg = fill.bg;
-                baseBorder = border.border;
-                baseText = fill.text;
-                selectionGlowCss = border.glow;
-              }
-            }
-
-            // Shape & size based on number of seats
-            let width = baseSize * 1.1 * dynamicSizeScale;
-            let height = width;
-            let borderRadius = "12px";
-
-            if (table.seats <= 2) {
-              width = baseSize * 1.0 * dynamicSizeScale;
-              height = width;
-              borderRadius = "999px"; // circle
-            } else if (table.seats <= 4) {
-              width = baseSize * 1.1 * dynamicSizeScale;
-              height = width;
-              borderRadius = "12px"; // square-ish
-            } else if (table.seats <= 6) {
-              width = baseSize * 1.6 * dynamicSizeScale;
-              height = baseSize * 1.05 * dynamicSizeScale;
-              borderRadius = "14px"; // wider rectangle
-            } else {
-              width = baseSize * 1.9 * dynamicSizeScale;
-              height = baseSize * 1.15 * dynamicSizeScale;
-              borderRadius = "16px"; // largest rectangle
-            }
-
-            const badge = (text: string, color: string) => (
-              <span
-                key={text}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 32,
-                  height: 20,
-                  background: "#ffffffc7",
-                  color,
-                  fontSize: 10,
-                  borderRadius: 999,
-                  border: `1px solid ${color}33`,
-                  fontWeight: 700,
-                  padding: "0 4px",
-                }}
-              >
-                {text}
+          {!hideMeta && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 12,
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              <span>{t("floorPlan", language)}</span>
+              <span>
+                {t("tablesLabel", language)}: {tables.length} •{" "}
+                {t("filter", language)}:{" "}
+                {selectedLocation === "all"
+                  ? t("allTables", language)
+                  : selectedLocation}
               </span>
-            );
+            </div>
+          )}
 
-            const badges: React.ReactNode[] = [];
-            if (!hideSignals) {
-              // FOH Priority Order (vertical stack):
-              // 1. REQUEST (top priority for FOH)
-              // 2. READY
-              // 3. PICKUP
-              // 4. PROCESS
-              // 5. ORDER
-              if (signals.hasRequest) {
-                badges.push(badge("REQUEST", "#f59e0b"));
-              }
-              if (signals.ready) {
-                badges.push(badge("READY", "#dc2626"));
-              }
-              if (signals.pickingUp) {
-                badges.push(badge("PICKUP", "#6366f1"));
-              }
-              if (signals.inProcess) {
-                badges.push(badge("PROCESS", "#10b981"));
-              }
-              if (signals.hasOrder) {
-                badges.push(badge("ORDER", "#0ea5e9"));
-              }
-            }
-
-            return (
-              <button
-                key={table.id}
-                onClick={() => {
-                  if (!isMuted) onTableClick(table);
-                }}
-                style={{
-                  width: "100%",
-                  minHeight: height + 12,
-                  borderRadius,
-                  border: `2px solid ${baseBorder}`,
-                  background: baseBg,
-                  color: baseText,
-                  fontSize: 12,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "stretch",
-                  justifyContent: "space-between",
-                  boxSizing: "border-box",
-                  opacity: isMuted ? 0.25 : 1,
-                  cursor: isMuted ? "not-allowed" : "pointer",
-                  boxShadow: isSelected
-                    ? `0 0 0 4px ${selectionGlowCss}`
-                    : "0 4px 14px rgba(15,23,42,0.12)",
-                  transform: isSelected
-                    ? `scale(${idleVisualScale * 1.02})`
-                    : `scale(${idleVisualScale})`,
-                  transition: "transform 120ms ease, box-shadow 120ms ease",
-                  textAlign: "left",
-                  padding: 10,
-                  gap: 8,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ fontSize: 16 }}>🍽️</span>
-                    {table.number}
-                  </div>
-                  <div style={{ fontSize: 11, opacity: 0.8 }}>
-                    {table.seats}
-                  </div>
-                </div>
-
-                {badges.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center", width: "100%" }}>
-                    {badges.slice(0, 3)} {/* Show max 3 badges in vertical stack, centered */}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+          <div
+            style={{
+              paddingInline: compact ? 4 : 4,
+              display: "grid",
+              gridTemplateColumns: compact
+                ? "repeat(auto-fit, minmax(90px, 1fr))"
+                : "repeat(auto-fit, minmax(120px, 1fr))",
+              gap: compact ? 12 : 12,
+            }}
+          >
+            {tables.map(renderTableCard)}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

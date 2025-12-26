@@ -11,8 +11,10 @@ import { OrderStatus, StaffOrder, TableInfo } from './types';
 
 export const FohView = () => {
   const { tables, orders, setTableState, closeTableSession, singleOperatorMode, setSingleOperatorMode } = useStaffData();
+  const activeRestaurantId = new URLSearchParams(window.location.search).get('restaurantId') ?? '';
   const [selectedTableId, setSelectedTableId] = useState<string | null>(tables[0]?.id ?? null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [gridMode, setGridMode] = useState(false);
 
   // In single-operator mode, automatically focus the most urgent table and keep sidebar open.
   // Priority: request > ready > in_progress > new.
@@ -222,6 +224,7 @@ export const FohView = () => {
                       setSidebarOpen(true);
                     }}
                     tableSignals={tableSignals}
+                    gridMode={gridMode}
                   />
                 </div>
               </Card>
@@ -259,18 +262,33 @@ export const FohView = () => {
                     )}
 
                     {sidebarOpen && (
-                      <button
-                        type="button"
-                        className={`ml-2 inline-flex items-center justify-center rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
-                          singleOperatorMode
-                            ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                        onClick={() => setSingleOperatorMode(!singleOperatorMode)}
-                        title="Single-operator demo mode"
-                      >
-                        1-op: {singleOperatorMode ? 'ON' : 'OFF'}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className={`ml-2 inline-flex items-center justify-center rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                            gridMode
+                              ? 'border-blue-300 bg-blue-50 text-blue-800'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                          onClick={() => setGridMode(!gridMode)}
+                          title="Toggle grid view"
+                        >
+                          📍 {gridMode ? 'Grid' : 'Flex'}
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`ml-2 inline-flex items-center justify-center rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                            singleOperatorMode
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                          onClick={() => setSingleOperatorMode(!singleOperatorMode)}
+                          title="Single-operator demo mode"
+                        >
+                          1-op: {singleOperatorMode ? 'ON' : 'OFF'}
+                        </button>
+                      </>
                     )}
                   </div>
 
