@@ -17,14 +17,14 @@ export const FohView = () => {
   const [gridMode, setGridMode] = useState(false);
 
   // In single-operator mode, automatically focus the most urgent table and keep sidebar open.
-  // Priority: request > ready > in_progress > new.
+  // Priority: request > ready > picking_up > in_progress > new.
   const preferredTableId = useMemo(() => {
     if (!tables.length) return null;
 
     const weightFor = (signal: TableSignal): number => {
       if (signal.hasRequest) return 400;
+      if (signal.ready) return 350;
       if (signal.pickingUp) return 300;
-      if (signal.ready) return 250;
       if (signal.inProcess) return 150;
       if (signal.hasOrder) return 100;
       return 0;
@@ -150,12 +150,31 @@ export const FohView = () => {
       : 0;
 
   const tableOrdersSorted = useMemo(
-  () =>
-    [...tableOrders].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    ),
-  [tableOrders] // Add this
-);
+    () =>
+      [...tableOrders].sort((a, b) => {
+        // Priority order: REQUEST > READY > PICKING_UP > IN_PROGRESS > NEW
+        const getPriorityWeight = (order: StaffOrder): number => {
+          if (order.orderType === 'request') return 400;
+          if (order.status === 'READY') return 350;
+          if (order.status === 'PICKING_UP') return 300;
+          if (order.status === 'IN_PROGRESS') return 150;
+          if (order.status === 'NEW') return 100;
+          return 0;
+        };
+
+        const aWeight = getPriorityWeight(a);
+        const bWeight = getPriorityWeight(b);
+
+        // If same priority, sort by creation time (older first)
+        if (aWeight === bWeight) {
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        }
+
+        // Higher priority comes first
+        return bWeight - aWeight;
+      }),
+    [tableOrders]
+  );
 
   const actionsForOrder = (order: StaffOrder) => {
     if (order.orderType === 'request') return [];
