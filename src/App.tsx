@@ -624,11 +624,11 @@ export default function App() {
     }
 
     try {
-      // Create proper request order using existing system
+      // Create proper request order using existing system - NO FAKE ITEMS IN DB
       await staff.addCustomerOrder({
         items: [{
           menuItem: {
-            id: `request-${requestType}-${Date.now()}`, // Unique ID for each request
+            id: `request-${requestType}-${Date.now()}`, // Unique ID for request classification
             name: {
               en: requestType === 'bill' ? 'Bill Request' : `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} Request`,
               es: requestType === 'bill' ? 'Solicitud de Cuenta' : `Solicitud de ${requestType}`,
@@ -660,8 +660,8 @@ export default function App() {
           note: requestType === 'bill'
             ? 'Customer has requested the bill and is ready for checkout'
             : `Customer requested ${requestType}`,
-          // This is the key - set orderType to 'request' to use existing request system
-          requestType: 'request',
+          // This creates orderType: 'request' in the DB
+          ...(true as any && { requestType: 'request' }), // Type-safe way to add extra property
         },
       });
 
@@ -872,6 +872,7 @@ export default function App() {
           onContinueOrdering={() => handleContinueOrdering('dining')}
           onFinalizeOrder={handleFinalizeOrder}
           onOpenPromoMenu={() => handleOpenInteractiveMenu(promoFocusItemId, 'dining', promoFocusTab)}
+          onRequestItem={handleRequestItem}
         />
       )}
 
@@ -898,6 +899,7 @@ export default function App() {
           bill={bill}
           language={language}
           onPaymentComplete={handlePaymentComplete}
+          onRequestItem={handleRequestItem}
         />
       )}
 

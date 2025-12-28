@@ -5,18 +5,23 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
+import { Bell } from 'lucide-react';
+import { RequestModal } from './RequestModal';
 
 type BillPaymentProps = {
   bill: Bill;
   language: Language;
   onPaymentComplete: (paidAmount?: number, paidItems?: string[]) => void;
+  onRequestItem?: (requestType: 'server' | 'condiments' | 'water' | 'bill' | 'issue') => void;
 };
 
 export function BillPayment({
   bill,
   language,
   onPaymentComplete,
+  onRequestItem,
 }: BillPaymentProps) {
+  const [showRequestModal, setShowRequestModal] = useState(false);
   type SplitMethod = 'full' | 'even' | 'items';
   const [splitMethod, setSplitMethod] = useState<SplitMethod>('full');
   const [partySize, setPartySize] = useState(2);
@@ -128,6 +133,18 @@ export function BillPayment({
 
   return (
     <>
+      {/* Bell button for service requests */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          variant="outline"
+          onClick={() => setShowRequestModal(true)}
+          className="rounded-full border border-gray-200 bg-white shadow-sm px-3"
+          aria-label="Request assistance"
+        >
+          <Bell className="w-5 h-5" />
+        </Button>
+      </div>
+
       <PageShell
         width="lg"
         paddedForActionBar
@@ -409,6 +426,12 @@ export function BillPayment({
           {t('confirmAndPay', language)}
         </Button>
       </BottomActionBar>
+
+      <RequestModal
+        open={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        onRequestItem={onRequestItem || (() => {})}
+      />
     </>
   );
 }

@@ -1,10 +1,12 @@
-import { UtensilsCrossed, Plus } from 'lucide-react';
+import { UtensilsCrossed, Plus, Bell } from 'lucide-react';
 import { Language, OrderItem } from '../types';
 import { t, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
+import { RequestModal } from './RequestModal';
+import { useState } from 'react';
 
 interface DiningScreenProps {
   language: Language;
@@ -14,19 +16,22 @@ interface DiningScreenProps {
   onFinalizeOrder: () => void;
   onOpenPromoMenu: () => void;
   deliveredIds?: Set<string>;
+  onRequestItem?: (requestType: 'server' | 'condiments' | 'water' | 'bill' | 'issue') => void;
 }
 
-export function DiningScreen({ 
-  language, 
-  currentOrders, 
+export function DiningScreen({
+  language,
+  currentOrders,
   tableNumber,
   onContinueOrdering,
   onFinalizeOrder,
   onOpenPromoMenu,
   deliveredIds,
+  onRequestItem,
 }: DiningScreenProps) {
+  const [showRequestModal, setShowRequestModal] = useState(false);
   const total = currentOrders.reduce(
-    (sum, item) => sum + item.menuItem.price * item.quantity, 
+    (sum, item) => sum + item.menuItem.price * item.quantity,
     0
   );
   const hasTable = typeof tableNumber === 'number';
@@ -36,6 +41,18 @@ export function DiningScreen({
 
   return (
     <>
+      {/* Bell button for service requests */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          variant="outline"
+          onClick={() => setShowRequestModal(true)}
+          className="rounded-full border border-gray-200 bg-white shadow-sm px-3"
+          aria-label="Request assistance"
+        >
+          <Bell className="w-5 h-5" />
+        </Button>
+      </div>
+
       <PageShell paddedForActionBar className="justify-start">
         <div className="space-y-6">
           <div className="text-center space-y-2">
@@ -105,6 +122,12 @@ export function DiningScreen({
           {t('todaysPromos', language)}
         </Button>
       </BottomActionBar>
+
+      <RequestModal
+        open={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        onRequestItem={onRequestItem || (() => {})}
+      />
     </>
   );
 }

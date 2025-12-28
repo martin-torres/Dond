@@ -140,16 +140,14 @@ export function MenuDisplay({
             </StageGraphicSlot>
 
             <div className="flex items-center gap-2">
-              {onRequestItem && (
-                <Button
-                  variant="outline"
-                  onClick={() => setShowRequestModal(true)}
-                  className="text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
-                  aria-label="Request assistance"
-                >
-                  <Bell className="w-5 h-5" />
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                onClick={() => setShowRequestModal(true)}
+                className="text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
+                aria-label="Request assistance"
+              >
+                <Bell className="w-5 h-5" />
+              </Button>
 
               {onNext ? (
                 <Button variant="outline" onClick={onNext} className="hidden sm:inline-flex">

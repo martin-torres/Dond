@@ -8,6 +8,7 @@ import { Card } from '../components/ui/card';
 import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
 import { Table } from '../types';
 import { OrderStatus, StaffOrder, TableInfo } from './types';
+import { StaffBillView } from './StaffBillView';
 
 export const FohView = () => {
   const { tables, orders, setTableState, closeTableSession, singleOperatorMode, setSingleOperatorMode } = useStaffData();
@@ -15,6 +16,7 @@ export const FohView = () => {
   const [selectedTableId, setSelectedTableId] = useState<string | null>(tables[0]?.id ?? null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [gridMode, setGridMode] = useState(false);
+  const [manualTableSelection, setManualTableSelection] = useState(false);
 
   // In single-operator mode, automatically focus the most urgent table and keep sidebar open.
   // Priority: request > ready > picking_up > in_progress > new.
@@ -80,15 +82,50 @@ export const FohView = () => {
     return tablesWithOrders.length > 0 ? tablesWithOrders[0] : null;
   }, []);
 
-  // React to changes after new orders arrive.
-  // (We keep it minimal to avoid disrupting manual selection in normal mode.)
+  // Smart auto-focus logic for single operator mode
   useEffect(() => {
     if (!singleOperatorMode) return;
+    if (manualTableSelection) return;
     if (!preferredTableId) return;
     if (selectedTableId === preferredTableId) return;
-    setSelectedTableId(preferredTableId);
-    setSidebarOpen(true);
-  }, [preferredTableId, selectedTableId, singleOperatorMode]);
+
+    // Only auto-focus for high priority items (requests, ready items)
+    const shouldAutoFocus = () => {
+      const currentTable = tables.find(t => t.id === selectedTableId);
+      const preferredTable = tables.find(t => t.id === preferredTableId);
+
+      if (!currentTable || !preferredTable) return false;
+
+      const getTablePriority = (tableId: string) => {
+        const tableOrders = orders.filter(order => order.tableId === tableId && order.status !== 'DELIVERED');
+        if (!tableOrders.length) return 0;
+
+        // Priority: bill requests > other requests > ready > picking_up
+        const hasBillRequest = tableOrders.some(o => o.orderType === 'request' && o.customerName?.includes('Bill Request'));
+        const hasOtherRequest = tableOrders.some(o => o.orderType === 'request');
+        const hasReady = tableOrders.some(o => o.status === 'READY');
+        const hasPickingUp = tableOrders.some(o => o.status === 'PICKING_UP');
+
+        if (hasBillRequest) return 4; // Highest priority
+        if (hasOtherRequest) return 3;
+        if (hasReady) return 2;
+        if (hasPickingUp) return 1;
+
+        return 0; // No high priority items
+      };
+
+      const currentPriority = getTablePriority(currentTable.id);
+      const preferredPriority = getTablePriority(preferredTable.id);
+
+      // Auto-focus only if preferred table has significantly higher priority
+      return preferredPriority > currentPriority && preferredPriority >= 2;
+    };
+
+    if (shouldAutoFocus()) {
+      setSelectedTableId(preferredTableId);
+      setSidebarOpen(true);
+    }
+  }, [preferredTableId, selectedTableId, singleOperatorMode, manualTableSelection, orders, tables]);
 
   // Enhanced auto-select logic for seamless updates
   useEffect(() => {
@@ -177,20 +214,22 @@ export const FohView = () => {
 
   const actionsForOrder = (order: StaffOrder) => {
     // Handle bill requests specially - they trigger bill payment page
-    if (order.orderType === 'request' && order.customerName?.includes('Bill Request')) {
-      if (order.status === 'NEW') {
-        return [{
-          label: 'View Bill',
-          onClick: () => {
-            // Navigate to bill payment screen
-            window.location.hash = '#/payment';
-            // Mark request as handled
-            markStationDelivered(order.id, 'server');
+        if (order.orderType === 'request' && order.customerName?.includes('Bill Request')) {
+          if (order.status === 'NEW') {
+            return [{
+              label: 'View Bill',
+              onClick: () => {
+                // Navigate to staff bill view
+                if (order.tableId) {
+                  window.location.pathname = `/staff/bill/${order.tableId}`;
+                  // Mark request as handled
+                  markStationDelivered(order.id, 'server');
+                }
+              }
+            }];
           }
-        }];
-      }
-      return [];
-    }
+          return [];
+        }
 
     // In 1-op mode, allow full control over all order types
     if (singleOperatorMode) {
@@ -248,34 +287,33 @@ export const FohView = () => {
 
   return (
     <StaffLayout title="FOH / Server" hideNav fullBleed>
-      {/* ... */}
       <div className="h-full w-full overflow-hidden p-6" style={{ height: 'calc(100vh - 20px)' }}>
         <Card className="h-full w-full overflow-hidden border border-slate-200 shadow-sm flex flex-col" style={{ minHeight: 0 }}>
           <div className="flex h-full w-full overflow-hidden gap-6 p-6" style={{ minHeight: 0 }}>
             {/* LEFT: Floorplan card (bounded, no page scroll) */}
             <div
               className="h-full overflow-hidden"
-            style={{
-              width: sidebarOpen ? '80%' : '100%',
-              transition: 'width 300ms',
-            }}
-           >
+              style={{
+                width: sidebarOpen ? '80%' : '100%',
+                transition: 'width 300ms',
+              }}
+            >
               <Card className="h-full w-full overflow-hidden border border-slate-200 shadow-sm">
                 <div className="h-full w-full p-6 box-border overflow-hidden">
                   <FloorPlanTablePicker
                     tables={tables.map(
                       (table) =>
                         ({
-                  id: table.id,
-                  label: table.label ?? `Table ${table.tableNumber ?? 0}`,
-                  number: table.tableNumber ?? 0,
-                  seats: table.seats ?? 4,
-                  location: (table.location as Table['location']) ?? 'middle',
-                  available: table.state === 'READY',
-                  reserved: table.state === 'OCCUPIED' ? false : undefined,
-                  x: table.x ?? 0,
-                  y: table.y ?? 0,
-                } as Table)
+                          id: table.id,
+                          label: table.label ?? `Table ${table.tableNumber ?? 0}`,
+                          number: table.tableNumber ?? 0,
+                          seats: table.seats ?? 4,
+                          location: (table.location as Table['location']) ?? 'middle',
+                          available: table.state === 'READY',
+                          reserved: table.state === 'OCCUPIED' ? false : undefined,
+                          x: table.x ?? 0,
+                          y: table.y ?? 0,
+                        } as Table)
                     )}
                     language="en"
                     compact={sidebarOpen}
@@ -284,6 +322,7 @@ export const FohView = () => {
                     selectedTableId={selectedTable?.id ?? null}
                     onTableClick={(table) => {
                       setSelectedTableId(table.id);
+                      setManualTableSelection(true); // Mark as manual selection
                       setSidebarOpen(true);
                     }}
                     tableSignals={tableSignals}
@@ -430,6 +469,7 @@ export const FohView = () => {
           </div>
         </Card>
       </div>
+
     </StaffLayout>
   );
 };

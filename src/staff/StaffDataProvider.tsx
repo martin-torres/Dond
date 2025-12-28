@@ -418,7 +418,9 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       const localKindIndex = buildMenuKindIndex(restaurant);
       return items
         .map<StaffOrderItem | null>((item) => {
-          const kind = localKindIndex.get(item.menuItem.id) ?? 'food';
+          // Check if this is a request item (starts with 'request-')
+          const isRequest = item.menuItem.id.startsWith('request-');
+          const kind = isRequest ? 'request' : (localKindIndex.get(item.menuItem.id) ?? 'food');
           return {
             id: item.menuItem.id,
             quantity: item.quantity,
@@ -724,12 +726,29 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [mapSupabaseOrderToStaff, upsertStaffOrder, activeRestaurantId]);
 
-  const setTableState = useCallback((tableId: string, state: TableState, startedAt?: Date | null) => {
+  const setTableState = useCallback(async (tableId: string, state: TableState, startedAt?: Date | null) => {
+    // Update local state immediately
     setTables((prev) =>
       prev.map((table) =>
         table.id === tableId ? { ...table, state, cleaningStartedAt: startedAt ?? table.cleaningStartedAt ?? null } : table
       )
     );
+
+    // Persist to database
+    try {
+      await supabase
+        .from('restaurant_tables')
+        .update({ available: state === 'READY' })
+        .eq('id', tableId);
+    } catch (error) {
+      console.error('Failed to persist table state to database:', error);
+      // Rollback local state on failure
+      setTables((prev) =>
+        prev.map((table) =>
+          table.id === tableId ? { ...table, state: table.state, cleaningStartedAt: table.cleaningStartedAt } : table
+        )
+      );
+    }
   }, []);
 
   const closeTableSession = useCallback(

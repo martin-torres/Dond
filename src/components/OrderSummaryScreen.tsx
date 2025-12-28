@@ -39,18 +39,16 @@ export function OrderSummaryScreen({
   return (
     <>
       {/* Bell button for service requests */}
-      {tableNumber && onRequestItem && (
-        <div className="fixed top-4 right-4 z-40">
-          <Button
-            variant="outline"
-            onClick={() => setShowRequestModal(true)}
-            className="rounded-full border border-gray-200 bg-white/90 shadow-sm px-3"
-            aria-label="Request assistance"
-          >
-            <Bell className="w-5 h-5" />
-          </Button>
-        </div>
-      )}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          variant="outline"
+          onClick={() => setShowRequestModal(true)}
+          className="rounded-full border border-gray-200 bg-white/90 shadow-sm px-3"
+          aria-label="Request assistance"
+        >
+          <Bell className="w-5 h-5" />
+        </Button>
+      </div>
 
       <PageShell paddedForActionBar className="justify-start">
         <div className="space-y-6">
