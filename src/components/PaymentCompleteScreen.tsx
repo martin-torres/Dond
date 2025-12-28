@@ -33,7 +33,9 @@ export function PaymentCompleteScreen({ language, onFinish }: PaymentCompleteScr
             </div>
           </div>
         }
-      />
+      >
+        <></>
+      </PageShell>
 
       <BottomActionBar>
         <Button onClick={onFinish} size="lg" className="w-full sm:flex-1">

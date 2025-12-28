@@ -50,7 +50,7 @@ export function MenuPreview({ restaurant, language, onClose, focusItemId }: Menu
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          {restaurant.menu.food.map((item) => (
+          {(restaurant.menu?.food || []).map((item) => (
             <Card
               key={item.id}
               id={`menu-item-${item.id}`}
@@ -65,7 +65,7 @@ export function MenuPreview({ restaurant, language, onClose, focusItemId }: Menu
               </p>
             </Card>
           ))}
-          {restaurant.menu.drinks.map((item) => (
+          {(restaurant.menu?.drinks || []).map((item) => (
             <Card
               key={item.id}
               id={`menu-item-${item.id}`}

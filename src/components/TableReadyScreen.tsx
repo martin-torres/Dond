@@ -27,7 +27,9 @@ export function TableReadyScreen({ language, tableNumber, onProceed }: TableRead
             </div>
           </div>
         }
-      />
+      >
+        <></>
+      </PageShell>
 
       <BottomActionBar>
         <Button onClick={onProceed} size="lg" className="w-full sm:flex-1">

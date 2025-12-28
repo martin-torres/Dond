@@ -144,7 +144,7 @@ export default function App() {
     if (!currentRestaurant || items.length === 0) return;
 
     const tableNumber =
-      currentRestaurant.tables.find((t) => t.id === tableId)?.number ?? null;
+      currentRestaurant.tables!.find((t) => t.id === tableId)?.number ?? null;
 
     try {
       await staff.addCustomerOrder({
@@ -207,7 +207,7 @@ export default function App() {
   // Ensures DB "location" string becomes one of your allowed UI values.
   const normalizeTableLocation = (
     value: any
-  ): Restaurant['tables'][number]['location'] => {
+  ): NonNullable<Restaurant['tables']>[number]['location'] => {
     const v = String(value ?? '').trim();
     if (
       v === 'patio' ||
@@ -356,7 +356,7 @@ export default function App() {
   const handleTableSelection = (tableId: string | null) => {
     setSelectedTableId(tableId);
     if (tableId && currentRestaurant) {
-      const table = currentRestaurant.tables.find(t => t.id === tableId);
+      const table = currentRestaurant.tables!.find(t => t.id === tableId);
       if (table) {
         setWaitSeconds(currentRestaurant.waitTime);
       }
@@ -406,8 +406,8 @@ export default function App() {
 
     // Find the menu item in drinks or food
     const allMenuItems = [
-      ...currentRestaurant.menu.drinks,
-      ...currentRestaurant.menu.food,
+      ...currentRestaurant.menu!.drinks,
+      ...currentRestaurant.menu!.food,
     ];
 
     const menuItem = allMenuItems.find((item) => item.id === menuItemId);
@@ -505,7 +505,7 @@ export default function App() {
 
     const tableNumber =
       selectedTableId
-        ? currentRestaurant.tables.find((t) => t.id === selectedTableId)?.number ?? null
+        ? currentRestaurant.tables!.find((t) => t.id === selectedTableId)?.number ?? null
         : null;
 
     try {
@@ -609,8 +609,8 @@ export default function App() {
     setDeliveredItemIds(new Set());
   };
 
-  const selectedTable = currentRestaurant?.tables.find(t => t.id === selectedTableId);
-  const promoFocus = currentRestaurant?.promos.find((promo) => promo.menuItemId);
+  const selectedTable = currentRestaurant?.tables!.find(t => t.id === selectedTableId);
+  const promoFocus = currentRestaurant?.promos!.find((promo) => promo.menuItemId);
   const promoFocusItemId = promoFocus?.menuItemId;
   const promoFocusTab: 'food' | 'drinks' = promoFocus?.menuCategory === 'drinks' ? 'drinks' : 'food';
 
@@ -700,7 +700,7 @@ export default function App() {
 
       {stage === 'table-selection' && currentRestaurant && (
         <TableSelector
-          tables={currentRestaurant.tables}
+          tables={currentRestaurant.tables!}
           language={language}
           onSelectTable={handleTableSelection}
         />
@@ -718,14 +718,13 @@ export default function App() {
             drinkOrders.length > 0 ? (distance) => setProximityDistance(distance) : undefined
           }
           onBack={() => setStage('table-selection')}
-          onNext={handleTableReady}
         />
       )}
 
       {stage === 'ordering-drinks' && currentRestaurant && (
         <MenuDisplay
-          drinks={currentRestaurant.menu.drinks}
-          food={currentRestaurant.menu.food}
+          drinks={currentRestaurant.menu!.drinks}
+          food={currentRestaurant.menu!.food}
           language={language}
           onPlaceOrder={handleDrinkOrderPlaced}
           isDrinksOnly={true}
@@ -741,8 +740,8 @@ export default function App() {
       )}
       {stage === 'ordering-food' && currentRestaurant && (
         <MenuDisplay
-          drinks={currentRestaurant.menu.drinks}
-          food={currentRestaurant.menu.food}
+          drinks={currentRestaurant.menu!.drinks}
+          food={currentRestaurant.menu!.food}
           language={language}
           onPlaceOrder={handleFoodOrderPlaced}
           isDrinksOnly={false}

@@ -1,4 +1,4 @@
-import React from "react";
+import { FC, ReactNode } from "react";
 import { Table, Language } from "../types";
 import { t } from "../utils/translations";
 
@@ -24,7 +24,7 @@ interface FloorPlanTablePickerProps {
   gridMode?: boolean; // Enable coordinate-based grid layout
 }
 
-const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
+const FloorPlanTablePicker: FC<FloorPlanTablePickerProps> = ({
   tables,
   language,
   selectedLocation,
@@ -213,7 +213,7 @@ const FloorPlanTablePicker: React.FC<FloorPlanTablePickerProps> = ({
       </span>
     );
 
-    const badges: React.ReactNode[] = [];
+    const badges: ReactNode[] = [];
     if (!hideSignals) {
       // FOH Priority Order (vertical stack):
       // 1. REQUEST (top priority for FOH)

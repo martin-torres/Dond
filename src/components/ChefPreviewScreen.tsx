@@ -82,8 +82,8 @@ export function ChefPreviewScreen({
   onSelectTable,
   onReserveTable,
 }: ChefPreviewScreenProps) {
-  const foodItems = restaurant.menu.food;
-  const drinkItems = restaurant.menu.drinks;
+  const foodItems = restaurant.menu?.food || [];
+  const drinkItems = restaurant.menu?.drinks || [];
   const [cart, setCart] = useState<Map<string, number>>(new Map());
 
   // Fresh per-render so language changes don't reuse a mutated set and hide items.
@@ -174,7 +174,7 @@ export function ChefPreviewScreen({
   const handlePlaceOrder = () => {
     const orderItems: OrderItem[] = [];
     cart.forEach((qty, itemId) => {
-      const menuItem = [...restaurant.menu.food, ...restaurant.menu.drinks].find(
+      const menuItem = [...(restaurant.menu?.food || []), ...(restaurant.menu?.drinks || [])].find(
         (item) => item.id === itemId
       );
       if (menuItem && qty > 0) {
@@ -249,7 +249,7 @@ export function ChefPreviewScreen({
 
   const totalItems = Array.from(cart.values()).reduce((sum, qty) => sum + qty, 0);
   const totalPrice = Array.from(cart.entries()).reduce((sum, [itemId, qty]) => {
-    const item = [...restaurant.menu.food, ...restaurant.menu.drinks].find((i) => i.id === itemId);
+    const item = [...(restaurant.menu?.food || []), ...(restaurant.menu?.drinks || [])].find((i) => i.id === itemId);
     return sum + (item?.price || 0) * qty;
   }, 0);
 

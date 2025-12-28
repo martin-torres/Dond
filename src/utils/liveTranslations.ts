@@ -48,7 +48,7 @@ async function translateText(
     return translationCache.get(key) as string;
   }
 
-  const endpoint = import.meta.env.VITE_TRANSLATION_ENDPOINT;
+  const endpoint = (import.meta as any).env.VITE_TRANSLATION_ENDPOINT;
   let translated = text;
 
   if (endpoint) {
@@ -112,8 +112,8 @@ async function translateMenu(
   sourceLang: Language = 'es'
 ): Promise<Restaurant['menu']> {
   const [food, drinks] = await Promise.all([
-    Promise.all(menu.food.map((item) => translateMenuItem(item, targetLang, sourceLang))),
-    Promise.all(menu.drinks.map((item) => translateMenuItem(item, targetLang, sourceLang))),
+    Promise.all((menu?.food || []).map((item) => translateMenuItem(item, targetLang, sourceLang))),
+    Promise.all((menu?.drinks || []).map((item) => translateMenuItem(item, targetLang, sourceLang))),
   ]);
 
   return {

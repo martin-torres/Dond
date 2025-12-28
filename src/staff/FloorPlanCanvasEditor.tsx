@@ -391,7 +391,7 @@ const rightWidthOpen = 'clamp(240px, 18vw, 315px)';
     height: 'calc(100dvh - 120px)', // header + padding buffer
   };
 
-  const renderTableButton = (r: RestaurantTableRow, opts: { isDraft?: boolean } = {}): JSX.Element => {
+  const renderTableButton = (r: RestaurantTableRow, opts: { isDraft?: boolean } = {}): React.JSX.Element => {
     const x = r.x ?? 0;
     const y = r.y ?? 0;
     const seats = r.seats ?? 4;
