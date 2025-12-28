@@ -176,10 +176,26 @@ export const FohView = () => {
   );
 
   const actionsForOrder = (order: StaffOrder) => {
+    // Handle bill requests specially - they trigger bill payment page
+    if (order.orderType === 'request' && order.customerName?.includes('Bill Request')) {
+      if (order.status === 'NEW') {
+        return [{
+          label: 'View Bill',
+          onClick: () => {
+            // Navigate to bill payment screen
+            window.location.hash = '#/payment';
+            // Mark request as handled
+            markStationDelivered(order.id, 'server');
+          }
+        }];
+      }
+      return [];
+    }
+
     // In 1-op mode, allow full control over all order types
     if (singleOperatorMode) {
       if (order.orderType === 'request') {
-        // Handle request orders in 1-op mode
+        // Handle other request orders in 1-op mode
         if (order.status === 'NEW') {
           return [{ label: 'Handle', onClick: () => updateStationStatus(order.id, 'server', 'IN_PROGRESS') }];
         }

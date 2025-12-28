@@ -624,19 +624,19 @@ export default function App() {
     }
 
     try {
-      // Create normal order with FOH request item
+      // Create proper request order using existing system
       await staff.addCustomerOrder({
         items: [{
           menuItem: {
-            id: `request-${requestType}`,
+            id: `request-${requestType}-${Date.now()}`, // Unique ID for each request
             name: {
-              en: requestType === 'bill' ? 'Bill Request' : `Request: ${requestType}`,
-              es: requestType === 'bill' ? 'Solicitud de Cuenta' : `Solicitud: ${requestType}`,
-              fr: requestType === 'bill' ? 'Demande de Facture' : `Demande: ${requestType}`,
-              de: requestType === 'bill' ? 'Rechnung Anfrage' : `Anfrage: ${requestType}`,
-              ja: requestType === 'bill' ? '請求リクエスト' : `リクエスト: ${requestType}`,
-              ar: requestType === 'bill' ? 'طلب الفاتورة' : `طلب: ${requestType}`,
-              zh: requestType === 'bill' ? '账单请求' : `请求: ${requestType}`
+              en: requestType === 'bill' ? 'Bill Request' : `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} Request`,
+              es: requestType === 'bill' ? 'Solicitud de Cuenta' : `Solicitud de ${requestType}`,
+              fr: requestType === 'bill' ? 'Demande de Facture' : `Demande de ${requestType}`,
+              de: requestType === 'bill' ? 'Rechnung Anfrage' : `Anfrage ${requestType}`,
+              ja: requestType === 'bill' ? '請求リクエスト' : `${requestType}リクエスト`,
+              ar: requestType === 'bill' ? 'طلب الفاتورة' : `طلب ${requestType}`,
+              zh: requestType === 'bill' ? '账单请求' : `${requestType}请求`
             },
             description: {
               en: requestType === 'bill' ? 'Customer has requested the bill' : `Customer requested ${requestType}`,
@@ -660,16 +660,12 @@ export default function App() {
           note: requestType === 'bill'
             ? 'Customer has requested the bill and is ready for checkout'
             : `Customer requested ${requestType}`,
+          // This is the key - set orderType to 'request' to use existing request system
+          requestType: 'request',
         },
       });
 
-      // For bill requests, also navigate to payment screen
-      if (requestType === 'bill') {
-        handleRequestBill();
-      } else {
-        alert(`✅ ${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request sent to staff!`);
-      }
-
+      alert(`✅ ${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request sent to staff!`);
       console.log(`✅ Created ${requestType} request for FOH`);
     } catch (err) {
       console.error(`❌ Failed to create ${requestType} request:`, err);

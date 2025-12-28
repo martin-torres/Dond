@@ -593,8 +593,10 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       const items = adaptOrderItems(payload.items, restaurant, payload.meta?.language);
       if (!items.length) return null;
 
-      const orderType: OrderType =
-        payload.meta?.tableId || payload.meta?.tableNumber ? 'dine_in' : 'to_go';
+      // Check for request type flag in meta
+      const isRequest = (payload.meta as any)?.requestType === 'request';
+      const orderType: OrderType = isRequest ? 'request' :
+        (payload.meta?.tableId || payload.meta?.tableNumber ? 'dine_in' : 'to_go');
       const tableLabel = payload.meta?.tableId
         ? getTableLabel(restaurant, payload.meta.tableId)
         : undefined;
