@@ -4,6 +4,9 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
+import { RequestModal } from './RequestModal';
+import { Bell } from 'lucide-react';
+import { useState } from 'react';
 
 interface OrderSummaryScreenProps {
   language: Language;
@@ -12,6 +15,7 @@ interface OrderSummaryScreenProps {
   onContinueOrdering: () => void;
   onRequestBill: () => void;
   deliveredIds?: Set<string>;
+  onRequestItem?: (requestType: 'server' | 'condiments' | 'water' | 'bill' | 'issue') => void;
 }
 
 const formatPrice = (price: number) => `$${price.toFixed(2)}`;
@@ -23,7 +27,9 @@ export function OrderSummaryScreen({
   onContinueOrdering,
   onRequestBill,
   deliveredIds,
+  onRequestItem,
 }: OrderSummaryScreenProps) {
+  const [showRequestModal, setShowRequestModal] = useState(false);
   const subtotal = items.reduce(
     (sum, item) => sum + item.menuItem.price * item.quantity,
     0
@@ -32,6 +38,20 @@ export function OrderSummaryScreen({
 
   return (
     <>
+      {/* Bell button for service requests */}
+      {tableNumber && onRequestItem && (
+        <div className="fixed top-4 right-4 z-40">
+          <Button
+            variant="outline"
+            onClick={() => setShowRequestModal(true)}
+            className="rounded-full border border-gray-200 bg-white/90 shadow-sm px-3"
+            aria-label="Request assistance"
+          >
+            <Bell className="w-5 h-5" />
+          </Button>
+        </div>
+      )}
+
       <PageShell paddedForActionBar className="justify-start">
         <div className="space-y-6">
           <div className="text-center space-y-2 mt-2">
@@ -98,6 +118,12 @@ export function OrderSummaryScreen({
           {t('requestBill', language)}
         </Button>
       </BottomActionBar>
+
+      <RequestModal
+        open={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        onRequestItem={onRequestItem || (() => {})}
+      />
     </>
   );
 }

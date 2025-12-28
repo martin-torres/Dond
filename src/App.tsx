@@ -123,6 +123,43 @@ export default function App() {
     };
   }, [selectedTableId, currentRestaurant]);
 
+  // Listen for table status changes from staff side to update customer view in real-time
+  useEffect(() => {
+    if (!currentRestaurant?.id) return;
+
+    const channel = supabase
+      .channel('customer-table-sync')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'restaurant_tables',
+          filter: `restaurant_id=eq.${currentRestaurant.id}`,
+        },
+        (payload) => {
+          const updatedTable = payload.new;
+          setCurrentRestaurant((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  tables: prev.tables.map((table) =>
+                    table.id === updatedTable.id
+                      ? { ...table, available: updatedTable.available }
+                      : table
+                  ),
+                }
+              : prev
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentRestaurant?.id]);
+
   const appendOrders = (items: OrderItem[]) => {
     if (!items.length) return;
     setCurrentOrders((prev) => {
@@ -578,6 +615,68 @@ export default function App() {
     setStage('payment');
   };
 
+
+
+  const handleRequestItem = async (requestType: 'server' | 'condiments' | 'water' | 'bill' | 'issue') => {
+    if (!selectedTableId || !currentRestaurant) {
+      alert('Please select a table first');
+      return;
+    }
+
+    try {
+      // Create normal order with FOH request item
+      await staff.addCustomerOrder({
+        items: [{
+          menuItem: {
+            id: `request-${requestType}`,
+            name: {
+              en: requestType === 'bill' ? 'Bill Request' : `Request: ${requestType}`,
+              es: requestType === 'bill' ? 'Solicitud de Cuenta' : `Solicitud: ${requestType}`,
+              fr: requestType === 'bill' ? 'Demande de Facture' : `Demande: ${requestType}`,
+              de: requestType === 'bill' ? 'Rechnung Anfrage' : `Anfrage: ${requestType}`,
+              ja: requestType === 'bill' ? '請求リクエスト' : `リクエスト: ${requestType}`,
+              ar: requestType === 'bill' ? 'طلب الفاتورة' : `طلب: ${requestType}`,
+              zh: requestType === 'bill' ? '账单请求' : `请求: ${requestType}`
+            },
+            description: {
+              en: requestType === 'bill' ? 'Customer has requested the bill' : `Customer requested ${requestType}`,
+              es: requestType === 'bill' ? 'El cliente ha solicitado la cuenta' : `Cliente solicitó ${requestType}`,
+              fr: requestType === 'bill' ? 'Le client a demandé la facture' : `Client demandé ${requestType}`,
+              de: requestType === 'bill' ? 'Kunde hat Rechnung angefordert' : `Kunde angefordert ${requestType}`,
+              ja: requestType === 'bill' ? 'お客様が請求をリクエストしました' : `お客様が${requestType}をリクエストしました`,
+              ar: requestType === 'bill' ? 'العميل طلب الفاتورة' : `العميل طلب ${requestType}`,
+              zh: requestType === 'bill' ? '顾客已请求账单' : `顾客请求了${requestType}`
+            },
+            price: 0,
+            category: 'service',
+            image: ''
+          },
+          quantity: 1
+        }],
+        meta: {
+          restaurant: currentRestaurant,
+          tableId: selectedTableId,
+          customerName: requestType === 'bill' ? 'Bill Request' : `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} Request`,
+          note: requestType === 'bill'
+            ? 'Customer has requested the bill and is ready for checkout'
+            : `Customer requested ${requestType}`,
+        },
+      });
+
+      // For bill requests, also navigate to payment screen
+      if (requestType === 'bill') {
+        handleRequestBill();
+      } else {
+        alert(`✅ ${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request sent to staff!`);
+      }
+
+      console.log(`✅ Created ${requestType} request for FOH`);
+    } catch (err) {
+      console.error(`❌ Failed to create ${requestType} request:`, err);
+      alert(`Failed to send ${requestType} request. Please try again.`);
+    }
+  };
+
   const handlePaymentComplete = (paidAmount?: number, paidItems?: string[]) => {
     const orderReference = selectedTableId ?? 'local-order';
     if (paidAmount !== undefined) {
@@ -728,6 +827,7 @@ export default function App() {
           language={language}
           onPlaceOrder={handleDrinkOrderPlaced}
           isDrinksOnly={true}
+          onRequestItem={handleRequestItem}
         />
       )}
 
@@ -763,6 +863,7 @@ export default function App() {
           }}
           showSeatPrompt={!selectedTableId}
           onChooseSeat={() => setStage('table-selection')}
+          onRequestItem={handleRequestItem}
         />
       )}
 
@@ -792,6 +893,7 @@ export default function App() {
           deliveredIds={deliveredItemIds}
           onContinueOrdering={() => handleContinueOrdering('order-summary')}
           onRequestBill={handleRequestBill}
+          onRequestItem={handleRequestItem}
         />
       )}
 

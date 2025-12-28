@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, ShoppingCart, Armchair, ChevronLeft, Receipt } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Armchair, ChevronLeft, Receipt, Bell } from 'lucide-react';
 import { MenuItem, Language, OrderItem } from '../types';
 import { t, localizeText, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
@@ -9,6 +9,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
 import { StageGraphicSlot } from './StageGraphicSlot';
+import { RequestModal } from './RequestModal';
 type TabType = 'drinks' | 'food';
 
 // Menu display: shows items and, when no table is selected, surfaces a bottom bar prompting table selection.
@@ -24,6 +25,7 @@ interface MenuDisplayProps {
   onNext?: () => void;
   showSeatPrompt?: boolean;
   onChooseSeat?: () => void;
+  onRequestItem?: (requestType: 'server' | 'condiments' | 'water' | 'bill' | 'issue') => void;
 }
 
 export function MenuDisplay({
@@ -38,9 +40,11 @@ export function MenuDisplay({
   onNext,
   showSeatPrompt = false,
   onChooseSeat,
+  onRequestItem,
 }: MenuDisplayProps) {
   const [activeTab, setActiveTab] = useState<TabType>(isDrinksOnly ? 'drinks' : initialTab);
   const [cart, setCart] = useState<Map<string, number>>(new Map());
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   useEffect(() => {
     if (!isDrinksOnly) {
@@ -135,13 +139,26 @@ export function MenuDisplay({
               {activeTab === 'drinks' ? '🍸' : '🍽️'}
             </StageGraphicSlot>
 
-            {onNext ? (
-              <Button variant="outline" onClick={onNext} className="hidden sm:inline-flex">
-                {showSeatPrompt ? <Armchair className="w-5 h-5" /> : <Receipt className="w-5 h-5" />}
-              </Button>
-            ) : (
-              <span className="w-20" aria-hidden />
-            )}
+            <div className="flex items-center gap-2">
+              {onRequestItem && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRequestModal(true)}
+                  className="text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
+                  aria-label="Request assistance"
+                >
+                  <Bell className="w-5 h-5" />
+                </Button>
+              )}
+
+              {onNext ? (
+                <Button variant="outline" onClick={onNext} className="hidden sm:inline-flex">
+                  {showSeatPrompt ? <Armchair className="w-5 h-5" /> : <Receipt className="w-5 h-5" />}
+                </Button>
+              ) : (
+                <span className="w-20" aria-hidden />
+              )}
+            </div>
           </div>
 
           {!isDrinksOnly && (
@@ -260,6 +277,12 @@ export function MenuDisplay({
           </Button>
         </BottomActionBar>
       )}
+
+      <RequestModal
+        open={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        onRequestItem={onRequestItem || (() => {})}
+      />
     </>
   );
 }

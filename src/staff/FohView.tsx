@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { StaffLayout } from './StaffLayout';
 import { useStaffData } from './StaffDataProvider';
 import { TicketCard } from './TicketCard';
-import { markStationPickedUp, markStationDelivered } from './orderStatus';
+import { markStationPickedUp, markStationDelivered, updateStationStatus } from './orderStatus';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
@@ -113,7 +113,6 @@ export const FohView = () => {
         ? orders.filter(
             (order) =>
               order.tableId === selectedTable.id &&
-              order.station !== 'server' &&
               order.status !== 'DELIVERED'
           )
         : [],
@@ -177,8 +176,37 @@ export const FohView = () => {
   );
 
   const actionsForOrder = (order: StaffOrder) => {
+    // In 1-op mode, allow full control over all order types
+    if (singleOperatorMode) {
+      if (order.orderType === 'request') {
+        // Handle request orders in 1-op mode
+        if (order.status === 'NEW') {
+          return [{ label: 'Handle', onClick: () => updateStationStatus(order.id, 'server', 'IN_PROGRESS') }];
+        }
+        if (order.status === 'IN_PROGRESS') {
+          return [{ label: 'Complete', onClick: () => markStationDelivered(order.id, 'server') }];
+        }
+        return [];
+      }
+      // Handle kitchen/bar orders in 1-op mode
+      const station = order.station;
+      if (order.status === 'NEW' && (station === 'kitchen' || station === 'bar')) {
+        return [{ label: 'Start', onClick: () => updateStationStatus(order.id, station, 'IN_PROGRESS') }];
+      }
+      if (order.status === 'IN_PROGRESS' && (station === 'kitchen' || station === 'bar')) {
+        return [{ label: 'Ready', onClick: () => updateStationStatus(order.id, station, 'READY') }];
+      }
+      if (order.status === 'READY' && (station === 'kitchen' || station === 'bar')) {
+        return [{ label: 'Pick Up', onClick: () => markStationPickedUp(order.id, station) }];
+      }
+      if (order.status === 'PICKING_UP' && (station === 'kitchen' || station === 'bar')) {
+        return [{ label: 'Delivered', onClick: () => markStationDelivered(order.id, station) }];
+      }
+      return [];
+    }
+
+    // Normal mode - FOH only handles pickup/delivery
     if (order.orderType === 'request') return [];
-    // FOH controls pickup/delivery per station ticket.
     const station = order.station;
     if (order.status === 'READY' && (station === 'kitchen' || station === 'bar')) {
       return [
