@@ -13,7 +13,6 @@ interface OrderSummaryScreenProps {
   tableNumber?: string | number;
   items: OrderItem[];
   onContinueOrdering: () => void;
-  onRequestBill: () => void;
   deliveredIds?: Set<string>;
   onRequestItem?: (requestType: 'server' | 'condiments' | 'water' | 'bill' | 'issue') => void;
 }
@@ -25,7 +24,6 @@ export function OrderSummaryScreen({
   tableNumber,
   items,
   onContinueOrdering,
-  onRequestBill,
   deliveredIds,
   onRequestItem,
 }: OrderSummaryScreenProps) {
@@ -112,7 +110,7 @@ export function OrderSummaryScreen({
         <Button variant="outline" className="w-full sm:flex-1" onClick={onContinueOrdering}>
           + {t('continueOrdering', language)}
         </Button>
-        <Button className="w-full sm:flex-1" onClick={onRequestBill} size="lg">
+        <Button className="w-full sm:flex-1" onClick={() => onRequestItem?.('bill')} size="lg">
           {t('requestBill', language)}
         </Button>
       </BottomActionBar>

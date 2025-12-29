@@ -5,9 +5,9 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Bill, Language } from '../types';
 import { t } from '../utils/translations';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Checkbox } from '../components/ui/checkbox';
 
 type StaffBillViewProps = {
   tableId: string;
@@ -59,6 +59,13 @@ export function StaffBillView({ tableId, onBackToFOH, language = 'en' }: StaffBi
   const [showCashPaymentDialog, setShowCashPaymentDialog] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [changeConfirmed, setChangeConfirmed] = useState(false);
+
+  const calculateChange = () => {
+    const cash = parseFloat(cashAmount) || 0;
+    const change = cash - (bill?.total || 0);
+    return change >= 0 ? change.toFixed(2) : '0.00';
+  };
 
   const handleCashPayment = () => {
     // In beta, we just close the table session
@@ -152,7 +159,7 @@ export function StaffBillView({ tableId, onBackToFOH, language = 'en' }: StaffBi
               onClick={handleCloseBill}
               variant="outline"
             >
-              📝 Close Bill (No Payment)
+              💳 Pay with Credit Card
             </Button>
           </div>
         </Card>
@@ -165,51 +172,112 @@ export function StaffBillView({ tableId, onBackToFOH, language = 'en' }: StaffBi
         </div>
       </div>
 
-      {/* Cash Payment Dialog */}
-      <Dialog open={showCashPaymentDialog} onOpenChange={setShowCashPaymentDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Accept Cash Payment</DialogTitle>
-            <DialogDescription>
-              Record the cash payment amount and any notes.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="amount" className="text-right">
-                Amount
-              </Label>
-              <Input
-                id="amount"
-                value={cashAmount}
-                onChange={(e) => setCashAmount(e.target.value)}
-                placeholder={`$${bill.total.toFixed(2)}`}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="notes" className="text-right">
-                Notes
-              </Label>
-              <Input
-                id="notes"
-                value={paymentNotes}
-                onChange={(e) => setPaymentNotes(e.target.value)}
-                placeholder="e.g., Paid with $50, change $12.50"
-                className="col-span-3"
-              />
+      {/* Cash Payment Dialog - Using manual modal like RequestModal */}
+      {showCashPaymentDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowCashPaymentDialog(false)}
+          />
+
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Accept Cash Payment</h2>
+                <p className="text-sm text-gray-600 mt-1">Record the cash payment amount and calculate change</p>
+              </div>
+
+              <div className="grid gap-4 py-4">
+                {/* Total Amount - Readonly */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="total" className="text-right">
+                    Total
+                  </Label>
+                  <Input
+                    id="total"
+                    value={`$${bill?.total.toFixed(2) || '0.00'}`}
+                    readOnly
+                    className="col-span-3 bg-gray-100 font-medium"
+                  />
+                </div>
+
+                {/* Cash Amount - Editable */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="cash" className="text-right">
+                    Cash Received
+                  </Label>
+                  <Input
+                    id="cash"
+                    value={cashAmount}
+                    onChange={(e) => setCashAmount(e.target.value)}
+                    placeholder={`$${bill?.total.toFixed(2) || '0.00'}`}
+                    className="col-span-3"
+                    type="number"
+                    step="0.01"
+                    min={bill?.total || 0}
+                  />
+                </div>
+
+                {/* Change Calculation - Readonly */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="change" className="text-right">
+                    Change
+                  </Label>
+                  <Input
+                    id="change"
+                    value={`$${calculateChange()}`}
+                    readOnly
+                    className="col-span-3 bg-gray-100 font-semibold text-green-600"
+                  />
+                </div>
+
+                {/* Customer Confirmation */}
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="confirm-change"
+                    checked={changeConfirmed}
+                    onCheckedChange={(checked: boolean) => setChangeConfirmed(checked)}
+                    className="border-gray-300"
+                  />
+                  <Label htmlFor="confirm-change" className="text-sm">
+                    Customer received ${calculateChange()} change
+                  </Label>
+                </div>
+
+                {/* Payment Notes */}
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="notes" className="text-right">
+                    Notes
+                  </Label>
+                  <Input
+                    id="notes"
+                    value={paymentNotes}
+                    onChange={(e) => setPaymentNotes(e.target.value)}
+                    placeholder="e.g., Paid with $50 bill"
+                    className="col-span-3"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 justify-end mt-6">
+                  <Button variant="outline" onClick={() => setShowCashPaymentDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCashPayment}
+                    disabled={!changeConfirmed || !cashAmount || parseFloat(cashAmount) < (bill?.total || 0)}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    Confirm Cash Payment
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCashPaymentDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCashPayment}>
-              Confirm Cash Payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </StaffLayout>
   );
 }

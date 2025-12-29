@@ -889,7 +889,6 @@ export default function App() {
           items={currentOrders}
           deliveredIds={deliveredItemIds}
           onContinueOrdering={() => handleContinueOrdering('order-summary')}
-          onRequestBill={handleRequestBill}
           onRequestItem={handleRequestItem}
         />
       )}
