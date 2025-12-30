@@ -22,37 +22,17 @@ import {
   Mail,
   Percent,
 } from 'lucide-react';
+import { fetchRestaurantSettings, updateRestaurantSettings } from '../api/restaurantSettingsApi';
+import { RestaurantSettings, FormSettings } from '../types/restaurantSettings';
 
 interface SettingsEditorProps {
   restaurantId: string;
   onSettingsUpdate?: () => void;
 }
 
-type RestaurantSettings = {
-  name: string;
-  address: string;
-  phone: string;
-  email: string;
-  website: string;
-  currency: string;
-  tax_rate: string;
-  service_fee: string;
-  max_wait_time: string;
-  allow_online_orders: boolean;
-  allow_reservations: boolean;
-  allow_table_requests: boolean;
-  enable_notifications: boolean;
-  enable_loyalty_program: boolean;
-  enable_table_management: boolean;
-  enable_kitchen_display: boolean;
-  enable_bar_display: boolean;
-  enable_foh_display: boolean;
-  qr_code_enabled: boolean;
-  demo_mode: boolean;
-};
 
 export const SettingsEditor = ({ restaurantId, onSettingsUpdate }: SettingsEditorProps) => {
-  const [settings, setSettings] = useState<RestaurantSettings | null>(null);
+  const [settings, setSettings] = useState<FormSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
 
@@ -72,34 +52,65 @@ export const SettingsEditor = ({ restaurantId, onSettingsUpdate }: SettingsEdito
   const loadSettings = async () => {
     setLoading(true);
     try {
-      // For now, we'll use mock settings
-      // In a real implementation, you'd fetch from the database
-      const mockSettings: RestaurantSettings = {
-        name: 'Restaurant Name',
-        address: '123 Main Street, City, State 12345',
-        phone: '+1 (555) 123-4567',
-        email: 'info@restaurant.com',
-        website: 'https://restaurant.com',
-        currency: 'USD',
-        tax_rate: '8.25',
-        service_fee: '0.00',
-        max_wait_time: '30',
-        allow_online_orders: true,
-        allow_reservations: true,
-        allow_table_requests: true,
-        enable_notifications: true,
-        enable_loyalty_program: false,
-        enable_table_management: true,
-        enable_kitchen_display: true,
-        enable_bar_display: true,
-        enable_foh_display: true,
-        qr_code_enabled: true,
-        demo_mode: false,
-      };
-      
-      setSettings(mockSettings);
+      const apiSettings = await fetchRestaurantSettings(restaurantId);
+      if (apiSettings) {
+        // Convert API settings to form settings
+        const formSettings: FormSettings = {
+          id: apiSettings.id,
+          name: apiSettings.name.en,
+          name_es: apiSettings.name.es || '',
+          address: apiSettings.address,
+          phone: apiSettings.phone,
+          email: apiSettings.email,
+          website: apiSettings.website,
+          currency: apiSettings.currency,
+          tax_rate: apiSettings.tax_rate.toString(),
+          service_fee: apiSettings.service_fee.toString(),
+          max_wait_time: apiSettings.max_wait_time.toString(),
+          allow_online_orders: apiSettings.allow_online_orders,
+          allow_reservations: apiSettings.allow_reservations,
+          allow_table_requests: apiSettings.allow_table_requests,
+          enable_notifications: apiSettings.enable_notifications,
+          enable_loyalty_program: apiSettings.enable_loyalty_program,
+          enable_table_management: apiSettings.enable_table_management,
+          enable_kitchen_display: apiSettings.enable_kitchen_display,
+          enable_bar_display: apiSettings.enable_bar_display,
+          enable_foh_display: apiSettings.enable_foh_display,
+          qr_code_enabled: apiSettings.qr_code_enabled,
+          demo_mode: apiSettings.demo_mode,
+        };
+        setSettings(formSettings);
+      } else {
+        // Fallback to defaults if no settings found
+        const defaultSettings: FormSettings = {
+          id: restaurantId,
+          name: 'Restaurant Name',
+          name_es: '',
+          address: '123 Main Street, City, State 12345',
+          phone: '+1 (555) 123-4567',
+          email: 'info@restaurant.com',
+          website: 'https://restaurant.com',
+          currency: 'USD',
+          tax_rate: '8.25',
+          service_fee: '0.00',
+          max_wait_time: '30',
+          allow_online_orders: true,
+          allow_reservations: true,
+          allow_table_requests: true,
+          enable_notifications: true,
+          enable_loyalty_program: false,
+          enable_table_management: true,
+          enable_kitchen_display: true,
+          enable_bar_display: true,
+          enable_foh_display: true,
+          qr_code_enabled: true,
+          demo_mode: false,
+        };
+        setSettings(defaultSettings);
+      }
     } catch (error) {
       console.error('Failed to load settings:', error);
+      alert('Failed to load settings. Using default values.');
     } finally {
       setLoading(false);
     }
@@ -109,7 +120,7 @@ export const SettingsEditor = ({ restaurantId, onSettingsUpdate }: SettingsEdito
     if (!settings) return;
 
     const validationErrors = [];
-    
+
     if (!settings.name.trim()) validationErrors.push('Restaurant name is required');
     if (!settings.address.trim()) validationErrors.push('Address is required');
     if (!settings.phone.trim()) validationErrors.push('Phone number is required');
@@ -122,8 +133,36 @@ export const SettingsEditor = ({ restaurantId, onSettingsUpdate }: SettingsEdito
     }
 
     try {
-      // In a real implementation, you'd save to the database
-      console.log('Saving settings:', settings);
+      // Convert form data to API format
+      const apiSettings: RestaurantSettings = {
+        id: settings.id || restaurantId,
+        slug: '', // This will be ignored in update
+        name: {
+          en: settings.name,
+          es: settings.name_es || '',
+        },
+        address: settings.address,
+        phone: settings.phone,
+        email: settings.email,
+        website: settings.website,
+        currency: settings.currency,
+        tax_rate: parseFloat(settings.tax_rate),
+        service_fee: parseFloat(settings.service_fee),
+        max_wait_time: parseInt(settings.max_wait_time),
+        allow_online_orders: settings.allow_online_orders,
+        allow_reservations: settings.allow_reservations,
+        allow_table_requests: settings.allow_table_requests,
+        enable_notifications: settings.enable_notifications,
+        enable_loyalty_program: settings.enable_loyalty_program,
+        enable_table_management: settings.enable_table_management,
+        enable_kitchen_display: settings.enable_kitchen_display,
+        enable_bar_display: settings.enable_bar_display,
+        enable_foh_display: settings.enable_foh_display,
+        qr_code_enabled: settings.qr_code_enabled,
+        demo_mode: settings.demo_mode,
+      };
+
+      await updateRestaurantSettings(apiSettings);
       setEditing(false);
       onSettingsUpdate?.();
       alert('Settings saved successfully!');
@@ -135,9 +174,11 @@ export const SettingsEditor = ({ restaurantId, onSettingsUpdate }: SettingsEdito
 
   const handleResetToDefaults = () => {
     if (!confirm('Are you sure you want to reset all settings to defaults?')) return;
-    
-    const defaultSettings: RestaurantSettings = {
+
+    const defaultSettings: FormSettings = {
+      id: restaurantId,
       name: 'Restaurant Name',
+      name_es: '',
       address: '123 Main Street, City, State 12345',
       phone: '+1 (555) 123-4567',
       email: 'info@restaurant.com',
@@ -244,13 +285,24 @@ export const SettingsEditor = ({ restaurantId, onSettingsUpdate }: SettingsEdito
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Restaurant Name</Label>
+                  <Label htmlFor="name">Restaurant Name (English)</Label>
                   <Input
                     id="name"
                     value={settings.name}
                     onChange={(e) => setSettings({...settings, name: e.target.value})}
                     disabled={!editing}
                     placeholder="e.g., Maui Restaurant"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="name_es">Restaurant Name (Spanish)</Label>
+                  <Input
+                    id="name_es"
+                    value={settings.name_es}
+                    onChange={(e) => setSettings({...settings, name_es: e.target.value})}
+                    disabled={!editing}
+                    placeholder="e.g., Restaurante Maui"
                   />
                 </div>
 

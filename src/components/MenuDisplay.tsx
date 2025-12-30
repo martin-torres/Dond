@@ -8,7 +8,6 @@ import { Card } from './ui/card';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
-import { StageGraphicSlot } from './StageGraphicSlot';
 import { RequestModal } from './RequestModal';
 type TabType = 'drinks' | 'food';
 
@@ -132,12 +131,12 @@ export function MenuDisplay({
               <span className="w-20" aria-hidden />
             )}
 
-            <StageGraphicSlot
-              label={activeTab === 'drinks' ? t('drinks', language) : t('food', language)}
-              tone={activeTab === 'drinks' ? 'blue' : 'amber'}
-            >
-              {activeTab === 'drinks' ? '🍸' : '🍽️'}
-            </StageGraphicSlot>
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+              activeTab === 'drinks' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
+            }`}>
+              <span>{activeTab === 'drinks' ? '🍸' : '🍽️'}</span>
+              <span>{activeTab === 'drinks' ? t('drinks', language) : t('food', language)}</span>
+            </div>
 
             <div className="flex items-center gap-2">
               <Button

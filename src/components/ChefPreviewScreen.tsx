@@ -7,7 +7,6 @@ import { Badge } from './ui/badge';
 import { Plus, Minus, ShoppingCart, ArrowLeft, ChevronLeft } from 'lucide-react';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
-import { StageGraphicSlot } from './StageGraphicSlot';
 
 type HighlightCategory = 'food' | 'drinks';
 
@@ -269,9 +268,10 @@ export function ChefPreviewScreen({
             >
               <ChevronLeft className="w-5 h-5" />
             </Button>
-            <StageGraphicSlot label={t('todaysPromos', language)} tone="rose">
-              🍽️
-            </StageGraphicSlot>
+            <div className="flex items-center gap-2 bg-rose-50 text-rose-600 px-3 py-1 rounded-full text-sm font-medium">
+              <span>🍽️</span>
+              <span>{t('todaysPromos', language)}</span>
+            </div>
             <div className="w-20" aria-hidden />
           </div>
         }

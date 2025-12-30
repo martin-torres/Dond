@@ -8,6 +8,7 @@ import { PromosEventsEditor } from '../components/PromosEventsEditor';
 import { SettingsEditor } from '../components/SettingsEditor';
 import { FloorPlanCanvasEditor } from './FloorPlanCanvasEditor';
 import { FloorPlanSidebar } from '../components/FloorPlanSidebar';
+import { RestaurantTableRow } from '../api/restaurantTablesApi';
 
 type EditSection = 'tables' | 'menu' | 'promos' | 'settings';
 
@@ -22,6 +23,10 @@ export const ManagerEditConsole = () => {
     const saved = sessionStorage.getItem('managerEditSection') as EditSection | null;
     return saved ?? 'tables';
   });
+
+  // Table management state
+  const [selectedTable, setSelectedTable] = useState<RestaurantTableRow | null>(null);
+  const [tables, setTables] = useState<RestaurantTableRow[]>([]);
 
   const restaurantId = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -41,7 +46,35 @@ export const ManagerEditConsole = () => {
   };
 
   const handleSettingsUpdate = () => {
-    console.log('Settings updated');
+    // Show a success message or refresh data
+    alert('Restaurant settings have been updated successfully!');
+  };
+
+  // Table management callbacks
+  const handleTableSelect = (table: RestaurantTableRow) => {
+    setSelectedTable(table);
+  };
+
+  const handleTableUpdate = (updatedTable: RestaurantTableRow) => {
+    setTables(prev => prev.map(t => t.id === updatedTable.id ? updatedTable : t));
+    if (selectedTable?.id === updatedTable.id) {
+      setSelectedTable(updatedTable);
+    }
+  };
+
+  const handleTableDelete = (tableId: string) => {
+    setTables(prev => prev.filter(t => t.id !== tableId));
+    if (selectedTable?.id === tableId) {
+      setSelectedTable(null);
+    }
+  };
+
+  const handleTableAdd = (newTable: RestaurantTableRow) => {
+    setTables(prev => [newTable, ...prev]);
+  };
+
+  const handleTablesLoaded = (loadedTables: RestaurantTableRow[]) => {
+    setTables(loadedTables);
   };
 
   if (!managerUnlocked) {
@@ -81,9 +114,11 @@ export const ManagerEditConsole = () => {
                       <h2 className="text-xl font-semibold text-gray-900">Tables & Floor Plan</h2>
                     </div>
                     
-                    {/* FloorPlanCanvasEditor with improved sidebar */}
+                    {/* FloorPlanCanvasEditor with table selection */}
                     <FloorPlanCanvasEditor
                       restaurantId={restaurantId}
+                      onTableSelect={handleTableSelect}
+                      onTablesLoaded={handleTablesLoaded}
                     />
                   </div>
                 </>
@@ -147,12 +182,12 @@ export const ManagerEditConsole = () => {
             <div className="h-full overflow-auto p-4">
               {activeSection === 'tables' && (
                 <FloorPlanSidebar
-                  isOpen={true}
-                  onClose={() => {}}
-                  selectedTable={null}
-                  onTableUpdate={() => {}}
-                  onTableDelete={() => {}}
-                  onTableAdd={() => {}}
+                  isOpen={!!selectedTable}
+                  onClose={() => setSelectedTable(null)}
+                  selectedTable={selectedTable}
+                  onTableUpdate={handleTableUpdate}
+                  onTableDelete={handleTableDelete}
+                  onTableAdd={handleTableAdd}
                   restaurantId={restaurantId}
                 />
               )}

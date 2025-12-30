@@ -22,7 +22,11 @@ import {
 import { ManagerTablesPanel } from './ManagerTablesPanel';
 import { SeedTablesToSupabase } from './SeedTablesToSupabase';
 
-type Props = { restaurantId: string };
+type Props = {
+  restaurantId: string;
+  onTableSelect?: (table: RestaurantTableRow) => void;
+  onTablesLoaded?: (tables: RestaurantTableRow[]) => void;
+};
 
 type TableShape = 'auto' | 'circle' | 'rounded' | 'rect' | 'booth_u' | 'booth_half_u';
 
@@ -153,7 +157,7 @@ const RotateIcon = ({ dir }: { dir: 'left' | 'right' }) => (
   </svg>
 );
 
-export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
+export const FloorPlanCanvasEditor = ({ restaurantId, onTableSelect, onTablesLoaded }: Props) => {
   const [loading, setLoading] = useState(true);
 
   const [rows, setRows] = useState<RestaurantTableRow[]>([]);
@@ -216,6 +220,9 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
 
         setRows(normalized);
         setPlan(p);
+
+        // Notify parent component that tables are loaded
+        onTablesLoaded?.(normalized);
       } finally {
         if (alive) setLoading(false);
       }
@@ -223,7 +230,7 @@ export const FloorPlanCanvasEditor = ({ restaurantId }: Props) => {
     return () => {
       alive = false;
     };
-  }, [restaurantId]);
+  }, [restaurantId, onTablesLoaded]);
 
   const effectivePlan = useMemo(
     () =>
@@ -455,6 +462,11 @@ const rightWidthOpen = 'clamp(240px, 18vw, 315px)';
           if (opts.isDraft) return;
           setSelectedId(r.id);
           setRightOpen(true);
+          // Notify parent component about table selection
+          const selectedTable = rows.find(table => table.id === r.id);
+          if (selectedTable) {
+            onTableSelect?.(selectedTable);
+          }
         }}
         style={{
           position: 'absolute',

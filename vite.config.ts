@@ -58,8 +58,9 @@ export default defineConfig({
     open: 'http://localhost:3000/',
     host: '0.0.0.0',
     strictPort: true,
+    allowedHosts: true,
     hmr: {
-      clientPort: 3000,
+      clientPort: 443,
       protocol: 'ws',
     },
   },

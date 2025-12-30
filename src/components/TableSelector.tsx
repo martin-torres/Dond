@@ -8,7 +8,6 @@ import { Card } from './ui/card';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
 import FloorPlanTablePicker from './FloorPlanTablePicker';
-import { StageGraphicSlot } from './StageGraphicSlot';
 
 interface TableSelectorProps {
   tables: Table[];
@@ -67,9 +66,10 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-4">
             <div className="w-20" aria-hidden />
-            <StageGraphicSlot label={t('selectTable', language)} tone="mint">
-              🪑
-            </StageGraphicSlot>
+            <div className="flex items-center gap-2 bg-green-50 text-green-600 px-3 py-1 rounded-full text-sm font-medium">
+              <span>🪑</span>
+              <span>{t('selectTable', language)}</span>
+            </div>
             <div className="flex w-20 justify-end" aria-hidden />
           </div>
 
