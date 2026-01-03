@@ -1,90 +1,133 @@
-import { UtensilsCrossed, Plus, Receipt } from 'lucide-react';
-import { Language, OrderItem } from '../types/restaurant';
-import { t } from '../utils/translations';
+import { UtensilsCrossed, Plus, Bell } from 'lucide-react';
+import { Language, OrderItem } from '../types';
+import { t, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
+import { PageShell } from './PageShell';
+import { BottomActionBar } from './BottomActionBar';
+import { RequestModal } from './RequestModal';
+import { useState } from 'react';
 
 interface DiningScreenProps {
   language: Language;
   currentOrders: OrderItem[];
-  tableNumber: number;
+  tableNumber?: number;
   onContinueOrdering: () => void;
-  onRequestBill: () => void;
+  onFinalizeOrder: () => void;
+  onOpenPromoMenu: () => void;
+  deliveredIds?: Set<string>;
+  onRequestItem?: (requestType: 'server' | 'condiments' | 'water' | 'bill' | 'issue') => void;
 }
 
-export function DiningScreen({ 
-  language, 
-  currentOrders, 
+export function DiningScreen({
+  language,
+  currentOrders,
   tableNumber,
   onContinueOrdering,
-  onRequestBill 
+  onFinalizeOrder,
+  onOpenPromoMenu,
+  deliveredIds,
+  onRequestItem,
 }: DiningScreenProps) {
+  const [showRequestModal, setShowRequestModal] = useState(false);
   const total = currentOrders.reduce(
-    (sum, item) => sum + item.menuItem.price * item.quantity, 
+    (sum, item) => sum + item.menuItem.price * item.quantity,
     0
   );
-
-  const formatPrice = (price: number) => {
-    return `$${price.toFixed(2)}`;
-  };
+  const hasTable = typeof tableNumber === 'number';
+  const heading = hasTable ? `Table #${tableNumber}` : t('yourOrder', language);
+  const subheading = hasTable ? 'Enjoy your meal!' : t('orderConfirmationSubtext', language);
+  const seenIds = new Set<string>();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 pb-32">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
-            <UtensilsCrossed className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Table #{tableNumber}</h1>
-          <p className="text-gray-600">Enjoy your meal!</p>
-        </div>
-
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('yourOrder', language)}</h2>
-          <div className="space-y-3">
-            {currentOrders.map((item, index) => (
-              <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {item.quantity}x {item.menuItem.name[language]}
-                  </p>
-                  <p className="text-sm text-gray-600 capitalize">{item.menuItem.category}</p>
-                </div>
-                <p className="font-semibold text-gray-900">
-                  {formatPrice(item.menuItem.price * item.quantity)}
-                </p>
-              </div>
-            ))}
-            
-            <div className="border-t pt-3 flex justify-between items-center">
-              <span className="text-lg font-semibold text-gray-900">{t('subtotal', language)}</span>
-              <span className="text-lg font-bold text-blue-600">{formatPrice(total)}</span>
-            </div>
-          </div>
-        </Card>
-
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
-          <div className="max-w-2xl mx-auto space-y-2">
-            <Button 
-              onClick={onContinueOrdering}
-              variant="outline"
-              className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
-              size="lg"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              {t('continueOrdering', language)}
-            </Button>
-            <Button 
-              onClick={onRequestBill}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-              size="lg"
-            >
-              <Receipt className="w-5 h-5 mr-2" />
-              {t('requestBill', language)}
-            </Button>
-          </div>
-        </div>
+    <>
+      {/* Bell button for service requests */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          variant="outline"
+          onClick={() => setShowRequestModal(true)}
+          className="rounded-full border border-gray-200 bg-white shadow-sm px-3"
+          aria-label="Request assistance"
+        >
+          <Bell className="w-5 h-5" />
+        </Button>
       </div>
-    </div>
+
+      <PageShell paddedForActionBar className="justify-start">
+        <div className="space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+              <UtensilsCrossed className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-xl font-semibold text-gray-900">{heading}</h1>
+            <p className="text-sm text-gray-600">{subheading}</p>
+          </div>
+
+          <Card className="p-6 space-y-3">
+            <h2 className="text-xl font-semibold text-gray-900">{t('yourOrder', language)}</h2>
+            {currentOrders.map((item, index) => {
+              const hasBeenSeen = seenIds.has(item.menuItem.id);
+              const isDelivered = deliveredIds?.has(item.menuItem.id) || hasBeenSeen;
+              seenIds.add(item.menuItem.id);
+              const displayName =
+                item.menuItem.name.es ||
+                item.menuItem.name.en ||
+                Object.values(item.menuItem.name)[0];
+              const displayCategory = localizeCategory(item.menuItem.category, language);
+              return (
+                <div
+                  key={index}
+                  className={`flex justify-between items-center p-3 rounded-lg border ${
+                    isDelivered ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'
+                  }`}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {item.quantity}x {displayName}
+                    </p>
+                    <p className="text-sm text-gray-600">{displayCategory}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    ${(item.menuItem.price * item.quantity).toFixed(2)}
+                  </p>
+                </div>
+              );
+            })}
+
+            <div className="border-t pt-3 flex justify-between">
+              <span className="text-sm font-medium text-gray-900">{t('subtotal', language)}</span>
+              <span className="text-sm font-semibold text-gray-900">${total.toFixed(2)}</span>
+            </div>
+            <p className="text-center text-sm text-gray-600 mt-4">
+              {t('placeFinalOrder', language)}
+            </p>
+          </Card>
+        </div>
+      </PageShell>
+
+      <BottomActionBar>
+        <Button onClick={onFinalizeOrder} className="w-full sm:flex-1" size="lg">
+          {t('placeFinalOrderButton', language)}
+        </Button>
+        <Button
+          onClick={onContinueOrdering}
+          variant="outline"
+          className="w-full sm:flex-1"
+          size="lg"
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          {t('continueOrdering', language)}
+        </Button>
+        <Button onClick={onOpenPromoMenu} className="w-full sm:flex-1" size="lg" variant="ghost">
+          {t('todaysPromos', language)}
+        </Button>
+      </BottomActionBar>
+
+      <RequestModal
+        open={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        onRequestItem={onRequestItem || (() => {})}
+      />
+    </>
   );
 }

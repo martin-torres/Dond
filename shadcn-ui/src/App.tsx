@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { AppStage, Language, OrderItem, Restaurant, Bill, Payment } from './types/restaurant';
+import { useState, useEffect, useMemo } from 'react';
+import { AppStage, Language, OrderItem, Restaurant, Payment, MenuItem } from './types';
 import { QRScanner } from './components/QRScanner';
 import { RestaurantInfo } from './components/RestaurantInfo';
 import { TableSelector } from './components/TableSelector';
@@ -7,39 +7,215 @@ import { WaitingScreen } from './components/WaitingScreen';
 import { TableReadyScreen } from './components/TableReadyScreen';
 import { MenuDisplay } from './components/MenuDisplay';
 import { DiningScreen } from './components/DiningScreen';
+import { OrderSubmissionScreen } from './components/OrderSubmissionScreen';
+import { OrderSummaryScreen } from './components/OrderSummaryScreen';
+import { ChefPreviewScreen } from './components/ChefPreviewScreen';
 import { BillPayment } from './components/BillPayment';
 import { PaymentCompleteScreen } from './components/PaymentCompleteScreen';
 import { ProximityWarning } from './components/ProximityWarning';
-import { DemoInfoCard } from './components/DemoInfoCard';
-import { DessertOfferModal } from './components/DessertOfferModal';
-import { mockRestaurants } from './data/mockRestaurants';
+import { FloorPlanTestPage } from './components/FloorPlanTestPage';
+import CreatorDashboard from './staff/CreatorDashboard';
+import { supabase } from './lib/supabaseClient';
+import { fetchRestaurantMenuItems } from './api/restaurantMenuApi';
+import { fetchRestaurantTables } from './api/restaurantTablesApi';
+import { fetchRestaurantPromos, fetchRestaurantEvents } from './api/promosEventsApi';
 import { Button } from './components/ui/button';
+import { Globe } from 'lucide-react';
+import { MenuPreview } from './components/MenuPreview';
+import { translateRestaurantMenu } from './utils/liveTranslations';
+import { useStaffData } from './staff/StaffDataProvider';
+import { createPaymentRecord, updatePaymentStatus } from './api/paymentsApi';
+import { resolveRestaurantId, getRestaurant } from './api/restaurantsApi';
 
 export default function App() {
+  const SUPPORTED_LANGS: Language[] = ['en', 'es', 'fr', 'de', 'ja', 'ar', 'zh'];
+  const normalizeLang = (value: string): Language =>
+    SUPPORTED_LANGS.includes(value as Language) ? (value as Language) : 'es';
+
+  const staff = useStaffData();
+
+  // Check if we're on the test page
+  const isTestPage = typeof window !== 'undefined' && window.location.pathname === '/test-floor-plan';
+
+  // Check if we're accessing the admin dashboard
+  const isAdminDashboard = typeof window !== 'undefined' &&
+    (window.location.search.includes('admin=true') ||
+     window.location.pathname === '/admin');
+
   // Detect phone language (simulated - in real app would use navigator.language)
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>('es');
   const [stage, setStage] = useState<AppStage>('qr-scan');
   const [currentRestaurant, setCurrentRestaurant] = useState<Restaurant | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [currentOrders, setCurrentOrders] = useState<OrderItem[]>([]);
   const [drinkOrders, setDrinkOrders] = useState<OrderItem[]>([]);
   const [proximityDistance, setProximityDistance] = useState(10); // meters from restaurant
-  const [bill, setBill] = useState<Bill | null>(null);
-  const [mockPayments, setMockPayments] = useState<Payment[]>([]);
-  const [showDessertOffer, setShowDessertOffer] = useState(false);
-  const [dessertOffered, setDessertOffered] = useState(false);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [waitSeconds, setWaitSeconds] = useState<number | null>(null);
+  const [menuFocusItemId, setMenuFocusItemId] = useState<string | null>(null);
+  const [interactiveMenuFocusId, setInteractiveMenuFocusId] = useState<string | null>(null);
+  const [interactiveMenuInitialTab, setInteractiveMenuInitialTab] = useState<'food' | 'drinks'>('food');
+  const [chefPreviewCategory, setChefPreviewCategory] = useState<'food' | 'drinks' | null>(null);
+  const [menuReturnStage, setMenuReturnStage] = useState<AppStage | null>(null);
+  const [pendingChefPreviewItems, setPendingChefPreviewItems] = useState<OrderItem[] | null>(null);
+  const [pendingTableOrder, setPendingTableOrder] = useState<OrderItem[] | null>(null);
+  const [deliveredItemIds, setDeliveredItemIds] = useState<Set<string>>(new Set());
 
   // Auto-detect language on mount (simulated)
   useEffect(() => {
     const browserLang = navigator.language.toLowerCase();
-    if (browserLang.startsWith('es')) setLanguage('es');
-    else if (browserLang.startsWith('fr')) setLanguage('fr');
-    else if (browserLang.startsWith('de')) setLanguage('de');
-    else if (browserLang.startsWith('ja')) setLanguage('ja');
-    else if (browserLang.startsWith('ar')) setLanguage('ar');
-    else if (browserLang.startsWith('zh')) setLanguage('zh');
-    else setLanguage('en');
+    let nextLang: Language = 'es';
+    if (browserLang.startsWith('es')) nextLang = 'es';
+    else if (browserLang.startsWith('fr')) nextLang = 'fr';
+    else if (browserLang.startsWith('de')) nextLang = 'de';
+    else if (browserLang.startsWith('ja')) nextLang = 'ja';
+    else if (browserLang.startsWith('ar')) nextLang = 'ar';
+    else if (browserLang.startsWith('zh')) nextLang = 'zh';
+    setLanguage(normalizeLang(nextLang));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const translateCurrent = async () => {
+      if (!currentRestaurant) return;
+      const translated = await translateRestaurantMenu(currentRestaurant, language);
+      if (cancelled) return;
+      if (translated !== currentRestaurant) {
+        setCurrentRestaurant(translated);
+      }
+    };
+    translateCurrent();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentRestaurant?.id, language]);
+
+  // Listen for delivered items from Supabase so order lists reflect restaurant updates in real time.
+  useEffect(() => {
+    if (!selectedTableId || !currentRestaurant) return;
+    const channel = supabase
+      .channel('order-items-delivered')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'order_items',
+          filter: `table_id=eq.${selectedTableId}`,
+        },
+        (payload) => {
+          const status = (payload.new as unknown)?.status;
+          const menuItemId = (payload.new as unknown)?.menu_item_id;
+          if (status === 'delivered' && menuItemId) {
+            setDeliveredItemIds((prev) => {
+              const next = new Set(prev);
+              next.add(menuItemId);
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedTableId, currentRestaurant]);
+
+  // Listen for table status changes from staff side to update customer view in real-time
+  useEffect(() => {
+    if (!currentRestaurant?.id) return;
+
+    const channel = supabase
+      .channel('customer-table-sync')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'restaurant_tables',
+          filter: `restaurant_id=eq.${currentRestaurant.id}`,
+        },
+        (payload) => {
+          const updatedTable = payload.new;
+          setCurrentRestaurant((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  tables: prev.tables.map((table) =>
+                    table.id === updatedTable.id
+                      ? { ...table, available: updatedTable.available }
+                      : table
+                  ),
+                }
+              : prev
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentRestaurant?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTableOrders = async () => {
+      if (!selectedTableId) {
+        setCurrentOrders([]);
+        return;
+      }
+      const tableOrders = staff.orders.filter(
+        (order) => order.tableId === selectedTableId && order.orderType !== 'request'
+      );
+      const orderIds = Array.from(new Set(tableOrders.map((order) => order.id)));
+      if (!orderIds.length) {
+        setCurrentOrders([]);
+        return;
+      }
+      try {
+        const itemsByOrder = await Promise.all(
+          orderIds.map((orderId) => staff.getBillDataByOrderId(orderId))
+        );
+        if (!cancelled) {
+          setCurrentOrders(itemsByOrder.flat());
+        }
+      } catch (err) {
+        console.error('Failed to load table order items:', err);
+        if (!cancelled) {
+          setCurrentOrders([]);
+        }
+      }
+    };
+
+    loadTableOrders();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTableId, staff.orders, staff.getBillDataByOrderId]);
+  
+  const submitItemsToSupabase = async (items: OrderItem[], tableId: string) => {
+    if (!currentRestaurant || items.length === 0) return;
+
+    const tableNumber =
+      currentRestaurant.tables!.find((t) => t.id === tableId)?.number ?? null;
+
+    try {
+      await staff.addCustomerOrder({
+        items,
+        meta: {
+          restaurant: currentRestaurant,
+          tableId,
+          tableNumber,
+          language,
+        },
+      });
+      console.log('✅ Sent order to Supabase', { tableId, count: items.length });
+    } catch (err) {
+      console.error('❌ Failed to send order to Supabase', err);
+    }
+  };
 
   // Simulate proximity changes
   useEffect(() => {
@@ -55,16 +231,207 @@ export default function App() {
     }
   }, [stage, drinkOrders]);
 
-  const handleQRScan = (restaurantId: string) => {
-    const restaurant = mockRestaurants.find(r => r.id === restaurantId);
-    if (restaurant) {
-      setCurrentRestaurant(restaurant);
-      setStage('restaurant-info');
+  const fillLanguageRecord = (value: unknown): Record<Language, string> => {
+    const base: Record<string, string> =
+      value && typeof value === 'object' ? value : { en: String(value ?? '') };
+
+    const pick = (lang: Language) => {
+      const direct = base[lang];
+      if (typeof direct === 'string' && direct.trim()) return direct;
+
+      const en = base.en;
+      if (typeof en === 'string' && en.trim()) return en;
+
+      const firstKey = Object.keys(base)[0];
+      if (firstKey && typeof base[firstKey] === 'string') return base[firstKey];
+
+      return '';
+    };
+
+    return {
+      en: pick('en'),
+      es: pick('es'),
+      fr: pick('fr'),
+      de: pick('de'),
+      ja: pick('ja'),
+      ar: pick('ar'),
+      zh: pick('zh'),
+    };
+  };
+
+  // Ensures DB "location" string becomes one of your allowed UI values.
+  const normalizeTableLocation = (
+    value: unknown
+  ): NonNullable<Restaurant['tables']>[number]['location'] => {
+    const v = String(value ?? '').trim();
+    if (
+      v === 'patio' ||
+      v === 'window' ||
+      v === 'balcony' ||
+      v === 'middle' ||
+      v === 'secondFloor'
+    )
+      return v;
+    return 'middle';
+  };
+
+  const handleQRScan = async (restaurantId: string) => {
+    // Resolve restaurant identifier (slug) to UUID for database queries
+    const resolvedRestaurantId = await resolveRestaurantId(restaurantId);
+    if (!resolvedRestaurantId) {
+      alert('Restaurant not found in database');
+      return;
     }
+
+    // Load menu, tables, promos, and events from Supabase using UUID
+    const [menuRows, tableRows, promoRows, eventRows] = await Promise.all([
+      fetchRestaurantMenuItems(resolvedRestaurantId),
+      fetchRestaurantTables(resolvedRestaurantId),
+      fetchRestaurantPromos(resolvedRestaurantId),
+      fetchRestaurantEvents(resolvedRestaurantId),
+    ]);
+
+    if (menuRows.length === 0 && tableRows.length === 0) {
+      alert('Restaurant not found or no data available in database');
+      return;
+    }
+
+    // Only show tables that are visible to customers
+    const tablesFromDb = tableRows
+      .filter((t) => t.visible_to_customers === true)
+      .map((t) => ({
+        id: String(t.id),
+        number: Number(t.table_number ?? 0),
+        seats: Number(t.seats ?? 0),
+        location: normalizeTableLocation(t.location),
+        available: Boolean(t.available ?? true),
+        reserved: false,
+        x: Number(t.x ?? 0),
+        y: Number(t.y ?? 0),
+      }));
+
+    // Convert DB menu rows into your UI MenuItem type
+    const menuItemsFromDb: MenuItem[] = menuRows.map((r) => ({
+      id: String(r.id),
+      name: fillLanguageRecord(r.name),
+      description: fillLanguageRecord(r.description ?? {}),
+      price: Number(r.price ?? 0),
+      category: String(r.category ?? ''),
+      image: String(r.image_url ?? ''),
+    }));
+
+    // Split menu by kind
+    const menuFood = menuRows
+      .filter((r) => r.kind === 'food')
+      .map((r) => menuItemsFromDb.find((i) => i.id === String(r.id))!)
+      .filter(Boolean);
+
+    const menuDrinks = menuRows
+      .filter((r) => r.kind === 'drink')
+      .map((r) => menuItemsFromDb.find((i) => i.id === String(r.id))!)
+      .filter(Boolean);
+
+    // Convert DB promo rows to UI Promo type
+    const promosFromDb = promoRows.map((p) => ({
+      id: String(p.id),
+      title: fillLanguageRecord(p.title),
+      description: fillLanguageRecord(p.description ?? {}),
+      discount: Number(p.discount_percent ?? 0),
+      discountType: (p.discount_percent > 0 ? 'percentage' : 'fixed') as 'percentage' | 'fixed',
+      imageUrl: String(p.image_url ?? ''),
+      menuItemId: p.menu_item_id ? String(p.menu_item_id) : undefined,
+      menuCategory: (p.menu_category === 'food' || p.menu_category === 'drinks') ? p.menu_category as 'food' | 'drinks' : undefined,
+      isActive: Boolean(p.is_active ?? true),
+      startDate: p.start_date || new Date().toISOString().split('T')[0],
+      endDate: p.end_date || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 year from now
+    }));
+
+    // Convert DB event rows to UI Event type
+    const eventsFromDb = eventRows.map((e) => ({
+      id: String(e.id),
+      title: fillLanguageRecord(e.title),
+      description: fillLanguageRecord(e.description ?? {}),
+      imageUrl: String(e.image_url ?? ''),
+      date: e.event_date,
+      startTime: e.start_time,
+      endTime: e.end_time,
+      isActive: Boolean(e.is_active ?? true),
+    }));
+
+    // Get restaurant basic info from database
+    const restaurantInfo = await getRestaurant(restaurantId);
+
+    // Process name and address through fillLanguageRecord like other fields
+    const localizedName = fillLanguageRecord(restaurantInfo?.name);
+    const localizedAddress = fillLanguageRecord(restaurantInfo?.address);
+
+    // Create complete restaurant object from DB data
+    const dbName = localizedName[language] || localizedName['es'] || 'Restaurant';
+    const dbAddress = localizedAddress[language] || localizedAddress['es'] || 'Address not available';
+    const isFromDatabase = !!restaurantInfo;
+
+    setCurrentRestaurant({
+      id: resolvedRestaurantId,
+      name: dbName,
+      address: dbAddress,
+      hours: restaurantInfo?.hours || { open: '9:00 AM', close: '10:00 PM' },
+      waitTime: restaurantInfo?.waitTime || 30,
+      distance: restaurantInfo?.distance || 0,
+      promos: promosFromDb,
+      events: eventsFromDb, // Add events to restaurant object
+      tables: tablesFromDb,
+      menu: {
+        food: menuFood,
+        drinks: menuDrinks,
+      },
+    });
+
+    // Log what data came from database vs fallbacks
+    console.log('🍽️ Restaurant data loaded:', {
+      fromDatabase: !!restaurantInfo,
+      name: dbName,
+      address: dbAddress,
+      waitTime: restaurantInfo?.waitTime,
+      distance: restaurantInfo?.distance
+    });
+
+    // Reset flow state (same behavior as before)
+    setStage('restaurant-info');
+    setSelectedTableId(null);
+    setWaitSeconds(30);
+    setMenuFocusItemId(null);
+    setInteractiveMenuFocusId(null);
+    setMenuReturnStage(null);
+    setInteractiveMenuInitialTab('food');
+    setChefPreviewCategory(null);
+    setPendingTableOrder(null);
+    setDeliveredItemIds(new Set());
   };
 
   const handleTableSelection = (tableId: string | null) => {
     setSelectedTableId(tableId);
+    if (tableId && currentRestaurant) {
+      const table = currentRestaurant.tables!.find(t => t.id === tableId);
+      if (table) {
+        setWaitSeconds(currentRestaurant.waitTime);
+      }
+    } else {
+      setWaitSeconds(currentRestaurant ? currentRestaurant.waitTime : null);
+    }
+    const stagedItems: OrderItem[] = [];
+    if (pendingChefPreviewItems && pendingChefPreviewItems.length > 0) {
+      stagedItems.push(...pendingChefPreviewItems);
+      setPendingChefPreviewItems(null);
+    }
+    if (pendingTableOrder && pendingTableOrder.length > 0) {
+      stagedItems.push(...pendingTableOrder);
+      setPendingTableOrder(null);
+    }
+    if (stagedItems.length > 0) {
+      if (tableId) {
+        void submitItemsToSupabase(stagedItems, tableId);
+      }
+    }
     setStage('waiting');
   };
 
@@ -73,9 +440,47 @@ export default function App() {
   };
 
   const handleDrinkOrderPlaced = (items: OrderItem[]) => {
+    console.log('🍹 handleDrinkOrderPlaced fired', items);
     setDrinkOrders(items);
-    setCurrentOrders(prev => [...prev, ...items]);
+
+    if (selectedTableId && items.length > 0) {
+      void submitItemsToSupabase(items, selectedTableId);
+    }
+
+    setWaitSeconds(prev => {
+      const base = prev ?? currentRestaurant?.waitTime ?? 0;
+      if (base <= 1) return 1;
+      return Math.max(Math.ceil(base / 2), 1);
+    });
     setStage('waiting');
+  };
+  const handlePromoOrder = (menuItemId: string) => {
+    if (!currentRestaurant) return;
+
+    // Find the menu item in drinks or food
+    const allMenuItems = [
+      ...currentRestaurant.menu!.drinks,
+      ...currentRestaurant.menu!.food,
+    ];
+
+    const menuItem = allMenuItems.find((item) => item.id === menuItemId);
+    if (!menuItem) return;
+
+    const newOrderItem: OrderItem = {
+      menuItem,
+      quantity: 1,
+    };
+    if (selectedTableId) {
+      void submitItemsToSupabase([newOrderItem], selectedTableId);
+    } else {
+      setPendingTableOrder((prev) => {
+        if (!prev) return [newOrderItem];
+        return [...prev, newOrderItem];
+      });
+    }
+
+    // Promo pre-orders are held until the guest is seated
+    // and the main flow will handle billing later.
   };
 
   const handleTableReady = () => {
@@ -83,28 +488,7 @@ export default function App() {
   };
 
   const handleProceedToTable = () => {
-    // Show dessert offer modal before proceeding to food ordering
-    if (!dessertOffered) {
-      setShowDessertOffer(true);
-    } else {
-      setStage('ordering-food');
-    }
-  };
-
-  const handleDessertOfferResponse = (wantsDessert: boolean) => {
-    setShowDessertOffer(false);
-    setDessertOffered(true);
-    
-    if (wantsDessert) {
-      setStage('ordering-desserts');
-    } else {
-      setStage('ordering-food');
-    }
-  };
-
-  const handleDessertOrderPlaced = (items: OrderItem[]) => {
-    setCurrentOrders(prev => [...prev, ...items]);
-    setStage('ordering-food');
+    handleOpenInteractiveMenu(undefined, null);
   };
 
   const handleChargeAndReleaseTable = () => {
@@ -116,57 +500,218 @@ export default function App() {
     setSelectedTableId(null);
     setCurrentOrders([]);
     setDrinkOrders([]);
-    setDessertOffered(false);
+    setMenuFocusItemId(null);
+    setInteractiveMenuFocusId(null);
+    setMenuReturnStage(null);
+    setInteractiveMenuInitialTab('food');
+    setChefPreviewCategory(null);
+    setPendingTableOrder(null);
+    setDeliveredItemIds(new Set());
   };
 
   const handleFoodOrderPlaced = (items: OrderItem[]) => {
-    setCurrentOrders(prev => [...prev, ...items]);
-    setStage('dining');
+    console.log('🍽️ handleFoodOrderPlaced fired', items);
+    const nextStage = 'order-summary';
+
+    if (!selectedTableId && items.length > 0) {
+      setPendingTableOrder(items);
+      setStage('table-selection');
+      return;
+    }
+
+    if (selectedTableId && items.length > 0) {
+      void submitItemsToSupabase(items, selectedTableId);
+    }
+
+    setInteractiveMenuFocusId(null);
+    setMenuReturnStage(null);
+    setStage(nextStage);
   };
 
-  const handleContinueOrdering = () => {
+  const handleContinueOrdering = (returnStage?: AppStage | null) => {
+    handleOpenInteractiveMenu(undefined, returnStage ?? null);
+  };
+
+  const handleViewDining = () => {
+    if (currentOrders.length > 0) {
+      setStage('dining');
+    } else {
+      setStage('waiting');
+    }
+  };
+
+  const handleFinalizeOrder = () => {
+    console.log('➡️ handleFinalizeOrder fired; going to order-submit');
+    setStage('order-submit');
+  };
+
+  const handleSubmitOrder = async () => {
+    console.log('🧾 handleSubmitOrder START', {
+      hasRestaurant: !!currentRestaurant,
+      selectedTableId,
+      currentOrdersLen: currentOrders.length,
+      stage,
+    });
+
+    // If we are missing basic info, just go back to the summary for now
+    if (!currentRestaurant || currentOrders.length === 0) {
+      console.log('🛑 handleSubmitOrder early-exit (missing restaurant or empty orders)');
+      setStage('order-summary');
+      return;
+    }
+    // Orders are already created when items are placed.
+    setStage('order-summary');
+  };
+
+
+  const handleOpenMenuPreview = (menuItemId?: string) => {
+    setMenuFocusItemId(menuItemId ?? null);
+    setStage('menu-preview');
+  };
+
+  const handleOpenInteractiveMenu = (
+    menuItemId?: string,
+    returnStage?: AppStage | null,
+    initialTab: 'food' | 'drinks' = 'food'
+  ) => {
+    setInteractiveMenuFocusId(menuItemId ?? null);
+    setMenuReturnStage(returnStage ?? null);
+    setInteractiveMenuInitialTab(initialTab);
     setStage('ordering-food');
   };
 
+  const handleOpenChefPreview = (category?: 'food' | 'drinks') => {
+    setChefPreviewCategory(category ?? null);
+    setStage('chef-preview');
+  };
+
+  const handleChefPreviewReserve = (items: OrderItem[]) => {
+    if (!items.length) return;
+    setPendingChefPreviewItems(items);
+    setChefPreviewCategory(null);
+    setStage('table-selection');
+  };
+
   const handleRequestBill = () => {
-    const subtotal = currentOrders.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
-    const tax = subtotal * 0.1;
-    const tip = subtotal * 0.15;
-    
-    setBill({
-      items: currentOrders,
-      subtotal,
-      tax,
-      tip,
-      total: subtotal + tax + tip,
-      payments: mockPayments,
+    if (!currentOrders.length) {
+      alert('No items to bill yet.');
+      return;
+    }
+    setDeliveredItemIds((prev) => {
+      const next = new Set(prev);
+      currentOrders.forEach((item) => next.add(item.menuItem.id));
+      return next;
     });
     setStage('payment');
   };
 
+
+
+  const handleRequestItem = async (requestType: 'server' | 'condiments' | 'water' | 'bill' | 'issue') => {
+    if (!selectedTableId || !currentRestaurant) {
+      alert('Please select a table first');
+      return;
+    }
+
+    try {
+      // Create proper request order using existing system - NO FAKE ITEMS IN DB
+      await staff.addCustomerOrder({
+        items: [{
+          menuItem: {
+            id: `request-${requestType}-${Date.now()}`, // Unique ID for request classification
+            name: {
+              en: requestType === 'bill' ? 'Bill Request' : `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} Request`,
+              es: requestType === 'bill' ? 'Solicitud de Cuenta' : `Solicitud de ${requestType}`,
+              fr: requestType === 'bill' ? 'Demande de Facture' : `Demande de ${requestType}`,
+              de: requestType === 'bill' ? 'Rechnung Anfrage' : `Anfrage ${requestType}`,
+              ja: requestType === 'bill' ? '請求リクエスト' : `${requestType}リクエスト`,
+              ar: requestType === 'bill' ? 'طلب الفاتورة' : `طلب ${requestType}`,
+              zh: requestType === 'bill' ? '账单请求' : `${requestType}请求`
+            },
+            description: {
+              en: requestType === 'bill' ? 'Customer has requested the bill' : `Customer requested ${requestType}`,
+              es: requestType === 'bill' ? 'El cliente ha solicitado la cuenta' : `Cliente solicitó ${requestType}`,
+              fr: requestType === 'bill' ? 'Le client a demandé la facture' : `Client demandé ${requestType}`,
+              de: requestType === 'bill' ? 'Kunde hat Rechnung angefordert' : `Kunde angefordert ${requestType}`,
+              ja: requestType === 'bill' ? 'お客様が請求をリクエストしました' : `お客様が${requestType}をリクエストしました`,
+              ar: requestType === 'bill' ? 'العميل طلب الفاتورة' : `العميل طلب ${requestType}`,
+              zh: requestType === 'bill' ? '顾客已请求账单' : `顾客请求了${requestType}`
+            },
+            price: 0,
+            category: 'service',
+            image: ''
+          },
+          quantity: 1
+        }],
+        meta: {
+          restaurant: currentRestaurant,
+          tableId: selectedTableId,
+          customerName: requestType === 'bill' ? 'Bill Request' : `${requestType.charAt(0).toUpperCase() + requestType.slice(1)} Request`,
+          note: requestType === 'bill'
+            ? 'Customer has requested the bill and is ready for checkout'
+            : `Customer requested ${requestType}`,
+          // This creates orderType: 'request' in the DB
+          ...(true as unknown && { requestType: 'request' }), // Type-safe way to add extra property
+        },
+      });
+
+      alert(`✅ ${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request sent to staff!`);
+      console.log(`✅ Created ${requestType} request for FOH`);
+    } catch (err) {
+      console.error(`❌ Failed to create ${requestType} request:`, err);
+      alert(`Failed to send ${requestType} request. Please try again.`);
+    }
+  };
+
+  const handleRequestBillAndNotify = async () => {
+    await handleRequestItem('bill');
+    handleRequestBill();
+  };
+
   const handlePaymentComplete = (paidAmount?: number, paidItems?: string[]) => {
+    const orderReference = selectedTableId ?? 'local-order';
+    if (paidAmount !== undefined) {
+      // Stubbed payment recording to keep flow integration-friendly.
+      createPaymentRecord({
+        orderId: orderReference,
+        amount: paidAmount,
+        currency: 'USD',
+        metadata: {
+          items: (paidItems ?? []).join(','),
+          restaurantId: currentRestaurant?.id ?? 'unknown',
+        },
+      }).then((record) => updatePaymentStatus(record.id, 'PAID'));
+    }
     // Reset to initial state
     setStage('qr-scan');
     setCurrentRestaurant(null);
     setSelectedTableId(null);
     setCurrentOrders([]);
     setDrinkOrders([]);
-    setBill(null);
-    setMockPayments([]);
-    setDessertOffered(false);
+    setPayments([]);
+    setMenuFocusItemId(null);
+    setInteractiveMenuFocusId(null);
+    setMenuReturnStage(null);
+    setInteractiveMenuInitialTab('food');
+    setChefPreviewCategory(null);
+    setPendingTableOrder(null);
+    setDeliveredItemIds(new Set());
   };
 
-  const selectedTable = currentRestaurant?.tables.find(t => t.id === selectedTableId);
+  const selectedTable = currentRestaurant?.tables!.find(t => t.id === selectedTableId);
+  const promoFocus = currentRestaurant?.promos!.find((promo) => promo.menuItemId);
+  const promoFocusItemId = promoFocus?.menuItemId;
+  const promoFocusTab: 'food' | 'drinks' = promoFocus?.menuCategory === 'drinks' ? 'drinks' : 'food';
 
   // Language selector (for demo purposes)
   const LanguageSelector = () => (
     <div className="fixed top-4 right-4 z-50">
       <select
         value={language}
-        onChange={(e) => setLanguage(e.target.value as Language)}
+        onChange={(e) => setLanguage(normalizeLang(e.target.value))}
         className="px-3 py-2 bg-white border border-gray-300 rounded-lg shadow-sm flex items-center gap-2"
       >
-        <option value="en">🇬🇧 English</option>
+        <option value="en">🇬🇧 English (DEV TEST)</option>
         <option value="es">🇪🇸 Español</option>
         <option value="fr">🇫🇷 Français</option>
         <option value="de">🇩🇪 Deutsch</option>
@@ -177,59 +722,34 @@ export default function App() {
     </div>
   );
 
-  // Simulate other people paying at terminal
-  const SimulateTerminalPayment = () => {
-    if (stage !== 'payment' || !bill) return null;
-    
-    return (
-      <div className="fixed bottom-24 right-4 z-50">
-        <Button
-          onClick={() => {
-            const payment: Payment = {
-              userId: `user-${mockPayments.length + 1}`,
-              userName: `Customer ${mockPayments.length + 1}`,
-              amount: 25,
-              paidAt: new Date(),
-            };
-            setMockPayments(prev => [...prev, payment]);
-            setBill(prev => prev ? { ...prev, payments: [...prev.payments, payment] } : null);
-          }}
-          variant="outline"
-          size="sm"
-        >
-          Simulate Terminal Payment
-        </Button>
-      </div>
-    );
-  };
+  // Removed SimulateTerminalPayment - no more mock payments
 
-  // Distance simulator for demo
-  const DistanceSimulator = () => {
-    if (stage !== 'waiting' || drinkOrders.length === 0) return null;
-    
-    return (
-      <div className="fixed bottom-24 left-4 z-50 bg-white p-3 rounded-lg shadow-lg border">
-        <p className="text-xs mb-2">Demo: Distance Control</p>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={proximityDistance}
-          onChange={(e) => setProximityDistance(Number(e.target.value))}
-          className="w-32"
-        />
-        <p className="text-xs mt-1">{proximityDistance}m</p>
-      </div>
+  const bill = useMemo(() => {
+    if (!currentOrders.length) return null;
+    const subtotal = currentOrders.reduce(
+      (sum, item) => sum + item.menuItem.price * item.quantity,
+      0
     );
-  };
+    const tax = subtotal * 0.089999;
+    const tip = subtotal * 0.15;
+    return {
+      items: currentOrders,
+      subtotal,
+      tax,
+      tip,
+      total: subtotal + tax + tip,
+      payments,
+    };
+  }, [currentOrders, payments]);
+
+  // Render test page if on test route
+  if (isTestPage) {
+    return <FloorPlanTestPage />;
+  }
 
   return (
     <div className="min-h-screen">
-      {stage === 'qr-scan' && <DemoInfoCard />}
-      
       <LanguageSelector />
-      <SimulateTerminalPayment />
-      <DistanceSimulator />
       
       {stage === 'waiting' && drinkOrders.length > 0 && (
         <ProximityWarning 
@@ -237,15 +757,6 @@ export default function App() {
           language={language} 
           drinkTotal={drinkOrders.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0)}
           onChargeAndRelease={handleChargeAndReleaseTable}
-        />
-      )}
-
-      {/* Dessert Offer Modal */}
-      {showDessertOffer && currentRestaurant && (
-        <DessertOfferModal
-          language={language}
-          desserts={currentRestaurant.menu.food.filter(item => item.category === 'Desserts')}
-          onResponse={handleDessertOfferResponse}
         />
       )}
 
@@ -258,12 +769,45 @@ export default function App() {
           restaurant={currentRestaurant}
           language={language}
           onContinue={() => setStage('table-selection')}
+          onOrderFromPromo={handlePromoOrder}
+          onViewMenu={handleOpenMenuPreview}
+          onViewInteractiveMenu={(menuItemId, initialTab) =>
+            handleOpenInteractiveMenu(menuItemId, 'restaurant-info', initialTab)
+          }
+          onViewChefPreview={handleOpenChefPreview}
+        />
+      )}
+      {stage === 'menu-preview' && currentRestaurant && (
+        <MenuPreview
+          restaurant={currentRestaurant}
+          language={language}
+          focusItemId={menuFocusItemId ?? undefined}
+          onClose={() => {
+            setStage('restaurant-info');
+            setMenuFocusItemId(null);
+          }}
+        />
+      )}
+      {stage === 'chef-preview' && currentRestaurant && (
+        <ChefPreviewScreen
+          restaurant={currentRestaurant}
+          language={language}
+          focusCategory={chefPreviewCategory ?? undefined}
+          onClose={() => {
+            setStage('restaurant-info');
+            setChefPreviewCategory(null);
+          }}
+          onReserveTable={handleChefPreviewReserve}
+          onBrowseFullMenu={(initialTab) =>
+            handleOpenInteractiveMenu(undefined, 'chef-preview', initialTab ?? 'food')
+          }
+          onSelectTable={() => setStage('table-selection')}
         />
       )}
 
       {stage === 'table-selection' && currentRestaurant && (
         <TableSelector
-          tables={currentRestaurant.tables}
+          tables={currentRestaurant.tables!}
           language={language}
           onSelectTable={handleTableSelection}
         />
@@ -272,19 +816,26 @@ export default function App() {
       {stage === 'waiting' && currentRestaurant && (
         <WaitingScreen
           language={language}
-          estimatedWaitTime={currentRestaurant.waitTime}
+          estimatedWaitTime={waitSeconds ?? currentRestaurant.waitTime}
           onTableReady={handleTableReady}
           onOrderDrinks={handleOrderDrinks}
+          onTimeUpdate={(seconds) => setWaitSeconds(seconds)}
+          distance={drinkOrders.length > 0 ? proximityDistance : undefined}
+          onDistanceChange={
+            drinkOrders.length > 0 ? (distance) => setProximityDistance(distance) : undefined
+          }
+          onBack={() => setStage('table-selection')}
         />
       )}
 
       {stage === 'ordering-drinks' && currentRestaurant && (
         <MenuDisplay
-          drinks={currentRestaurant.menu.drinks}
-          food={currentRestaurant.menu.food}
+          drinks={currentRestaurant.menu!.drinks}
+          food={currentRestaurant.menu!.food}
           language={language}
           onPlaceOrder={handleDrinkOrderPlaced}
           isDrinksOnly={true}
+          onRequestItem={handleRequestItem}
         />
       )}
 
@@ -295,34 +846,74 @@ export default function App() {
           onProceed={handleProceedToTable}
         />
       )}
-
-      {stage === 'ordering-desserts' && currentRestaurant && (
-        <MenuDisplay
-          drinks={currentRestaurant.menu.drinks}
-          food={currentRestaurant.menu.food}
-          language={language}
-          onPlaceOrder={handleDessertOrderPlaced}
-          isDessertsOnly={true}
-        />
-      )}
-
       {stage === 'ordering-food' && currentRestaurant && (
         <MenuDisplay
-          drinks={currentRestaurant.menu.drinks}
-          food={currentRestaurant.menu.food}
+          drinks={currentRestaurant.menu!.drinks}
+          food={currentRestaurant.menu!.food}
           language={language}
           onPlaceOrder={handleFoodOrderPlaced}
           isDrinksOnly={false}
+          focusItemId={interactiveMenuFocusId ?? undefined}
+          initialTab={interactiveMenuInitialTab}
+          onNext={
+            !selectedTableId
+              ? () => setStage('table-selection')
+              : () => handleFoodOrderPlaced([])
+          }
+          onBack={() => {
+            setInteractiveMenuFocusId(null);
+            if (menuReturnStage) {
+              setStage(menuReturnStage);
+              setMenuReturnStage(null);
+              return;
+            }
+            setStage('restaurant-info');
+          }}
+          showSeatPrompt={!selectedTableId}
+          onChooseSeat={() => setStage('table-selection')}
+          onRequestItem={handleRequestItem}
         />
       )}
 
-      {stage === 'dining' && selectedTable && (
+      {stage === 'dining' && currentRestaurant && (
         <DiningScreen
           language={language}
           currentOrders={currentOrders}
-          tableNumber={selectedTable.number}
-          onContinueOrdering={handleContinueOrdering}
-          onRequestBill={handleRequestBill}
+          tableNumber={selectedTable?.number}
+          deliveredIds={deliveredItemIds}
+          onContinueOrdering={() => handleContinueOrdering('dining')}
+          onFinalizeOrder={handleFinalizeOrder}
+          onOpenPromoMenu={() => handleOpenInteractiveMenu(promoFocusItemId, 'dining', promoFocusTab)}
+          onRequestItem={(requestType) => {
+            if (requestType === 'bill') {
+              void handleRequestBillAndNotify();
+              return;
+            }
+            void handleRequestItem(requestType);
+          }}
+        />
+      )}
+
+      {stage === 'order-submit' && (
+        <OrderSubmissionScreen
+          language={language}
+          onContinue={handleSubmitOrder}
+        />
+      )}
+      {stage === 'order-summary' && currentRestaurant && (
+        <OrderSummaryScreen
+          language={language}
+          tableNumber={selectedTable?.number}
+          items={currentOrders}
+          deliveredIds={deliveredItemIds}
+          onContinueOrdering={() => handleContinueOrdering('order-summary')}
+          onRequestItem={(requestType) => {
+            if (requestType === 'bill') {
+              void handleRequestBillAndNotify();
+              return;
+            }
+            void handleRequestItem(requestType);
+          }}
         />
       )}
 
@@ -331,8 +922,12 @@ export default function App() {
           bill={bill}
           language={language}
           onPaymentComplete={handlePaymentComplete}
+          onRequestItem={handleRequestItem}
         />
       )}
+
+      {/* Admin Dashboard */}
+      {isAdminDashboard && <CreatorDashboard />}
     </div>
   );
 }

@@ -93,7 +93,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ language }) => {
           <h2 className="text-lg font-semibold text-gray-800 mb-4">{t.orderTotal}</h2>
           
           <div className="space-y-2 mb-4">
-            {cart.map((item: any, index: number) => (
+            {cart.map((item: unknown, index: number) => (
               <div key={index} className="flex justify-between items-center py-1">
                 <span className="text-gray-600">{item.name}</span>
                 <span className="font-medium">{formatPrice(item.price)}</span>

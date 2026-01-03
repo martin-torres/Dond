@@ -1,8 +1,9 @@
-import { CheckCircle } from 'lucide-react';
-import { Language } from '../types/restaurant';
+import { PartyPopper } from 'lucide-react';
+import { Language } from '../types';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
-import { Card } from './ui/card';
+import { PageShell } from './PageShell';
+import { BottomActionBar } from './BottomActionBar';
 
 interface TableReadyScreenProps {
   language: Language;
@@ -12,27 +13,29 @@ interface TableReadyScreenProps {
 
 export function TableReadyScreen({ language, tableNumber, onProceed }: TableReadyScreenProps) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 p-4 flex items-center justify-center">
-      <Card className="w-full max-w-md p-8 text-center">
-        <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-          <CheckCircle className="w-14 h-14 text-white" />
-        </div>
-        
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          {t('tableReady', language)}
-        </h1>
-        <p className="text-lg text-gray-600 mb-6">
-          Table #{tableNumber}
-        </p>
-        
-        <Button 
-          onClick={onProceed} 
-          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white" 
-          size="lg"
-        >
-          {t('proceedToTable', language)}
+    <>
+      <PageShell
+        paddedForActionBar
+        headerSlot={
+          <div className="max-w-md w-full text-center space-y-6 mx-auto">
+            <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto animate-bounce">
+              <PartyPopper className="w-16 h-16 text-white" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-xl font-semibold text-gray-900">{t('tableReady', language)}</h1>
+              <p className="text-sm text-gray-600">Table #{tableNumber}</p>
+            </div>
+          </div>
+        }
+      >
+        <></>
+      </PageShell>
+
+      <BottomActionBar>
+        <Button onClick={onProceed} size="lg" className="w-full sm:flex-1">
+          {t('orderFood', language)}
         </Button>
-      </Card>
-    </div>
+      </BottomActionBar>
+    </>
   );
 }
