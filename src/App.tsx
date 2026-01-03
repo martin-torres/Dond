@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { AppStage, Language, OrderItem, Restaurant, Bill, Payment, MenuItem } from './types';
+import { useState, useEffect, useMemo } from 'react';
+import { AppStage, Language, OrderItem, Restaurant, Payment, MenuItem } from './types';
 import { QRScanner } from './components/QRScanner';
 import { RestaurantInfo } from './components/RestaurantInfo';
 import { TableSelector } from './components/TableSelector';
@@ -50,7 +50,6 @@ export default function App() {
   const [currentOrders, setCurrentOrders] = useState<OrderItem[]>([]);
   const [drinkOrders, setDrinkOrders] = useState<OrderItem[]>([]);
   const [proximityDistance, setProximityDistance] = useState(10); // meters from restaurant
-  const [bill, setBill] = useState<Bill | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [waitSeconds, setWaitSeconds] = useState<number | null>(null);
   const [menuFocusItemId, setMenuFocusItemId] = useState<string | null>(null);
@@ -160,22 +159,41 @@ export default function App() {
     };
   }, [currentRestaurant?.id]);
 
-  const appendOrders = (items: OrderItem[]) => {
-    if (!items.length) return;
-    setCurrentOrders((prev) => {
-      const existingIds = new Set(prev.map((item) => item.menuItem.id));
-      setDeliveredItemIds((deliveredPrev) => {
-        const next = new Set(deliveredPrev);
-        items.forEach((item) => {
-          if (existingIds.has(item.menuItem.id)) {
-            next.add(item.menuItem.id);
-          }
-        });
-        return next;
-      });
-      return [...prev, ...items];
-    });
-  };
+  useEffect(() => {
+    let cancelled = false;
+    const loadTableOrders = async () => {
+      if (!selectedTableId) {
+        setCurrentOrders([]);
+        return;
+      }
+      const tableOrders = staff.orders.filter(
+        (order) => order.tableId === selectedTableId && order.orderType !== 'request'
+      );
+      const orderIds = Array.from(new Set(tableOrders.map((order) => order.id)));
+      if (!orderIds.length) {
+        setCurrentOrders([]);
+        return;
+      }
+      try {
+        const itemsByOrder = await Promise.all(
+          orderIds.map((orderId) => staff.getBillDataByOrderId(orderId))
+        );
+        if (!cancelled) {
+          setCurrentOrders(itemsByOrder.flat());
+        }
+      } catch (err) {
+        console.error('Failed to load table order items:', err);
+        if (!cancelled) {
+          setCurrentOrders([]);
+        }
+      }
+    };
+
+    loadTableOrders();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTableId, staff.orders, staff.getBillDataByOrderId]);
   
   const submitItemsToSupabase = async (items: OrderItem[], tableId: string) => {
     if (!currentRestaurant || items.length === 0) return;
@@ -410,7 +428,6 @@ export default function App() {
       setPendingTableOrder(null);
     }
     if (stagedItems.length > 0) {
-      appendOrders(stagedItems);
       if (tableId) {
         void submitItemsToSupabase(stagedItems, tableId);
       }
@@ -425,7 +442,6 @@ export default function App() {
   const handleDrinkOrderPlaced = (items: OrderItem[]) => {
     console.log('🍹 handleDrinkOrderPlaced fired', items);
     setDrinkOrders(items);
-    appendOrders(items);
 
     if (selectedTableId && items.length > 0) {
       void submitItemsToSupabase(items, selectedTableId);
@@ -454,8 +470,14 @@ export default function App() {
       menuItem,
       quantity: 1,
     };
-
-    appendOrders([newOrderItem]);
+    if (selectedTableId) {
+      void submitItemsToSupabase([newOrderItem], selectedTableId);
+    } else {
+      setPendingTableOrder((prev) => {
+        if (!prev) return [newOrderItem];
+        return [...prev, newOrderItem];
+      });
+    }
 
     // Promo pre-orders are held until the guest is seated
     // and the main flow will handle billing later.
@@ -497,8 +519,6 @@ export default function App() {
       return;
     }
 
-    appendOrders(items);
-
     if (selectedTableId && items.length > 0) {
       void submitItemsToSupabase(items, selectedTableId);
     }
@@ -539,30 +559,8 @@ export default function App() {
       setStage('order-summary');
       return;
     }
-
-    const tableNumber =
-      selectedTableId
-        ? currentRestaurant.tables!.find((t) => t.id === selectedTableId)?.number ?? null
-        : null;
-
-    try {
-      console.log('📤 calling staff.addCustomerOrder');
-      await staff.addCustomerOrder({
-        items: currentOrders,
-        meta: {
-          restaurant: currentRestaurant,
-          tableId: selectedTableId ?? null,
-          tableNumber,
-          language,
-        },
-      });
-      console.log('✅ staff.addCustomerOrder done');
-    } catch (err) {
-      console.error('❌ Unexpected error saving order to Supabase:', err);
-    } finally {
-      // No matter what happens, show the order summary screen
-      setStage('order-summary');
-    }
+    // Orders are already created when items are placed.
+    setStage('order-summary');
   };
 
 
@@ -595,22 +593,14 @@ export default function App() {
   };
 
   const handleRequestBill = () => {
-    const subtotal = currentOrders.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
-    const tax = subtotal * 0.089999;
-    const tip = subtotal * 0.15;
+    if (!currentOrders.length) {
+      alert('No items to bill yet.');
+      return;
+    }
     setDeliveredItemIds((prev) => {
       const next = new Set(prev);
       currentOrders.forEach((item) => next.add(item.menuItem.id));
       return next;
-    });
-    
-    setBill({
-      items: currentOrders,
-      subtotal,
-      tax,
-      tip,
-      total: subtotal + tax + tip,
-      payments: payments,
     });
     setStage('payment');
   };
@@ -673,6 +663,11 @@ export default function App() {
     }
   };
 
+  const handleRequestBillAndNotify = async () => {
+    await handleRequestItem('bill');
+    handleRequestBill();
+  };
+
   const handlePaymentComplete = (paidAmount?: number, paidItems?: string[]) => {
     const orderReference = selectedTableId ?? 'local-order';
     if (paidAmount !== undefined) {
@@ -693,7 +688,6 @@ export default function App() {
     setSelectedTableId(null);
     setCurrentOrders([]);
     setDrinkOrders([]);
-    setBill(null);
     setPayments([]);
     setMenuFocusItemId(null);
     setInteractiveMenuFocusId(null);
@@ -729,6 +723,24 @@ export default function App() {
   );
 
   // Removed SimulateTerminalPayment - no more mock payments
+
+  const bill = useMemo(() => {
+    if (!currentOrders.length) return null;
+    const subtotal = currentOrders.reduce(
+      (sum, item) => sum + item.menuItem.price * item.quantity,
+      0
+    );
+    const tax = subtotal * 0.089999;
+    const tip = subtotal * 0.15;
+    return {
+      items: currentOrders,
+      subtotal,
+      tax,
+      tip,
+      total: subtotal + tax + tip,
+      payments,
+    };
+  }, [currentOrders, payments]);
 
   // Render test page if on test route
   if (isTestPage) {
@@ -872,7 +884,13 @@ export default function App() {
           onContinueOrdering={() => handleContinueOrdering('dining')}
           onFinalizeOrder={handleFinalizeOrder}
           onOpenPromoMenu={() => handleOpenInteractiveMenu(promoFocusItemId, 'dining', promoFocusTab)}
-          onRequestItem={handleRequestItem}
+          onRequestItem={(requestType) => {
+            if (requestType === 'bill') {
+              void handleRequestBillAndNotify();
+              return;
+            }
+            void handleRequestItem(requestType);
+          }}
         />
       )}
 
@@ -889,7 +907,13 @@ export default function App() {
           items={currentOrders}
           deliveredIds={deliveredItemIds}
           onContinueOrdering={() => handleContinueOrdering('order-summary')}
-          onRequestItem={handleRequestItem}
+          onRequestItem={(requestType) => {
+            if (requestType === 'bill') {
+              void handleRequestBillAndNotify();
+              return;
+            }
+            void handleRequestItem(requestType);
+          }}
         />
       )}
 

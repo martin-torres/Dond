@@ -2,13 +2,12 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { StaffLayout } from './StaffLayout';
 import { useStaffData } from './StaffDataProvider';
 import { TicketCard } from './TicketCard';
-import { markStationPickedUp, markStationDelivered, updateStationStatus } from './orderStatus';
+import { markStationPickedUp, markStationDelivered, updateOrderStatus, updateStationStatus } from './orderStatus';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
 import { Table } from '../types';
 import { OrderStatus, StaffOrder, TableInfo } from './types';
-import { StaffBillView } from './StaffBillView';
 
 export const FohView = () => {
   const { tables, orders, setTableState, closeTableSession, singleOperatorMode, setSingleOperatorMode } = useStaffData();
@@ -212,23 +211,59 @@ export const FohView = () => {
     [tableOrders]
   );
 
+  const getLatestNonRequestOrderId = useCallback(
+    (tableId: string) => {
+      const candidates = orders.filter(
+        (order) =>
+          order.tableId === tableId &&
+          order.orderType !== 'request' &&
+          order.status !== 'DELIVERED'
+      );
+      if (!candidates.length) return undefined;
+      return candidates.reduce((latest, order) =>
+        new Date(order.createdAt).getTime() > new Date(latest.createdAt).getTime()
+          ? order
+          : latest
+      ).id;
+    },
+    [orders]
+  );
+
   const actionsForOrder = (order: StaffOrder) => {
     // Handle bill requests specially - they trigger bill payment page
         if (order.orderType === 'request' && order.customerName?.includes('Bill Request')) {
+          const actions: { label: string; onClick: () => void }[] = [];
           if (order.status === 'NEW') {
-            return [{
+            actions.push({
               label: 'View Bill',
               onClick: () => {
-                // Navigate to staff bill view
+                // Navigate to staff bill view using OrderSummaryScreen
                 if (order.tableId) {
-                  window.location.pathname = `/staff/bill/${order.tableId}`;
-                  // Mark request as handled
-                  markStationDelivered(order.id, 'server');
+                  const latestOrderId = getLatestNonRequestOrderId(order.tableId);
+                  const params = new URLSearchParams();
+                  if (latestOrderId) params.set('orderId', latestOrderId);
+                  if (activeRestaurantId) params.set('restaurantId', activeRestaurantId);
+                  const query = params.toString();
+                  const url = query
+                    ? `/staff/bill/${order.tableId}?${query}`
+                    : `/staff/bill/${order.tableId}`;
+                  window.location.href = url;
                 }
-              }
-            }];
+              },
+            });
+            if (singleOperatorMode) {
+              actions.push({
+                label: 'Handle',
+                onClick: () => updateStationStatus(order.id, 'server', 'IN_PROGRESS'),
+              });
+            }
+          } else if (order.status === 'IN_PROGRESS' && singleOperatorMode) {
+            actions.push({
+              label: 'Complete',
+              onClick: () => markStationDelivered(order.id, 'server'),
+            });
           }
-          return [];
+          return actions;
         }
 
     // In 1-op mode, allow full control over all order types
@@ -246,16 +281,40 @@ export const FohView = () => {
       // Handle kitchen/bar orders in 1-op mode
       const station = order.station;
       if (order.status === 'NEW' && (station === 'kitchen' || station === 'bar')) {
-        return [{ label: 'Start', onClick: () => updateStationStatus(order.id, station, 'IN_PROGRESS') }];
+        return [{
+          label: 'Start',
+          onClick: () => {
+            updateStationStatus(order.id, station, 'IN_PROGRESS');
+            updateOrderStatus(order.id, 'IN_PROGRESS');
+          },
+        }];
       }
       if (order.status === 'IN_PROGRESS' && (station === 'kitchen' || station === 'bar')) {
-        return [{ label: 'Ready', onClick: () => updateStationStatus(order.id, station, 'READY') }];
+        return [{
+          label: 'Ready',
+          onClick: () => {
+            updateStationStatus(order.id, station, 'READY');
+            updateOrderStatus(order.id, 'READY');
+          },
+        }];
       }
       if (order.status === 'READY' && (station === 'kitchen' || station === 'bar')) {
-        return [{ label: 'Pick Up', onClick: () => markStationPickedUp(order.id, station) }];
+        return [{
+          label: 'Pick Up',
+          onClick: () => {
+            markStationPickedUp(order.id, station);
+            updateOrderStatus(order.id, 'PICKING_UP');
+          },
+        }];
       }
       if (order.status === 'PICKING_UP' && (station === 'kitchen' || station === 'bar')) {
-        return [{ label: 'Delivered', onClick: () => markStationDelivered(order.id, station) }];
+        return [{
+          label: 'Delivered',
+          onClick: () => {
+            markStationDelivered(order.id, station);
+            updateOrderStatus(order.id, 'DELIVERED');
+          },
+        }];
       }
       return [];
     }
@@ -267,7 +326,10 @@ export const FohView = () => {
       return [
         {
           label: `Pick up ${station === 'bar' ? 'drinks' : 'food'}`,
-          onClick: () => markStationPickedUp(order.id, station),
+          onClick: () => {
+            markStationPickedUp(order.id, station);
+            updateOrderStatus(order.id, 'PICKING_UP');
+          },
         },
       ];
     }
@@ -275,7 +337,10 @@ export const FohView = () => {
       return [
         {
           label: `Delivered ${station === 'bar' ? 'drinks' : 'food'}`,
-          onClick: () => markStationDelivered(order.id, station),
+          onClick: () => {
+            markStationDelivered(order.id, station);
+            updateOrderStatus(order.id, 'DELIVERED');
+          },
         },
       ];
     }
@@ -450,6 +515,7 @@ export const FohView = () => {
                                 accent="server"
                                 actions={actionsForOrder(order)}
                                 hideTableInfo={true}
+                                wholeCardClickable={false}
                               />
                             ))}
                           </div>

@@ -215,7 +215,10 @@ export const TicketCard = React.memo(({ order, items, accent = 'owner', actions,
                 <button
                   key={action.label}
                   type="button"
-                  onClick={action.onClick}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    action.onClick();
+                  }}
                   className="flex-1 min-w-[100px] h-10 text-sm font-semibold opacity-90 hover:opacity-100 transition-opacity rounded-lg"
                   style={{
                     background: 'rgba(255,255,255,0.55)',

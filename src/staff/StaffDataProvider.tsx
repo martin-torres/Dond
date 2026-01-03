@@ -51,6 +51,7 @@ type StaffContextValue = {
   setTableState: (tableId: string, state: TableState, startedAt?: Date | null) => void;
   closeTableSession: (tableId: string) => void;
   getOrdersForTable: (tableId: string) => StaffOrder[];
+  getBillDataByOrderId: (orderId: string) => Promise<OrderItem[]>;
 };
 
 const StaffDataContext = createContext<StaffContextValue | null>(null);
@@ -84,6 +85,46 @@ const buildMenuKindIndex = (restaurant?: Restaurant | null) => {
   restaurant.menu?.food?.forEach((item) => index.set(item.id, 'food'));
   restaurant.menu?.drinks?.forEach((item) => index.set(item.id, 'drink'));
   return index;
+};
+
+// Helper function to get order items by orderId (canonical identifier)
+const getOrderItemsByOrderId = async (orderId: string): Promise<OrderItem[]> => {
+  try {
+    const itemsMap = await fetchOrderItemsForOrders([orderId]);
+    const items = itemsMap.get(orderId) || [];
+    
+    // Convert OrderItemRow to OrderItem format for OrderSummaryScreen
+    return items.map(item => ({
+      menuItem: {
+        id: item.menu_item_id || item.id,
+        name: {
+          en: item.name,
+          es: item.name,
+          fr: item.name,
+          de: item.name,
+          ja: item.name,
+          ar: item.name,
+          zh: item.name
+        },
+        description: {
+          en: '',
+          es: '',
+          fr: '',
+          de: '',
+          ja: '',
+          ar: '',
+          zh: ''
+        },
+        price: item.price || 0,
+        category: item.kind || 'food',
+        image: ''
+      },
+      quantity: item.quantity
+    }));
+  } catch (error) {
+    console.error('Failed to fetch order items by orderId:', error);
+    return [];
+  }
 };
 
 const getTableLabel = (restaurant: Restaurant | null, tableId?: string | null) => {
@@ -586,24 +627,31 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
 
   const addCustomerOrder = useCallback(
     async (payload: StaffOrderPayload): Promise<StaffOrder | null> => {
-      const restaurant = payload.meta?.restaurant;
-      if (!restaurant) {
-        console.error('No restaurant provided in payload meta');
-        return null;
-      }
-
-      const items = adaptOrderItems(payload.items, restaurant, payload.meta?.language);
-      if (!items.length) return null;
-
-      // Check for request type flag in meta
-      const isRequest = (payload.meta as any)?.requestType === 'request';
-      const orderType: OrderType = isRequest ? 'request' :
-        (payload.meta?.tableId || payload.meta?.tableNumber ? 'dine_in' : 'to_go');
-      const tableLabel = payload.meta?.tableId
-        ? getTableLabel(restaurant, payload.meta.tableId)
-        : undefined;
-
       try {
+        // Prefer explicit restaurant in payload.meta, fallback to activeRestaurant if available.
+        const restaurant = payload.meta?.restaurant ?? activeRestaurant;
+        if (!restaurant) {
+          console.error('[addCustomerOrder] No restaurant provided in payload.meta and no activeRestaurant is set', payload);
+          return null;
+        }
+
+        const items = adaptOrderItems(payload.items, restaurant, payload.meta?.language);
+        if (!items.length) {
+          console.warn('[addCustomerOrder] No valid items after adaptOrderItems', { payload, items });
+          return null;
+        }
+
+        // Check for request type flag in meta
+        const isRequest = (payload.meta as { requestType?: string } | undefined)?.requestType === 'request';
+        const orderType: OrderType = isRequest
+          ? 'request'
+          : payload.meta?.tableId || payload.meta?.tableNumber
+            ? 'dine_in'
+            : 'to_go';
+        const tableLabel = payload.meta?.tableId
+          ? getTableLabel(restaurant, payload.meta.tableId)
+          : undefined;
+
         const orderRow = await createOrderWithItems({
           restaurantId: restaurant.id,
           orderType,
@@ -641,11 +689,19 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         staffOrders.forEach(upsertStaffOrder);
         return staffOrders[0] ?? null;
       } catch (err) {
-        console.error('Failed to create order in Supabase', err);
+        console.error('[addCustomerOrder] unexpected error', err);
         return null;
       }
     },
     [adaptOrderItems, mapSupabaseOrderToStaff, upsertStaffOrder]
+  );
+
+  // New function to get bill data by orderId for OrderSummaryScreen
+  const getBillDataByOrderId = useCallback(
+    async (orderId: string): Promise<OrderItem[]> => {
+      return await getOrderItemsByOrderId(orderId);
+    },
+    []
   );
 
   useEffect(() => {
@@ -790,12 +846,14 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       setTableState,
       closeTableSession,
       getOrdersForTable,
+      getBillDataByOrderId,
     }),
     [
       addCustomerOrder,
       addStaffOrder,
       closeTableSession,
       getOrdersForTable,
+      getBillDataByOrderId,
       markStationDelivered,
       markStationPickedUp,
       orders,
