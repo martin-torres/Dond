@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -17,6 +17,8 @@ import {
   Tag,
   List,
   X,
+  Download,
+  AlertCircle,
 } from 'lucide-react';
 import { Language, MenuItem } from '../types';
 import { upsertRestaurantMenuItems, fetchRestaurantMenuItems } from '../api/restaurantMenuApi';
@@ -45,6 +47,7 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
   const [loading, setLoading] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItemForm[]>([]);
   const [editingItem, setEditingItem] = useState<MenuItemForm | null>(null);
+  const [importStatus, setImportStatus] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories = [
@@ -54,6 +57,10 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
   const stationTypes: StationType[] = ['foh', 'bar', 'kitchen'];
 
   const menuKinds: MenuKind[] = ['food', 'drink'];
+
+  useEffect(() => {
+    loadMenuItems();
+  }, [restaurantId]);
 
   const loadMenuItems = async () => {
     setLoading(true);
@@ -73,6 +80,7 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
         image_url: item.image_url || '',
       }));
       setMenuItems(forms);
+      console.log('✅ Loaded menu items:', forms.length);
     } catch (error) {
       console.error('Failed to load menu items:', error);
     } finally {
@@ -152,6 +160,8 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
       setEditingItem(null);
       await loadMenuItems();
       onMenuUpdate?.();
+      setImportStatus('✅ Menu item saved successfully!');
+      setTimeout(() => setImportStatus(''), 3000);
     } catch (error) {
       console.error('Failed to save menu item:', error);
       alert('Failed to save menu item. Please try again.');
@@ -162,48 +172,81 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setImportStatus('📂 Reading file...');
+
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const content = e.target?.result as string;
         
         if (file.name.endsWith('.csv')) {
-          parseCSV(content);
+          await parseCSV(content);
         } else if (file.name.endsWith('.json')) {
-          parseJSON(content);
+          await parseJSON(content);
         } else {
-          alert('Please upload a CSV or JSON file');
+          setImportStatus('❌ Please upload a CSV or JSON file');
+          setTimeout(() => setImportStatus(''), 3000);
         }
       } catch (error) {
         console.error('Failed to parse file:', error);
-        alert('Failed to parse file. Please check the format.');
+        setImportStatus(`❌ Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setTimeout(() => setImportStatus(''), 5000);
       }
     };
     reader.readAsText(file);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
-  const parseCSV = (content: string) => {
-    const lines = content.split('\n');
+  const parseCSV = async (content: string) => {
+    const lines = content.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+      throw new Error('CSV file must have at least a header row and one data row');
+    }
+
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
     
-    const requiredHeaders = ['name_en', 'name_es', 'category', 'kind', 'price', 'description_en', 'description_es'];
+    const requiredHeaders = ['name_en', 'category', 'kind', 'price'];
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     
     if (missingHeaders.length > 0) {
-      alert(`Missing required columns: ${missingHeaders.join(', ')}`);
-      return;
+      throw new Error(`Missing required columns: ${missingHeaders.join(', ')}`);
     }
+
+    setImportStatus('📝 Parsing CSV data...');
 
     const newItems: MenuItemForm[] = [];
     
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      // Handle quoted values in CSV
+      const values: string[] = [];
+      let currentValue = '';
+      let insideQuotes = false;
+
+      for (const char of line) {
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          values.push(currentValue.trim());
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      values.push(currentValue.trim());
+
       if (values.length < headers.length) continue;
 
       const item: MenuItemForm = {
-        kind: (values[headers.indexOf('kind')] || 'food') as MenuKind,
+        kind: (values[headers.indexOf('kind')]?.toLowerCase() || 'food') as MenuKind,
         category: values[headers.indexOf('category')] || '',
-        station: (values[headers.indexOf('station')] || 'kitchen') as StationType,
+        station: (values[headers.indexOf('station')]?.toLowerCase() || 'kitchen') as StationType,
         station_label: values[headers.indexOf('station_label')] || '',
         name_en: values[headers.indexOf('name_en')] || '',
         name_es: values[headers.indexOf('name_es')] || '',
@@ -216,15 +259,52 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
       newItems.push(item);
     }
 
-    setMenuItems(prev => [...prev, ...newItems]);
-    alert(`Successfully imported ${newItems.length} menu items`);
+    if (newItems.length === 0) {
+      throw new Error('No valid items found in CSV');
+    }
+
+    setImportStatus(`💾 Saving ${newItems.length} items to database...`);
+
+    // Save to database
+    const itemsToSave = newItems.map(item => ({
+      restaurant_id: restaurantId,
+      kind: item.kind,
+      category: item.category,
+      station: item.station,
+      station_label: item.station_label || null,
+      name: {
+        en: item.name_en,
+        es: item.name_es,
+      },
+      description: {
+        en: item.description_en,
+        es: item.description_es,
+      },
+      price: parseFloat(item.price),
+      image_url: item.image_url || null,
+      is_active: true,
+      sort_order: 0,
+    }));
+
+    await upsertRestaurantMenuItems(itemsToSave);
+    await loadMenuItems();
+    onMenuUpdate?.();
+    
+    setImportStatus(`✅ Successfully imported ${newItems.length} menu items!`);
+    setTimeout(() => setImportStatus(''), 5000);
   };
 
-  const parseJSON = (content: string) => {
+  const parseJSON = async (content: string) => {
     try {
       const data = JSON.parse(content);
       const items = Array.isArray(data) ? data : [data];
       
+      if (items.length === 0) {
+        throw new Error('JSON file contains no items');
+      }
+
+      setImportStatus(`📝 Parsing ${items.length} items from JSON...`);
+
       const newItems: MenuItemForm[] = items.map(item => ({
         kind: item.kind || 'food',
         category: item.category || '',
@@ -238,14 +318,46 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
         image_url: item.image_url || '',
       }));
 
-      setMenuItems(prev => [...prev, ...newItems]);
-      alert(`Successfully imported ${newItems.length} menu items`);
+      setImportStatus(`💾 Saving ${newItems.length} items to database...`);
+
+      // Save to database
+      const itemsToSave = newItems.map(item => ({
+        restaurant_id: restaurantId,
+        kind: item.kind,
+        category: item.category,
+        station: item.station,
+        station_label: item.station_label || null,
+        name: {
+          en: item.name_en,
+          es: item.name_es,
+        },
+        description: {
+          en: item.description_en,
+          es: item.description_es,
+        },
+        price: parseFloat(item.price),
+        image_url: item.image_url || null,
+        is_active: true,
+        sort_order: 0,
+      }));
+
+      await upsertRestaurantMenuItems(itemsToSave);
+      await loadMenuItems();
+      onMenuUpdate?.();
+      
+      setImportStatus(`✅ Successfully imported ${newItems.length} menu items!`);
+      setTimeout(() => setImportStatus(''), 5000);
     } catch (error) {
-      throw new Error('Invalid JSON format');
+      throw new Error('Invalid JSON format: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
   const exportMenu = () => {
+    if (menuItems.length === 0) {
+      alert('No menu items to export');
+      return;
+    }
+
     const exportData = menuItems.map(item => ({
       name_en: item.name_en,
       name_es: item.name_es,
@@ -268,7 +380,26 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'menu-items.csv';
+    a.download = `menu-items-${restaurantId}-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      'name_en,name_es,category,kind,station,station_label,description_en,description_es,price,image_url',
+      '"Margherita Pizza","Pizza Margherita","Main Courses","food","kitchen","","Fresh mozzarella, tomatoes, and basil","Mozzarella fresca, tomates y albahaca","12.99",""',
+      '"Caesar Salad","Ensalada César","Appetizers","food","kitchen","","Romaine lettuce with Caesar dressing","Lechuga romana con aderezo César","8.99",""',
+      '"Craft Beer","Cerveza Artesanal","Beverages","drink","bar","","Local craft beer selection","Selección de cerveza artesanal local","6.99",""',
+    ].join('\n');
+
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'menu-import-template.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -284,9 +415,13 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
           <p className="text-sm text-slate-600">Add, edit, and manage menu items</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={downloadTemplate} title="Download CSV template">
+            <Download className="h-4 w-4 mr-2" />
+            Template
+          </Button>
           <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4 mr-2" />
-            Import
+            Import CSV
           </Button>
           <Button variant="outline" onClick={exportMenu}>
             <FileText className="h-4 w-4 mr-2" />
@@ -298,6 +433,28 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
           </Button>
         </div>
       </div>
+
+      {/* Import Status */}
+      {importStatus && (
+        <Card className="p-3 bg-blue-50 border-blue-200">
+          <div className="flex items-center gap-2 text-sm text-blue-800">
+            <AlertCircle className="h-4 w-4" />
+            {importStatus}
+          </div>
+        </Card>
+      )}
+
+      {/* Import Instructions */}
+      <Card className="p-4 bg-slate-50 border-slate-200">
+        <h3 className="text-sm font-semibold mb-2">📋 CSV Import Instructions</h3>
+        <ul className="text-xs text-slate-600 space-y-1">
+          <li>• <strong>Required columns:</strong> name_en, category, kind, price</li>
+          <li>• <strong>Optional columns:</strong> name_es, description_en, description_es, station, station_label, image_url</li>
+          <li>• <strong>kind values:</strong> "food" or "drink"</li>
+          <li>• <strong>station values:</strong> "kitchen", "bar", or "foh"</li>
+          <li>• Click "Template" button to download a sample CSV file</li>
+        </ul>
+      </Card>
 
       {/* File Input (Hidden) */}
       <input
@@ -312,35 +469,44 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
       <Card className="h-96">
         <ScrollArea className="h-full">
           <div className="p-4">
-            <div className="space-y-3">
-              {menuItems.map((item, index) => (
-                <Card key={index} className="p-4 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-semibold">{item.name_en}</span>
-                        {item.name_es && <span className="text-sm text-slate-500">({item.name_es})</span>}
-                        <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">{item.kind}</span>
-                        <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">{item.category}</span>
+            {loading ? (
+              <div className="text-center py-8 text-slate-500">Loading menu items...</div>
+            ) : menuItems.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <p>No menu items found.</p>
+                <p className="text-xs mt-2">Add items manually or import from CSV</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {menuItems.map((item, index) => (
+                  <Card key={index} className="p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-semibold">{item.name_en}</span>
+                          {item.name_es && <span className="text-sm text-slate-500">({item.name_es})</span>}
+                          <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">{item.kind}</span>
+                          <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">{item.category}</span>
+                        </div>
+                        <div className="text-sm text-slate-600">{item.description_en}</div>
+                        <div className="flex items-center gap-4 mt-2 text-sm">
+                          <span className="font-medium">${item.price}</span>
+                          <span className="text-slate-500">Station: {item.station}</span>
+                        </div>
                       </div>
-                      <div className="text-sm text-slate-600">{item.description_en}</div>
-                      <div className="flex items-center gap-4 mt-2 text-sm">
-                        <span className="font-medium">${item.price}</span>
-                        <span className="text-slate-500">Station: {item.station}</span>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEditItem(item)}>
+                          Edit
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteItem(item.id || index.toString())}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditItem(item)}>
-                        Edit
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => handleDeleteItem(item.id || index.toString())}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         </ScrollArea>
       </Card>
@@ -349,7 +515,7 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
       {editingItem && (
         <Card className="border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between p-6 border-b">
-            <h3 className="text-lg font-semibold">Edit Menu Item</h3>
+            <h3 className="text-lg font-semibold">{editingItem.id ? 'Edit Menu Item' : 'Add New Menu Item'}</h3>
             <Button variant="ghost" onClick={() => setEditingItem(null)}>
               <X className="h-4 w-4" />
             </Button>
@@ -358,7 +524,7 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
           <div className="p-6 overflow-auto">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="kind">Item Type</Label>
+                  <Label htmlFor="kind">Item Type *</Label>
                   <select
                     id="kind"
                     value={editingItem.kind}
@@ -372,7 +538,7 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category">Category *</Label>
                   <select
                     id="category"
                     value={editingItem.category}
@@ -395,13 +561,13 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
                     className="w-full p-2 border border-slate-300 rounded-md"
                   >
                     {stationTypes.map(station => (
-                      <option key={station} value={station}>{station}</option>
+                      <option key={station} value={station}>{station.toUpperCase()}</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="price">Price</Label>
+                  <Label htmlFor="price">Price *</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
                     <Input
@@ -419,7 +585,7 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
 
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name_en">Name (English)</Label>
+                  <Label htmlFor="name_en">Name (English) *</Label>
                   <Input
                     id="name_en"
                     value={editingItem.name_en}
@@ -470,7 +636,7 @@ export const MenuEditor = ({ restaurantId, onMenuUpdate }: MenuEditorProps) => {
                     id="image_url"
                     value={editingItem.image_url}
                     onChange={(e) => setEditingItem({...editingItem, image_url: e.target.value})}
-                    placeholder="https://example.com/image.jpg"
+                    placeholder="/images/ImageUpload.jpg"
                   />
                   <Button variant="outline">
                     <Image className="h-4 w-4 mr-2" />

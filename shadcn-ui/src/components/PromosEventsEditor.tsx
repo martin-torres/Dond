@@ -40,6 +40,9 @@ interface PromosEventsEditorProps {
 interface MenuItem {
   id: string;
   name: Record<string, string>;
+  kind: 'food' | 'drink';
+  category?: string;
+  price?: number;
   [key: string]: unknown;
 }
 
@@ -137,6 +140,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
     try {
       const items = await fetchRestaurantMenuItems(restaurantId);
       setMenuItems(items as MenuItem[]);
+      console.log('✅ Loaded menu items for promo selection:', items.length);
     } catch (error) {
       console.error('Failed to load menu items:', error);
     }
@@ -332,6 +336,13 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
     }
   };
 
+  // Helper function to get menu item name
+  const getMenuItemName = (menuItemId: string) => {
+    const item = menuItems.find(m => m.id === menuItemId);
+    if (!item) return 'Unknown Item';
+    return item.name?.en || item.name?.es || 'Unknown Item';
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -425,12 +436,17 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
                                 {getLayoutPreview(promo.layout_type)}
                               </div>
 
-                              <div className="flex items-center gap-4 text-sm">
-                                {promo.discount_percent && (
+                              <div className="flex items-center gap-4 text-sm flex-wrap">
+                                {promo.discount_percent && parseFloat(promo.discount_percent) > 0 && (
                                   <span className="font-medium text-green-600">{promo.discount_percent}% off</span>
                                 )}
-                                {promo.discount_amount && (
+                                {promo.discount_amount && parseFloat(promo.discount_amount) > 0 && (
                                   <span className="font-medium text-green-600">${promo.discount_amount} off</span>
+                                )}
+                                {promo.menu_item_id && (
+                                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                                    Item: {getMenuItemName(promo.menu_item_id)}
+                                  </span>
                                 )}
                                 {promo.menu_category && (
                                   <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">{promo.menu_category}</span>
@@ -528,7 +544,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
       {editingPromo && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Edit Promo</h3>
+            <h3 className="text-lg font-semibold">{editingPromo.id ? 'Edit Promo' : 'Add New Promo'}</h3>
             <Button variant="ghost" onClick={() => setEditingPromo(null)}>
               <X className="h-4 w-4" />
             </Button>
@@ -536,7 +552,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="title_en">Title (English)</Label>
+              <Label htmlFor="title_en">Title (English) *</Label>
               <Input
                 id="title_en"
                 value={editingPromo.title_en}
@@ -588,7 +604,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="layout_type">Layout Type</Label>
+              <Label htmlFor="layout_type">Layout Type *</Label>
               <Select
                 value={editingPromo.layout_type}
                 onValueChange={(value) => setEditingPromo({...editingPromo, layout_type: value as LayoutType})}
@@ -621,11 +637,63 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
                   <SelectItem value="all">All Menu Items</SelectItem>
                   {menuCategories.map(category => (
                     <SelectItem key={category} value={category}>
-                      {category}
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="menu_item_id">Specific Menu Item (Optional)</Label>
+              <Select
+                value={editingPromo.menu_item_id}
+                onValueChange={(value) => setEditingPromo({...editingPromo, menu_item_id: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a menu item" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">None (applies to category)</SelectItem>
+                  {menuItems.length === 0 ? (
+                    <SelectItem value="" disabled>No menu items available</SelectItem>
+                  ) : (
+                    <>
+                      {/* Food Items */}
+                      {menuItems.filter(item => item.kind === 'food').length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 bg-slate-100">FOOD</div>
+                          {menuItems
+                            .filter(item => item.kind === 'food')
+                            .map(item => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name?.en || item.name?.es || 'Unnamed Item'} {item.price ? `($${item.price})` : ''}
+                              </SelectItem>
+                            ))}
+                        </>
+                      )}
+                      {/* Drink Items */}
+                      {menuItems.filter(item => item.kind === 'drink').length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 bg-slate-100">DRINKS</div>
+                          {menuItems
+                            .filter(item => item.kind === 'drink')
+                            .map(item => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name?.en || item.name?.es || 'Unnamed Item'} {item.price ? `($${item.price})` : ''}
+                              </SelectItem>
+                            ))}
+                        </>
+                      )}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">
+                {menuItems.length === 0 
+                  ? 'No menu items found. Add menu items first in the Menu section.'
+                  : `${menuItems.length} menu items available`}
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -651,7 +719,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
 
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="description_en">Description (English)</Label>
+              <Label htmlFor="description_en">Description (English) *</Label>
               <Textarea
                 id="description_en"
                 value={editingPromo.description_en}
@@ -713,7 +781,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
       {editingEvent && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Edit Event</h3>
+            <h3 className="text-lg font-semibold">{editingEvent.id ? 'Edit Event' : 'Add New Event'}</h3>
             <Button variant="ghost" onClick={() => setEditingEvent(null)}>
               <X className="h-4 w-4" />
             </Button>
@@ -721,7 +789,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="event_title_en">Title (English)</Label>
+              <Label htmlFor="event_title_en">Title (English) *</Label>
               <Input
                 id="event_title_en"
                 value={editingEvent.title_en}
@@ -741,7 +809,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="event_date">Event Date</Label>
+              <Label htmlFor="event_date">Event Date *</Label>
               <Input
                 id="event_date"
                 type="date"
@@ -751,7 +819,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="start_time">Start Time</Label>
+              <Label htmlFor="start_time">Start Time *</Label>
               <Input
                 id="start_time"
                 type="time"
@@ -761,7 +829,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="end_time">End Time</Label>
+              <Label htmlFor="end_time">End Time *</Label>
               <Input
                 id="end_time"
                 type="time"
@@ -773,7 +841,7 @@ export const PromosEventsEditor = ({ restaurantId, onPromoUpdate, onEventUpdate 
 
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="event_description_en">Description (English)</Label>
+              <Label htmlFor="event_description_en">Description (English) *</Label>
               <Textarea
                 id="event_description_en"
                 value={editingEvent.description_en}

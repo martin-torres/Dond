@@ -3,7 +3,7 @@ import { Language, Restaurant } from '../types';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
 import { PageShell } from './PageShell';
-import { getCompleteRestaurant, getRestaurant } from '../api/restaurantsApi';
+import { getAllRestaurants } from '../api/restaurantsApi';
 import { useEffect, useState } from 'react';
 
 interface QRScannerProps {
@@ -15,49 +15,27 @@ export function QRScanner({ language, onScan }: QRScannerProps) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentRestaurantId, setCurrentRestaurantId] = useState<string>('rest-one-maui');
 
   useEffect(() => {
     const loadRestaurants = async () => {
       try {
         setLoading(true);
-        console.log('QR Scanner: Loading restaurant data...');
+        console.log('QR Scanner: Loading all restaurants from database...');
 
-        // Get restaurantId from URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const restaurantId = urlParams.get('restaurantId') || 'Rest-one-maui'; // Default to maui (capital R)
-        setCurrentRestaurantId(restaurantId);
+        // Fetch ALL restaurants from Supabase
+        const allRestaurants = await getAllRestaurants();
+        console.log('QR Scanner: Found restaurants:', allRestaurants.length);
 
-        console.log('QR Scanner: Loading restaurant:', restaurantId);
-
-        // Try to get complete restaurant data (with tables and menu)
-        let restaurant = await getCompleteRestaurant(restaurantId);
-        console.log('QR Scanner: Complete restaurant data:', restaurant);
-
-        // If complete data fails, try to get just the basic restaurant info
-        if (!restaurant) {
-          console.log('QR Scanner: Complete data failed, trying basic restaurant info...');
-          restaurant = await getRestaurant(restaurantId);
-
-          if (restaurant) {
-            // Add empty arrays for missing data so it doesn't break the UI
-            restaurant.tables = [];
-            restaurant.menu = { food: [], drinks: [] };
-            restaurant.promos = [];
-            console.log('QR Scanner: Basic restaurant loaded with empty tables/menu');
-          }
-        }
-
-        if (restaurant) {
-          setRestaurants([restaurant]);
-          console.log('QR Scanner: Restaurant loaded successfully');
+        if (allRestaurants.length === 0) {
+          setError('No restaurants found in database. Please add restaurants first.');
+          console.error('QR Scanner: No restaurants in database');
         } else {
-          console.error('QR Scanner: No restaurant data returned');
-          setError(`Restaurant "${restaurantId}" not found in database`);
+          setRestaurants(allRestaurants);
+          console.log('QR Scanner: Loaded restaurants:', allRestaurants.map(r => ({ id: r.id, slug: r.slug, name: r.name })));
         }
       } catch (err) {
         console.error('QR Scanner: Error loading restaurants:', err);
-        setError(`Failed to load restaurant data: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setError(`Failed to load restaurants: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
         setLoading(false);
       }
@@ -87,41 +65,51 @@ export function QRScanner({ language, onScan }: QRScannerProps) {
           <p className="text-center text-gray-500 text-sm">
             {loading ? 'Loading restaurants...' : error ? error : t('simulateScan', language) + ':'}
           </p>
-          {!loading && !error && restaurants.map((restaurant) => (
-            <div key={restaurant.id} className="space-y-2">
-              <Button
-                onClick={() => onScan(restaurant.id)}
-                className="w-full"
-                variant="outline"
-              >
-                <QrCode className="w-4 h-4 mr-2" />
-                {typeof restaurant.name === 'string' ? restaurant.name : (restaurant.name as unknown)?.[language] || (restaurant.name as unknown)?.en || 'Restaurant'}
-              </Button>
-
-              <div className="space-y-3">
-                <p className="text-center text-gray-500 text-sm uppercase tracking-[0.25em]">
-                  Staff access
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button asChild variant="outline" className="w-full">
-                    <a href={`/kitchen?restaurantId=${restaurant.slug || currentRestaurantId}`}>Kitchen</a>
+          
+          {!loading && !error && restaurants.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-center text-gray-700 font-medium text-sm">
+                Select a Restaurant:
+              </p>
+              {restaurants.map((restaurant) => (
+                <div key={restaurant.id} className="space-y-2">
+                  <Button
+                    onClick={() => onScan(restaurant.slug || restaurant.id)}
+                    className="w-full"
+                    variant="outline"
+                  >
+                    <QrCode className="w-4 h-4 mr-2" />
+                    {typeof restaurant.name === 'string' 
+                      ? restaurant.name 
+                      : (restaurant.name as Record<string, string>)?.[language] || (restaurant.name as Record<string, string>)?.en || 'Restaurant'}
                   </Button>
 
-                  <Button asChild variant="outline" className="w-full">
-                    <a href={`/bar?restaurantId=${restaurant.slug || currentRestaurantId}`}>Bar</a>
-                  </Button>
+                  <div className="space-y-3">
+                    <p className="text-center text-gray-500 text-sm uppercase tracking-[0.25em]">
+                      Staff access
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button asChild variant="outline" className="w-full">
+                        <a href={`/kitchen?restaurantId=${restaurant.slug || restaurant.id}`}>Kitchen</a>
+                      </Button>
 
-                  <Button asChild variant="outline" className="w-full">
-                    <a href={`/foh?restaurantId=${restaurant.slug || currentRestaurantId}`}>FOH</a>
-                  </Button>
+                      <Button asChild variant="outline" className="w-full">
+                        <a href={`/bar?restaurantId=${restaurant.slug || restaurant.id}`}>Bar</a>
+                      </Button>
 
-                  <Button asChild variant="outline" className="w-full">
-                    <a href={`/manager?restaurantId=${restaurant.slug || currentRestaurantId}`}>Manager</a>
-                  </Button>
+                      <Button asChild variant="outline" className="w-full">
+                        <a href={`/foh?restaurantId=${restaurant.slug || restaurant.id}`}>FOH</a>
+                      </Button>
+
+                      <Button asChild variant="outline" className="w-full">
+                        <a href={`/manager?restaurantId=${restaurant.slug || restaurant.id}`}>Manager</a>
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
 
         <div className="w-full h-px bg-gray-100" />
