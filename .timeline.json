@@ -1,5 +1,5 @@
 {
-  "timeline_index": 87,
+  "timeline_index": 95,
   "planner": {},
   "gallery_last_file": {},
   "timeline_status": {
@@ -88,7 +88,15 @@
     "84": 1,
     "85": 1,
     "86": 1,
-    "87": 1
+    "87": 1,
+    "88": 1,
+    "89": 1,
+    "90": 1,
+    "91": 1,
+    "92": 1,
+    "93": 1,
+    "94": 1,
+    "95": 1
   },
   "preview_servers": {},
   "preview_server": {
@@ -97,5 +105,6 @@
     "config_path": ".mgx/config.yaml",
     "timeline_index": 1
   },
-  "last_build_failed": false
+  "last_build_failed": false,
+  "last_user_recipient": "Alex"
 }
