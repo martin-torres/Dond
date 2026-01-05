@@ -1,0 +1,63 @@
+  optional: {
+    en: '(optional)',
+    es: '(opcional)',
+    fr: '(facultatif)',
+    de: '(optional)',
+    ja: '(オプション)',
+    ar: '(اختياري)',
+    zh: '(可选)'
+  },
+  proceedToPayment: {
+    en: 'Proceed to Payment',
+    es: 'Proceder al Pago',
+    fr: 'Procéder au paiement',
+    de: 'Zur Zahlung gehen',
+    ja: '支払いに進む',
+    ar: 'المتابعة إلى الدفع',
+    zh: '进行支付'
+  },
+  customer: {
+    en: 'Customer',
+    es: 'Cliente',
+    fr: 'Client',
+    de: 'Kunde',
+    ja: '顧客',
+    ar: 'عميل',
+    zh: '顾客'
+  },
+  orderComplete: {
+    en: 'Order Complete!',
+    es: '¡Pedido Completo!',
+    fr: 'Commande terminée!',
+    de: 'Bestellung abgeschlossen!',
+    ja: '注文完了！',
+    ar: 'اكتمل الطلب!',
+    zh: '订单完成！'
+  },
+  pickupInstructions: {
+    en: 'Please show this confirmation at the pickup counter.',
+    es: 'Por favor muestra esta confirmación en el mostrador de recogida.',
+    fr: 'Veuillez montrer cette confirmation au comptoir de retrait.',
+    de: 'Bitte zeigen Sie diese Bestätigung am Abholschalter.',
+    ja: 'この確認を受取カウンターで提示してください。',
+    ar: 'يرجى إظهار هذا التأكيد في مكتب الاستلام.',
+    zh: '请在取货柜台出示此确认。'
+  },
+  orderReference: {
+    en: 'Order Reference',
+    es: 'Referencia del Pedido',
+    fr: 'Référence de commande',
+    de: 'Bestellreferenz',
+    ja: '注文参照',
+    ar: 'مرجع الطلب',
+    zh: '订单参考'
+  },
+  done: {
+    en: 'Done',
+    es: 'Hecho',
+    fr: 'Terminé',
+    de: 'Fertig',
+    ja: '完了',
+    ar: 'تم',
+    zh: '完成'
+  },

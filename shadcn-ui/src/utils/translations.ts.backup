@@ -116,14 +116,14 @@ type TranslationKey =
   | 'holdSuccessAdded'
   | 'holdSuccessPayment'
   | 'holdReminder'
-  | 'greatThanks'
+  | 'greatThanks';
   | 'optional'
   | 'proceedToPayment'
   | 'customer'
   | 'orderComplete'
   | 'pickupInstructions'
   | 'orderReference'
-  | 'done';
+  | 'done'
 
 const translations: Record<TranslationKey, Record<Language, string>> = {
   scanQR: {
@@ -1163,13 +1163,6 @@ const translations: Record<TranslationKey, Record<Language, string>> = {
   },
   greatThanks: {
     en: 'Great, Thanks!',
-    es: '¡Genial, Gracias!',
-    fr: 'Super, Merci!',
-    de: 'Großartig, Danke!',
-    ja: '素晴らしい、ありがとう！',
-    ar: 'رائع، شكراً!',
-    zh: '太好了，谢谢！'
-  },
   optional: {
     en: '(optional)',
     es: '(opcional)',
@@ -1232,6 +1225,13 @@ const translations: Record<TranslationKey, Record<Language, string>> = {
     ja: '完了',
     ar: 'تم',
     zh: '完成'
+  },
+    es: '¡Genial, Gracias!',
+    fr: 'Super, Merci!',
+    de: 'Großartig, Danke!',
+    ja: '素晴らしい、ありがとう！',
+    ar: 'رائع، شكراً!',
+    zh: '太好了，谢谢！'
   }
 };
 

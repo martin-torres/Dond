@@ -14,6 +14,7 @@ import { BillPayment } from './components/BillPayment';
 import { PaymentCompleteScreen } from './components/PaymentCompleteScreen';
 import { ProximityWarning } from './components/ProximityWarning';
 import { FloorPlanTestPage } from './components/FloorPlanTestPage';
+import { ToGoOrderFlow } from './components/ToGoOrderFlow';
 import CreatorDashboard from './staff/CreatorDashboard';
 import { supabase } from './lib/supabaseClient';
 import { fetchRestaurantMenuItems } from './api/restaurantMenuApi';
@@ -572,8 +573,13 @@ export default function App() {
   const handleOpenInteractiveMenu = (
     menuItemId?: string,
     returnStage?: AppStage | null,
-    initialTab: 'food' | 'drinks' = 'food'
+    initialTab: 'food' | 'drinks' = 'food',
+    isToGo?: boolean
   ) => {
+    if (isToGo) {
+      setStage('to-go');
+      return;
+    }
     setInteractiveMenuFocusId(menuItemId ?? null);
     setMenuReturnStage(returnStage ?? null);
     setInteractiveMenuInitialTab(initialTab);
@@ -698,6 +704,48 @@ export default function App() {
     setDeliveredItemIds(new Set());
   };
 
+  const handleToGoOrderSubmit = async (items: OrderItem[], tableId: string): Promise<string> => {
+    if (!currentRestaurant || items.length === 0) {
+      throw new Error('Missing restaurant or items');
+    }
+
+    try {
+      await staff.addCustomerOrder({
+        items,
+        meta: {
+          restaurant: currentRestaurant,
+          tableId,
+          tableNumber: null, // To-go orders don't have table numbers
+          language,
+          orderType: 'to-go',
+        },
+      });
+
+      // Return a mock order ID (in real implementation, this would come from the API response)
+      return `togo-${Date.now()}`;
+    } catch (err) {
+      console.error('❌ Failed to submit to-go order:', err);
+      throw err;
+    }
+  };
+
+  const handleToGoComplete = () => {
+    // Reset to initial state
+    setStage('qr-scan');
+    setCurrentRestaurant(null);
+    setSelectedTableId(null);
+    setCurrentOrders([]);
+    setDrinkOrders([]);
+    setPayments([]);
+    setMenuFocusItemId(null);
+    setInteractiveMenuFocusId(null);
+    setMenuReturnStage(null);
+    setInteractiveMenuInitialTab('food');
+    setChefPreviewCategory(null);
+    setPendingTableOrder(null);
+    setDeliveredItemIds(new Set());
+  };
+
   const selectedTable = currentRestaurant?.tables!.find(t => t.id === selectedTableId);
   const promoFocus = currentRestaurant?.promos!.find((promo) => promo.menuItemId);
   const promoFocusItemId = promoFocus?.menuItemId;
@@ -771,12 +819,23 @@ export default function App() {
           onContinue={() => setStage('table-selection')}
           onOrderFromPromo={handlePromoOrder}
           onViewMenu={handleOpenMenuPreview}
-          onViewInteractiveMenu={(menuItemId, initialTab) =>
-            handleOpenInteractiveMenu(menuItemId, 'restaurant-info', initialTab)
+          onViewInteractiveMenu={(menuItemId, initialTab, isToGo) =>
+            handleOpenInteractiveMenu(menuItemId, 'restaurant-info', initialTab, isToGo)
           }
           onViewChefPreview={handleOpenChefPreview}
         />
       )}
+
+      {stage === 'to-go' && currentRestaurant && (
+        <ToGoOrderFlow
+          restaurant={currentRestaurant}
+          language={language}
+          onBack={() => setStage('restaurant-info')}
+          onComplete={handleToGoComplete}
+          onSubmitOrder={handleToGoOrderSubmit}
+        />
+      )}
+
       {stage === 'menu-preview' && currentRestaurant && (
         <MenuPreview
           restaurant={currentRestaurant}

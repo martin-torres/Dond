@@ -1,0 +1,8 @@
+Missing keys to add:
+- optional
+- proceedToPayment
+- customer
+- orderComplete
+- pickupInstructions
+- orderReference
+- done
