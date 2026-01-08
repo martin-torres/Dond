@@ -1,0 +1,74 @@
+{
+  "spec_id": "TABLE_GROUP_SEATING_SPEC_V1",
+  "feature_name": "Per-seat table assignment with join-table flow and fair bill splitting",
+  "context": {
+    "app": "QR restaurant ordering app for multi-language World Cup traffic in Monterrey",
+    "existing_ui": {
+      "table_selector": "Screen where user selects table; uses a floor plan-like layout component (e.g. FloorPlanTablePicker) and a clean card-based design.",
+      "language_selector": "Top-right language menu already wired to translation system.",
+      "style": "Modern, rounded cards, subtle shadows, neutral/emerald palette, no loud colors, consistent typography."
+    }
+  },
+  "core_behaviors": {
+    "host_toggle": {
+      "location": "After a table is selected, on the table confirmation card (same screen as TableSelector or equivalent).",
+      "control_type": "iOS-style on/off switch with subtle greys that match the existing design.",
+      "label_text": "Waiting for more guests?",
+      "default": "off",
+      "when_on": "Marks the table as 'joinable' and the current device/session as 'tableHost'."
+    },
+    "multi_device_join": {
+      "flow": [
+        "Guest #1 (host) selects a table and turns the 'Waiting for more guests?' toggle ON.",
+        "Each new guest scans the same table QR code.",
+        "App detects an existing joinable table session and prompts the new guest to choose a seat on a mini seating map for that table.",
+        "After choosing a seat, the guest either types a display name (e.g., 'Son', 'Aunt', 'Friend') or uses their default profile name.",
+        "All orders placed from that device are internally tagged with {tableId, seatId, optionalDisplayName}."
+      ]
+    },
+    "single_device_variant": {
+      "description": "Optional flow where a single device controls multiple seats at the same table.",
+      "flow": [
+        "Host selects table and toggles 'Waiting for more guests?' ON.",
+        "UI shows an 'Add guest' action that opens the seating map for that table.",
+        "Host taps a seat to assign a label (e.g., 'Son', 'Aunt', 'Friend 1').",
+        "When adding items to the order, items can be assigned to a specific seat label.",
+        "At bill time, the UI can show breakdown per seat, even though ordering happened on one device."
+      ],
+      "contacts_integration_note": "If technically simple at the time of implementation, allow the host to pick a contact name and use only the display name (no phone number or private data needed). This is optional and should not block the core feature."
+    },
+    "bill_splitting": {
+      "requirements": [
+        "Each order item must be associated with a seatId (and optionally a label).",
+        "The checkout screen can group items by seat and compute subtotals.",
+        "Support at least two options: (1) pay per-seat, (2) merge all seats into one bill.",
+        "Do not overcomplicate payment integrations initially; focus on correct grouping and totals."
+      ]
+    }
+  },
+  "design_constraints": {
+    "visual": [
+      "Reuse existing card styles, border radius, shadows, and typography.",
+      "Use neutral gray tones consistent with the current palette for the on/off switch.",
+      "Seat labels should be unobtrusive but readable (e.g., small text under or next to seat icons)."
+    ],
+    "ux": [
+      "Keep the flow simple for the host: table selection -> toggle -> done.",
+      "For joining guests, only require seat selection and name/label once.",
+      "Make sure the feature gracefully degrades: if the toggle is off, the app behaves exactly as it does today."
+    ]
+  },
+  "technical_notes": {
+    "data_model": [
+      "Extend the Table model (or create a new structure) to include seats: seats: Seat[].",
+      "Seat should have at least: { id: string, label?: string, assignedToSessionId?: string }. ",
+      "Orders should carry seatId as a field so splitting can be derived from order data."
+    ],
+    "future_extensions": [
+      "Add per-seat notes (e.g., allergies).",
+      "Show seat labels to kitchen in a compact way, only if it doesn’t clutter tickets.",
+      "Allow host to lock the table when everyone has arrived (disable new joins)."
+    ]
+  },
+  "priority": "Implement only in a future update after the base app is stable and deployed for initial restaurants."
+}

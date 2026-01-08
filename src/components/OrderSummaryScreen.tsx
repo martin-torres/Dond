@@ -1,5 +1,5 @@
 import { Language, OrderItem } from '../types';
-import { t } from '../utils/translations';
+import { t, localizeCategory } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { PageShell } from './PageShell';
@@ -11,7 +11,7 @@ interface OrderSummaryScreenProps {
   items: OrderItem[];
   onContinueOrdering: () => void;
   onRequestBill: () => void;
-  onContinueToOptions: () => void;
+  deliveredIds?: Set<string>;
 }
 
 const formatPrice = (price: number) => `$${price.toFixed(2)}`;
@@ -22,12 +22,13 @@ export function OrderSummaryScreen({
   items,
   onContinueOrdering,
   onRequestBill,
-  onContinueToOptions,
+  deliveredIds,
 }: OrderSummaryScreenProps) {
   const subtotal = items.reduce(
     (sum, item) => sum + item.menuItem.price * item.quantity,
     0
   );
+  const seenIds = new Set<string>();
 
   return (
     <>
@@ -49,19 +50,30 @@ export function OrderSummaryScreen({
           <Card className="p-6 shadow-lg">
             <div className="space-y-4">
               {items.map((item) => {
-                const name = item.menuItem.name[language] || item.menuItem.name.en;
+                const name =
+                  item.menuItem.name.es ||
+                  item.menuItem.name.en ||
+                  Object.values(item.menuItem.name)[0];
                 const category = item.menuItem.category || '';
+                const localizedCategory = category ? localizeCategory(category, language) : '';
                 const lineTotal = item.menuItem.price * item.quantity;
+                const hasBeenSeen = seenIds.has(item.menuItem.id);
+                const isDelivered = deliveredIds?.has(item.menuItem.id) || hasBeenSeen;
+                seenIds.add(item.menuItem.id);
                 return (
                   <div
                     key={`${item.menuItem.id}-${item.quantity}`}
-                    className="flex items-start justify-between rounded-xl bg-gray-50 p-3"
+                    className={`flex items-start justify-between rounded-xl p-3 border ${
+                      isDelivered ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'
+                    }`}
                   >
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-gray-900">
                         {item.quantity}x {name}
                       </p>
-                      {category && <p className="text-xs text-gray-500">{category}</p>}
+                      {localizedCategory && (
+                        <p className="text-xs text-gray-500">{localizedCategory}</p>
+                      )}
                     </div>
                     <span className="text-sm font-semibold text-gray-900">
                       {formatPrice(lineTotal)}
@@ -84,13 +96,6 @@ export function OrderSummaryScreen({
         </Button>
         <Button className="w-full sm:flex-1" onClick={onRequestBill} size="lg">
           {t('requestBill', language)}
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full sm:flex-1 text-gray-700"
-          onClick={onContinueToOptions}
-        >
-          {t('postOrderHeading', language)}
         </Button>
       </BottomActionBar>
     </>

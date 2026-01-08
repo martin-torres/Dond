@@ -4,9 +4,10 @@ import { t } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
-import { Plus, Minus, ShoppingCart } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, ArrowLeft, ChevronLeft } from 'lucide-react';
 import { PageShell } from './PageShell';
 import { BottomActionBar } from './BottomActionBar';
+import { StageGraphicSlot } from './StageGraphicSlot';
 
 type HighlightCategory = 'food' | 'drinks';
 
@@ -85,7 +86,8 @@ export function ChefPreviewScreen({
   const drinkItems = restaurant.menu.drinks;
   const [cart, setCart] = useState<Map<string, number>>(new Map());
 
-  const usedIds = useMemo(() => new Set<string>(), [restaurant.id]);
+  // Fresh per-render so language changes don't reuse a mutated set and hide items.
+  const usedIds = useMemo(() => new Set<string>(), [restaurant.id, language]);
 
   const appetizers = useMemo(
     () =>
@@ -191,7 +193,7 @@ export function ChefPreviewScreen({
           <h2 className={sectionTitleClass}>{title}</h2>
         </div>
         <Badge variant="secondary" className={chefBadgeClass}>
-          Featured
+          {t('featured', language)}
         </Badge>
       </div>
       <div className={sectionGridClass}>
@@ -258,22 +260,19 @@ export function ChefPreviewScreen({
         className="justify-start"
         paddedForActionBar={totalItems > 0}
         headerSlot={
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <p className="text-sm uppercase tracking-[0.3em] text-gray-400">
-                {t('guestGreeting', language)}, {t('seatLabelMe', language)}
-              </p>
-              <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-                {t('guestPrompt', language)}
-              </h1>
-            </div>
+          <div className="flex items-center justify-between gap-4">
             <Button
               variant="ghost"
               onClick={onClose}
-              className="text-gray-600 hover:text-gray-900"
+              className="text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
+              aria-label={t('back', language)}
             >
-              {t('back', language)}
+              <ChevronLeft className="w-5 h-5" />
             </Button>
+            <StageGraphicSlot label={t('todaysPromos', language)} tone="rose">
+              🍽️
+            </StageGraphicSlot>
+            <div className="w-20" aria-hidden />
           </div>
         }
       >

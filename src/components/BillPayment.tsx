@@ -23,9 +23,14 @@ export function BillPayment({
   const [itemSelections, setItemSelections] = useState<Record<string, number>>(
     {}
   );
+  const [tipPercent, setTipPercent] = useState(10);
+  const [allocation, setAllocation] = useState(50); // % toward service; rest to kitchen
+  const [serviceCouldBeBetter, setServiceCouldBeBetter] = useState(false);
+  const [foodCouldBeBetter, setFoodCouldBeBetter] = useState(false);
+  const [noTipReason, setNoTipReason] = useState('');
 
   const taxRate = bill.subtotal > 0 ? bill.tax / bill.subtotal : 0;
-  const tipRate = bill.subtotal > 0 ? bill.tip / bill.subtotal : 0;
+  const tipRate = tipPercent / 100;
 
   const getItemKey = (itemId: string, idx: number) => `${itemId}-${idx}`;
 
@@ -44,17 +49,18 @@ export function BillPayment({
   }, [splitMethod, selectedItemsSubtotal, taxRate, tipRate]);
 
   const amountToPay = useMemo(() => {
+    const computedTotal = bill.subtotal * (1 + taxRate + tipRate);
     if (splitMethod === 'even') {
       const safePartySize = Math.max(1, partySize);
-      return bill.total / safePartySize;
+      return computedTotal / safePartySize;
     }
 
     if (splitMethod === 'items') {
       return selectedItemsTotal;
     }
 
-    return bill.total;
-  }, [bill.total, partySize, selectedItemsTotal, splitMethod]);
+    return computedTotal;
+  }, [bill.subtotal, partySize, selectedItemsTotal, splitMethod, taxRate, tipRate]);
 
   const handleItemSelection = (key: string, nextQuantity: number) => {
     setItemSelections((prev) => {
@@ -67,6 +73,10 @@ export function BillPayment({
         [key]: nextQuantity,
       };
     });
+  };
+
+  const handleNoTip = () => {
+    setTipPercent(0);
   };
 
   const selectedItemsIds = () => {
@@ -96,6 +106,10 @@ export function BillPayment({
       alert(t('selectItemsWarning', language));
       return;
     }
+    if (tipPercent === 0 && !noTipReason.trim()) {
+      alert(t('noTipReasonLabel', language));
+      return;
+    }
 
     const amount = Number(amountToPay.toFixed(2));
     const methodLabel = getMethodLabel();
@@ -122,15 +136,18 @@ export function BillPayment({
         description={t('billPaymentSubtitle', language)}
       >
         <div className="space-y-5">
-          <Card className="p-5 space-y-3">
+          <Card className="p-4 space-y-3">
             <h2 className="text-xl font-semibold text-gray-900">{t('billSummary', language)}</h2>
             <ul className="space-y-1 text-sm text-gray-700 max-h-40 overflow-y-auto">
               {bill.items.map((item, idx) => (
-                <li key={idx} className="flex justify-between">
-                  <span>
+                <li
+                  key={idx}
+                  className="flex justify-between items-center px-1 py-1"
+                >
+                  <span className="font-medium">
                     {item.quantity}× {item.menuItem.name[language] || item.menuItem.name.en}
                   </span>
-                  <span>${(item.menuItem.price * item.quantity).toFixed(2)}</span>
+                  <span className="font-semibold">${(item.menuItem.price * item.quantity).toFixed(2)}</span>
                 </li>
               ))}
             </ul>
@@ -145,19 +162,19 @@ export function BillPayment({
               </div>
               <div className="flex justify-between">
                 <span>{t('tip', language)}</span>
-                <span>${bill.tip.toFixed(2)}</span>
+                <span>${(bill.subtotal * tipRate).toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-semibold pt-1">
                 <span>{t('total', language)}</span>
-                <span>${bill.total.toFixed(2)}</span>
+                <span>${(bill.subtotal * (1 + taxRate + tipRate)).toFixed(2)}</span>
               </div>
             </div>
           </Card>
 
-          <Card className="p-5 space-y-4">
+          <Card className="p-4 space-y-4">
             <h2 className="text-xl font-semibold text-gray-900">{t('howToPay', language)}</h2>
 
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2">
               <Button
                 variant={splitMethod === 'full' ? 'default' : 'outline'}
                 onClick={() => setSplitMethod('full')}
@@ -176,6 +193,114 @@ export function BillPayment({
               >
                 {t('splitByItems', language)}
               </Button>
+            </div>
+
+            <div className="rounded-xl border border-gray-100 bg-white/70 p-4">
+              <p className="text-xs font-semibold text-gray-900 mb-2">
+                {t('totalTip', language)}: {tipPercent}%
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[10, 15, 17.2, 20, 25].map((value) => (
+                  <Button
+                    key={value}
+                    size="sm"
+                    variant={tipPercent === value ? 'default' : 'outline'}
+                    onClick={() => setTipPercent(value)}
+                  >
+                    {value}%
+                  </Button>
+                ))}
+                {serviceCouldBeBetter && foodCouldBeBetter && noTipReason.trim().length > 0 && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant={tipPercent === 5 ? 'default' : 'outline'}
+                      onClick={() => setTipPercent(5)}
+                    >
+                      5%
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={tipPercent === 0 ? 'default' : 'outline'}
+                      onClick={handleNoTip}
+                    >
+                      {t('noTip', language)}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-700">
+                    {t('tipAllocationLabel', language)}
+                  </span>
+                  <span className="text-xs text-gray-600">
+                    {t('cookTip', language)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-700">
+                    {t('serviceTipLabel', language)}
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={2.5}
+                    value={allocation}
+                    onChange={(e) => setAllocation(Number(e.target.value))}
+                    className="flex-1 accent-emerald-600"
+                  />
+                  <span className="text-xs font-semibold text-gray-700">{t('cookTip', language)}</span>
+                </div>
+                <p className="text-[11px] text-gray-600">
+                  {allocation > 55
+                    ? t('tipAllocationService', language)
+                    : allocation < 45
+                      ? t('tipAllocationKitchen', language)
+                      : t('tipAllocationBalanced', language)}
+                </p>
+                <p className="text-[11px] text-gray-500">
+                  {t('tipAllocationHint', language)}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                <label className="flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={serviceCouldBeBetter}
+                    onChange={(e) => setServiceCouldBeBetter(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span>{t('serviceCouldBeBetter', language)}</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={foodCouldBeBetter}
+                    onChange={(e) => setFoodCouldBeBetter(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span>{t('foodCouldBeBetter', language)}</span>
+                </label>
+              </div>
+
+              {(serviceCouldBeBetter || foodCouldBeBetter || tipPercent === 0) && (
+                <div className="w-full mt-2">
+                  <label className="text-xs text-gray-700 block mb-1">
+                    {t('noTipReasonLabel', language)}
+                  </label>
+                  <textarea
+                    value={noTipReason}
+                    onChange={(e) => setNoTipReason(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    rows={2}
+                    placeholder={t('noTipPlaceholder', language)}
+                  />
+                </div>
+              )}
             </div>
 
             {splitMethod === 'even' && (
@@ -211,7 +336,7 @@ export function BillPayment({
                     return (
                       <div
                         key={key}
-                        className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm"
+                        className="flex items-center justify-between rounded-lg border px-4 py-3 text-sm"
                       >
                         <div>
                           <p className="font-medium">

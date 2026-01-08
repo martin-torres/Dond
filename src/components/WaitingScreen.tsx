@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Clock, CheckCircle } from 'lucide-react';
+import { Clock, CheckCircle, GlassWater, ChevronLeft } from 'lucide-react';
 import { Language } from '../types';
 import { t } from '../utils/translations';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { PageShell } from './PageShell';
-import { BottomActionBar } from './BottomActionBar';
 
 interface WaitingScreenProps {
   language: Language;
@@ -16,6 +15,7 @@ interface WaitingScreenProps {
   onTimeUpdate?: (seconds: number) => void;
   distance?: number;
   onDistanceChange?: (distance: number) => void;
+  onBack?: () => void;
 }
 
 export function WaitingScreen({
@@ -26,6 +26,7 @@ export function WaitingScreen({
   onTimeUpdate,
   distance,
   onDistanceChange,
+  onBack,
 }: WaitingScreenProps) {
   const [timeRemaining, setTimeRemaining] = useState(estimatedWaitTime);
   const [progress, setProgress] = useState(0);
@@ -62,9 +63,53 @@ export function WaitingScreen({
 
   return (
     <>
-      <PageShell paddedForActionBar={timeRemaining > 0}>
+      <PageShell>
         <div className="space-y-6">
-          <Card className="p-8">
+          <div className="flex items-center justify-between">
+            {onBack ? (
+              <Button
+                variant="ghost"
+                onClick={onBack}
+                className="text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
+                aria-label={t('back', language)}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+            ) : (
+              <span className="w-20" aria-hidden />
+            )}
+            <div className="rounded-full px-4 py-2 bg-white/70 backdrop-blur border border-white/70 shadow-sm text-xs font-semibold uppercase tracking-wide text-gray-700">
+              {t('waitTime', language)}
+            </div>
+            {onOrderDrinks ? (
+              <Button
+                variant="outline"
+                onClick={onOrderDrinks}
+                className="text-gray-700"
+                aria-label={t('orderDrinks', language)}
+              >
+                <GlassWater className="w-5 h-5" />
+              </Button>
+            ) : (
+              <span className="w-20" aria-hidden />
+            )}
+          </div>
+
+          <Card className="relative p-8 overflow-hidden">
+            <button
+              onClick={onOrderDrinks}
+              className="absolute top-4 left-4 w-56 rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl shadow-lg p-4 text-left transition hover:border-indigo-200 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
+            >
+              <p className="text-xs font-semibold text-gray-700 mb-1">
+                {t('orderDrinks', language)}
+              </p>
+              <p className="text-xs text-gray-600 mb-3">
+                {t('softStart', language)}
+              </p>
+              <div className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-700">
+                <span>{t('orderDrinks', language)}</span>
+              </div>
+            </button>
             <div className="flex flex-col items-center space-y-6">
               <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                 {timeRemaining === 0 ? (
@@ -107,14 +152,6 @@ export function WaitingScreen({
           )}
         </div>
       </PageShell>
-
-      {timeRemaining > 0 && (
-        <BottomActionBar>
-          <Button onClick={onOrderDrinks} variant="outline" className="w-full" size="lg">
-            {t('orderDrinks', language)}
-          </Button>
-        </BottomActionBar>
-      )}
     </>
   );
 }

@@ -16,9 +16,9 @@ interface PageShellProps {
 }
 
 const widthMap: Record<PageShellWidth, string> = {
-  md: 'max-w-md',
+  md: 'max-w-2xl',
   lg: 'max-w-2xl',
-  xl: 'max-w-3xl',
+  xl: 'max-w-2xl',
 };
 
 export function PageShell({
@@ -27,7 +27,7 @@ export function PageShell({
   description,
   className,
   cardClassName,
-  width = 'md',
+  width = 'lg',
   paddedForActionBar = false,
   headerSlot,
   footer,

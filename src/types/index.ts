@@ -1,5 +1,6 @@
 export interface Restaurant {
   id: string;
+  slug?: string; // Optional for hybrid slug + UUID support
   name: string;
   address: string;
   hours: {
@@ -8,12 +9,15 @@ export interface Restaurant {
   };
   waitTime: number; // in minutes
   distance: number; // in meters
-  promos: Promo[];
-  tables: Table[];
-  menu: {
+  promos?: Promo[]; // Optional for database-only restaurants
+  events?: Event[]; // Optional for database-only restaurants
+  tables?: Table[]; // Optional for database-only restaurants
+  menu?: {
     food: MenuItem[];
     drinks: MenuItem[];
-  };
+  }; // Optional for database-only restaurants
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Promo {
@@ -26,9 +30,21 @@ export interface Promo {
   menuCategory?: 'food' | 'drinks';
 }
 
+export interface Event {
+  id: string;
+  title: Record<Language, string>;
+  description: Record<Language, string>;
+  imageUrl?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+}
+
 export interface Table {
   id: string;
   number: number;
+  label?: string; // Display label like "Table 21" or custom name
   seats: number;
   location: 'patio' | 'window' | 'balcony' | 'middle' | 'secondFloor';
   available: boolean;
@@ -80,7 +96,6 @@ export type AppStage =
   | 'menu-preview'
   | 'order-summary'
   | 'order-submit'
-  | 'post-order-options'
   | 'ordering-drinks'
   | 'table-ready'
   | 'ordering-food'

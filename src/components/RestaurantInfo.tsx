@@ -31,7 +31,7 @@ interface RestaurantInfoProps {
   onContinue: () => void;
   onOrderFromPromo?: (promoId: string) => void;
   onViewMenu?: (menuItemId?: string) => void;
-  onViewInteractiveMenu?: (menuItemId?: string, initialTab?: 'food' | 'drinks') => void;
+  onViewInteractiveMenu?: (menuItemId?: string, initialTab?: 'food' | 'drinks', isToGo?: boolean) => void;
   onViewChefPreview?: (category?: 'food' | 'drinks') => void;
 }
 
@@ -99,17 +99,10 @@ export function RestaurantInfo({
     onContinue();
   };
 
-  const handleMenuButtonClick = () => {
-    if (onViewChefPreview) {
-      onViewChefPreview();
-      return;
-    }
+  const handleToGoButtonClick = () => {
+    // Start To Go ordering flow - go directly to food menu without table selection
     if (onViewInteractiveMenu) {
-      onViewInteractiveMenu(undefined, 'food');
-      return;
-    }
-    if (onViewMenu) {
-      onViewMenu();
+      onViewInteractiveMenu(undefined, 'food', true); // true flag indicates To Go
       return;
     }
     onContinue();
@@ -143,43 +136,52 @@ export function RestaurantInfo({
 
   return (
     <>
-      <PageShell width="lg" paddedForActionBar>
+      <PageShell paddedForActionBar>
         <div className="space-y-6">
-          <Card className="p-6 space-y-4">
-            <div className="space-y-2">
-              <h1 className="text-xl font-semibold text-gray-900">{restaurant.name}</h1>
-              <div className="flex items-start gap-2 text-sm text-gray-600">
-                <MapPin className="w-5 h-5 mt-0.5 flex-shrink-0 text-blue-500" />
-                <span>{restaurant.address}</span>
+          {/* Slim restaurant identity card */}
+          <Card className="p-4 sm:p-5 border border-slate-100 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-sm">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-base font-semibold shadow-inner">
+                  {restaurant.name.slice(0, 1)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className={`text-lg sm:text-xl font-semibold leading-tight truncate ${
+                    restaurant.name === 'Restaurant' ? 'text-blue-600' : 'text-gray-900'
+                  }`}>
+                    {restaurant.name}
+                  </h1>
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                    <MapPin className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    <span className={`truncate ${
+                      restaurant.address === 'Address not available' ? 'text-blue-600' : ''
+                    }`}>
+                      {restaurant.address}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-600" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{t('hours', language)}</p>
-                  <p className="text-sm text-gray-600">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 shadow-inner">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  <p className="text-xs sm:text-sm text-gray-700 font-semibold truncate">
                     {restaurant.hours.open} - {restaurant.hours.close}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-600" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{t('waitTime', language)}</p>
-                  <p className="text-sm text-gray-600">
+                <div className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 shadow-inner">
+                  <Users className="w-4 h-4 text-purple-600" />
+                  <p className="text-xs sm:text-sm text-gray-700 font-semibold truncate">
                     {restaurant.waitTime} {t('minutes', language)}
                   </p>
                 </div>
+                <div className="flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 shadow-inner">
+                  <MapPin className="w-4 h-4 text-green-600" />
+                  <p className="text-xs sm:text-sm text-gray-700 font-semibold truncate">
+                    {restaurant.distance} {t('meters', language)}
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2 border-t">
-              <MapPin className="w-5 h-5 text-green-600" />
-              <p className="text-sm text-gray-600">
-                {t('distance', language)}: {restaurant.distance} {t('meters', language)}
-              </p>
             </div>
           </Card>
 
@@ -215,7 +217,7 @@ export function RestaurantInfo({
                 </Card>
               )}
               {restaurant.id === 'rest-rupestre' &&
-                restaurant.promos
+                (restaurant.promos || [])
                   .filter((promo) => promo.id === 'rup-promo-mariachi')
                   .map((promo) => {
                     const promoTitle = localizeText(promo.title, language);
@@ -258,82 +260,151 @@ export function RestaurantInfo({
             </>
           )}
 
-          {restaurant.promos.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Tag className="w-5 h-5 text-orange-600" />
-                <h2 className="text-xl font-semibold text-gray-900">{todaysPromosLabel}</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {restaurant.promos.map((promo) => {
-                  const promoTitle = localizeText(promo.title, language);
-                  const promoDescription = localizeText(promo.description, language);
-                  return (
-                    <Card
-                      key={promo.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handlePromoNavigateToMenu(promo)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          handlePromoNavigateToMenu(promo);
-                        }
-                      }}
-                      className="overflow-hidden border-2 border-orange-200 hover:border-orange-400 transition-all hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-200"
-                      style={{ minHeight: '160px' }}
-                    >
-                      {promo.imageUrl && (
-                        <div className="relative h-32 w-full overflow-hidden">
-                          <ImageWithFallback
-                            src={promo.imageUrl}
-                            alt={promoTitle}
-                            className="w-full h-full object-cover"
-                          />
-                          {promo.discount > 0 && (
-                            <div className="absolute top-3 right-3">
-                              <Badge className="bg-orange-600 text-white text-xs px-2 py-1 shadow-lg">
-                                {promo.discount}% {t('off', language)}
-                              </Badge>
+          {/* EVENTS SECTION - Above Promos */}
+          {(() => {
+            const eventsForList = (restaurant as any).events || [];
+
+            if (!eventsForList || eventsForList.length === 0) return null;
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">{t('upcomingEvents', language)}</h2>
+                </div>
+
+                {/* EVENTS: ONE PER LINE */}
+                <div className="space-y-3">
+                  {eventsForList.map((event: any) => {
+                    const eventTitle = localizeText(event.title, language);
+                    const eventDescription = localizeText(event.description, language);
+                    return (
+                      <Card
+                        key={event.id}
+                        className="overflow-hidden border border-blue-200 shadow-sm"
+                      >
+                        {event.imageUrl && (
+                          <div className="relative h-24 w-full overflow-hidden">
+                            <ImageWithFallback
+                              src={event.imageUrl}
+                              alt={eventTitle}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                            <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
+                              <h3 className="text-sm font-semibold line-clamp-1">{eventTitle}</h3>
                             </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                          <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                            <h3 className="text-sm font-semibold">{promoTitle}</h3>
-                          </div>
-                        </div>
-                      )}
-                      <div className="p-3">
-                        {!promo.imageUrl && (
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <h3 className="text-gray-900 text-sm font-semibold">{promoTitle}</h3>
-                            {promo.discount > 0 && (
-                              <Badge className="bg-orange-600 text-white flex-shrink-0 text-xs">
-                                {promo.discount}% {t('off', language)}
-                              </Badge>
-                            )}
                           </div>
                         )}
-
-                        <p className="text-gray-600 text-sm line-clamp-3">{promoDescription}</p>
-                      </div>
-                    </Card>
-                  );
-                })}
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <h3 className="text-gray-900 text-base font-semibold line-clamp-2">
+                              {eventTitle}
+                            </h3>
+                            <div className="text-right text-xs text-gray-500 flex-shrink-0">
+                              <p>{new Date(event.date).toLocaleDateString(language)}</p>
+                              <p>{event.startTime} - {event.endTime}</p>
+                            </div>
+                          </div>
+                          <p className="text-gray-600 text-sm line-clamp-2">{eventDescription}</p>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
+
+          {(() => {
+            const promosForList =
+              restaurant.id === 'rest-rupestre'
+                ? (restaurant.promos || []).filter((promo) => promo.id !== 'rup-promo-mariachi')
+                : (restaurant.promos || []);
+
+            if (!promosForList || promosForList.length === 0) return null;
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-orange-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">{todaysPromosLabel}</h2>
+                </div>
+
+                {/* TODAY'S SPECIALS: ALWAYS 2 CARDS PER ROW */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  {promosForList.map((promo) => {
+                    const promoTitle = localizeText(promo.title, language);
+                    const promoDescription = localizeText(promo.description, language);
+                    return (
+                      <Card
+                        key={promo.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handlePromoNavigateToMenu(promo)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            handlePromoNavigateToMenu(promo);
+                          }
+                        }}
+                        className="overflow-hidden border-2 border-orange-200 hover:border-orange-400 transition-all hover:shadow-lg cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-orange-200"
+                        style={{ minHeight: '160px' }}
+                      >
+                        {promo.imageUrl && (
+                          <div className="relative h-32 w-full overflow-hidden">
+                            <ImageWithFallback
+                              src={promo.imageUrl}
+                              alt={promoTitle}
+                              className="w-full h-full object-cover"
+                            />
+                            {promo.discount > 0 && (
+                              <div className="absolute top-3 right-3">
+                                <Badge className="bg-orange-600 text-white text-xs px-2 py-1 shadow-lg">
+                                  {promo.discount}% {t('off', language)}
+                                </Badge>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                            <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                              <h3 className="text-sm font-semibold line-clamp-1">{promoTitle}</h3>
+                            </div>
+                          </div>
+                        )}
+                        <div className="p-3">
+                          {!promo.imageUrl && (
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <h3 className="text-gray-900 text-sm font-semibold line-clamp-2">
+                                {promoTitle}
+                              </h3>
+                              {promo.discount > 0 && (
+                                <Badge className="bg-orange-600 text-white flex-shrink-0 text-xs">
+                                  {promo.discount}% {t('off', language)}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+
+                          <p className="text-gray-600 text-sm line-clamp-3">{promoDescription}</p>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </PageShell>
 
       <BottomActionBar>
         <Button
-          onClick={handleMenuButtonClick}
+          onClick={handleToGoButtonClick}
           className="w-full sm:flex-1 text-gray-900"
           size="lg"
           variant="outline"
         >
-          {t('menu', language)}
+          {t('toGo', language)}
         </Button>
         <Button
           onClick={onContinue}

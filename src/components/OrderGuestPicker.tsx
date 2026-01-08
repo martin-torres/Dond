@@ -2,6 +2,7 @@ import { Language } from '../types';
 import { t } from '../utils/translations';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
+import { ChevronLeft } from 'lucide-react';
 
 interface OrderGuestPickerProps {
   seatingNames: string[];
@@ -38,8 +39,13 @@ export function OrderGuestPicker({ seatingNames, language, onSelect, onCancel }:
           ))}
         </div>
 
-        <Button variant="ghost" onClick={onCancel} className="text-gray-600 hover:text-gray-900">
-          {t('back', language)}
+        <Button
+          variant="ghost"
+          onClick={onCancel}
+          className="text-gray-600 hover:text-gray-900 rounded-full border border-gray-200 bg-white/70 shadow-sm px-3"
+          aria-label={t('back', language)}
+        >
+          <ChevronLeft className="w-5 h-5" />
         </Button>
       </div>
     </div>

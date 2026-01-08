@@ -25,7 +25,7 @@ export function OrderSubmissionScreen({ language, onContinue }: OrderSubmissionS
 
       <BottomActionBar>
         <Button onClick={onContinue} className="w-full sm:flex-1" size="lg">
-          {t('orderSubmitContinue', language)}
+          {t('orderSubmitTitle', language)}
         </Button>
       </BottomActionBar>
     </>
