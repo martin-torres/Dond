@@ -1,0 +1,99 @@
+FORENSIC INVESTIGATION REPORT: PAYMENT -> ORDER STATE FAILURE
+==============================================================
+
+1) EXECUTIVE SUMMARY
+--------------------
+Root Cause: The payment flow writes to an in-memory stub (paymentsApi.ts) that 
+does NOT persist to the database, while the UI read model queries the database 
+order_payment_status view which calculates payment completeness from the payments 
+table. This creates a complete disconnect.
+
+One Sentence: Payments are stored in-memory only (lost on refresh), causing the 
+database view to always calculate total_paid=0 and is_payment_complete=false.
+
+2) PAYMENT WRITE CONFIRMATION
+------------------------------
+Table: payments (PostgreSQL)
+Columns: id, order_id, amount, method, status, metadata, created_at
+Foreign Key: order_id references orders(id) - EXISTS
+
+CRITICAL FINDING: payments table has ZERO rows
+Evidence: [] (empty array from Supabase REST API)
+
+Expected: After payment, record should be inserted
+Actual: No payments exist despite payment flow execution
+
+3) RECONCILIATION LOGIC
+-----------------------
+A) src/App.tsx:handlePaymentComplete()
+   - Invoked: YES (called on payment completion)
+   - Updates order/order_items: NO (only in-memory)
+
+B) src/api/paymentsApi.ts:createPaymentRecord()
+   - Invoked: YES (called by handlePaymentComplete)
+   - Updates order/order_items: NO
+   - Uses: Map<string, PaymentRecord> (IN-MEMORY ONLY)
+   - Code comment: "TODO: Replace this in-memory store"
+
+C) src/api/mirrorWritesApi.ts:mirrorCashPayment() and related
+   - Invoked: NO (exist but not called by payment flow)
+   - Updates order/order_items: YES (inserts to payments table)
+
+D) order_payment_status SQL View
+   - Invoked: YES (used by tableServicesApi.ts)
+   - Updates: NO (read-only view)
+   - Logic: SUM(payments.amount WHERE status='completed') >= SUM(order_items.price * quantity)
+   - Result: total_paid always = 0 (no payment rows), is_payment_complete always = false
+
+4) DB POST-PAYMENT DIFF
+-----------------------
+Payments Table: 0 rows (empty)
+Orders Table: No total_paid or total_due columns exist
+Order Items: NO is_paid column exists
+
+Sample Orders from Supabase:
+- Order 684: status=NEW, Flan Napolitano ($45)
+- Order 683: status=NEW, Chicharron ($80) + Agua ($20) = $100
+- Order 682: status=NEW, Modelo ($35)
+- Order 681: status=NEW, Agua ($20)
+- Order 679: status=DELIVERED, Chicharron ($80)
+- Order 678: status=DELIVERED, Chicharron ($80) + Agua ($20) = $100
+
+5) UI DATA SOURCE
+-----------------
+Primary: src/staff/StaffDataProvider.tsx:getBillDataByOrderId()
+Calls: src/api/ordersApi.ts:fetchOrderItemsForOrders()
+Query: SELECT * FROM order_items WHERE order_id IN (...)
+
+Bill Calculation: src/App.tsx (lines 485-495)
+- Uses: currentOrders (from database) + payments (in-memory array)
+- payments array: Always empty (in-memory stub)
+
+CRITICAL MISMATCH:
+UI: Uses in-memory payments array (always empty)
+Backend: Queries order_payment_status view (calculates from payments table)
+Result: UI shows unpaid items, backend sees no payments
+
+6) PERMISSIONS/RLS FINDINGS
+----------------------------
+RLS Status: DISABLED for payments table (Phase 2 design)
+Evidence: sql-create-seats-and-payments-tables.sql comments
+"NOTE: RLS is DISABLED for Phase 2 to avoid blocking mirror writes"
+
+Policies: None found (no .sql files with RLS policies)
+Result: RLS is NOT blocking writes
+
+7) ROOT CAUSE STATEMENT
+------------------------
+The payment completion handler calls paymentsApi.ts which stores payments in 
+an in-memory Map that is never persisted to the Supabase payments table, 
+resulting in the order_payment_status view always calculating total_paid=0 and 
+is_payment_complete=false for all orders, causing unpaid items to remain 
+perpetually visible in the UI.
+
+FLOW DIAGRAM:
+User pays -> handlePaymentComplete() -> createPaymentRecord() -> Map.set() 
+-> Payment lost on refresh
+Meanwhile: order_payment_status view -> SUM(payments.amount) = 0 -> unpaid
+
+FIX REQUIRED: Replace in-memory paymentsApi.ts with database persistence

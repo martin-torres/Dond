@@ -44,9 +44,7 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
     selectedLocation === 'all' ? tables : tables.filter((t) => t.location === selectedLocation);
 
   const handleTableClick = (table: Table) => {
-    if (table.available) {
-      setSelectedTable(table.id);
-    }
+    setSelectedTable(table.id);
   };
 
   const handleConfirm = () => {
@@ -54,7 +52,7 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
   };
 
   const handleNextAvailable = () => {
-    const nextTable = tables.find((t) => t.available);
+    const nextTable = tables[0];
     if (nextTable) {
       onSelectTable(nextTable.id);
     }
@@ -113,15 +111,12 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
               <button
                 key={table.id}
                 onClick={() => handleTableClick(table)}
-                disabled={!table.available}
                 className={`w-full p-4 rounded-2xl border text-left transition shadow-sm ${
-                  table.available
-                    ? selectedTable === table.id
-                      ? 'border-green-600 bg-green-50 ring-2 ring-green-200 shadow-[0_0_0_6px_rgba(74,222,128,0.25)]'
-                      : table.reserved
-                      ? 'border-amber-400 bg-amber-50 hover:border-amber-500'
-                      : 'border-white/80 bg-white hover:border-green-200'
-                    : 'border-red-200 bg-red-50 cursor-not-allowed opacity-60'
+                  selectedTable === table.id
+                    ? 'border-green-600 bg-green-50 ring-2 ring-green-200 shadow-[0_0_0_6px_rgba(74,222,128,0.25)]'
+                    : table.reserved
+                    ? 'border-amber-400 bg-amber-50 hover:border-amber-500'
+                    : 'border-white/80 bg-white hover:border-green-200'
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -134,29 +129,12 @@ export function TableSelector({ tables, language, onSelectTable }: TableSelector
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <Badge
-                      variant={
-                        table.available
-                          ? table.reserved
-                            ? 'outline'
-                            : 'default'
-                          : 'destructive'
-                      }
-                      className={`uppercase tracking-wide text-[10px] ${
-                        table.reserved && table.available
-                          ? 'border-amber-400 text-amber-700 bg-amber-50'
-                          : table.available
-                          ? 'bg-indigo-600 hover:bg-indigo-700'
-                          : ''
-                      }`}
-                    >
-                      {table.available
-                        ? table.reserved
-                          ? t('reserved', language)
-                          : t('available', language)
-                        : t('occupied', language)}
-                    </Badge>
-                    {table.reserved && table.available && (
+                    {table.reserved && (
+                      <Badge variant="outline" className="uppercase tracking-wide text-[10px] border-amber-400 text-amber-700 bg-amber-50">
+                        {t('reserved', language)}
+                      </Badge>
+                    )}
+                    {table.reserved && (
                       <span className="text-xs text-amber-600 flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                       </span>

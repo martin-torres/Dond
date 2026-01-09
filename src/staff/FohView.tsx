@@ -8,6 +8,7 @@ import { Card } from '../components/ui/card';
 import FloorPlanTablePicker, { TableSignal } from '../components/FloorPlanTablePicker';
 import { Table } from '../types';
 import { OrderStatus, StaffOrder, TableInfo } from './types';
+import { supabase } from '../lib/supabaseClient';
 
 export const FohView = () => {
   const { tables, orders, setTableState, closeTableSession, singleOperatorMode, setSingleOperatorMode } = useStaffData();
@@ -16,6 +17,45 @@ export const FohView = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [gridMode, setGridMode] = useState(false);
   const [manualTableSelection, setManualTableSelection] = useState(false);
+  const [paymentStatusMap, setPaymentStatusMap] = useState<Map<string, { is_payment_complete: boolean }>>(new Map());
+
+  // CANONICAL: Query payment status for all non-DELIVERED orders
+  useEffect(() => {
+    const nonDeliveredOrders = orders.filter((order) => order.status !== 'DELIVERED');
+    const orderIds = Array.from(new Set(nonDeliveredOrders.map((order) => order.id)));
+
+    if (orderIds.length === 0) {
+      setPaymentStatusMap(new Map());
+      return;
+    }
+
+    const queryPaymentStatus = async () => {
+      try {
+        const { data: paymentStatus, error } = await supabase
+          .from('order_payment_status')
+          .select('order_id, is_payment_complete')
+          .in('order_id', orderIds);
+
+        if (!error && paymentStatus) {
+          const newMap = new Map(
+            paymentStatus.map((status) => [status.order_id, status])
+          );
+          setPaymentStatusMap(newMap);
+        }
+      } catch (error) {
+        console.error('Failed to query payment status for FOH view:', error);
+      }
+    };
+
+    queryPaymentStatus();
+  }, [orders]);
+
+  // CANONICAL: An order is ACTIVE iff status !== 'DELIVERED' AND is_payment_complete === false
+  const isOrderActive = useCallback((order: StaffOrder): boolean => {
+    if (order.status === 'DELIVERED') return false;
+    const paymentStatus = paymentStatusMap.get(order.id);
+    return paymentStatus ? !paymentStatus.is_payment_complete : false; // Default to inactive if payment status unknown
+  }, [paymentStatusMap]);
 
   // In single-operator mode, automatically focus the most urgent table and keep sidebar open.
   // Priority: request > ready > picking_up > in_progress > new.
@@ -35,7 +75,7 @@ export const FohView = () => {
     let bestScore = -1;
 
     for (const table of tables) {
-      const active = orders.filter((order) => order.tableId === table.id && order.status !== 'DELIVERED');
+      const active = orders.filter((order) => order.tableId === table.id && isOrderActive(order));
       if (!active.length) continue;
       const hasRequest = active.some((order) => order.orderType === 'request');
       const hasOrder = active.some((order) => order.orderType !== 'request' && order.status === 'NEW');
@@ -50,7 +90,7 @@ export const FohView = () => {
     }
 
     return bestId ?? tables[0]?.id ?? null;
-  }, [orders, tables]);
+  }, [orders, tables, isOrderActive]);
 
   // Enhanced priority detection for auto-select
   const getHighestPriorityTable = useCallback((tables: TableInfo[], orders: StaffOrder[]): TableInfo | null => {
@@ -58,6 +98,7 @@ export const FohView = () => {
     const readyTables = tables.filter(table =>
       orders.some(order =>
         order.tableId === table.id &&
+        isOrderActive(order) &&
         (order.status === 'READY' || order.status === 'PICKING_UP')
       )
     );
@@ -65,8 +106,8 @@ export const FohView = () => {
     if (readyTables.length > 0) {
       // Sort by oldest READY order (time-based tiebreaker)
       return readyTables.sort((a, b) => {
-        const aReadyOrders = orders.filter(o => o.tableId === a.id && o.status === 'READY');
-        const bReadyOrders = orders.filter(o => o.tableId === b.id && o.status === 'READY');
+        const aReadyOrders = orders.filter(o => o.tableId === a.id && o.status === 'READY' && isOrderActive(o));
+        const bReadyOrders = orders.filter(o => o.tableId === b.id && o.status === 'READY' && isOrderActive(o));
         const aOldest = Math.min(...aReadyOrders.map(o => new Date(o.createdAt).getTime()));
         const bOldest = Math.min(...bReadyOrders.map(o => new Date(o.createdAt).getTime()));
         return aOldest - bOldest; // Oldest first
@@ -75,11 +116,11 @@ export const FohView = () => {
 
     // Fallback to any table with active orders if no READY items
     const tablesWithOrders = tables.filter(table =>
-      orders.some(order => order.tableId === table.id && order.status !== 'DELIVERED')
+      orders.some(order => order.tableId === table.id && isOrderActive(order))
     );
 
     return tablesWithOrders.length > 0 ? tablesWithOrders[0] : null;
-  }, []);
+  }, [isOrderActive]);
 
   // Smart auto-focus logic for single operator mode
   useEffect(() => {
@@ -96,7 +137,7 @@ export const FohView = () => {
       if (!currentTable || !preferredTable) return false;
 
       const getTablePriority = (tableId: string) => {
-        const tableOrders = orders.filter(order => order.tableId === tableId && order.status !== 'DELIVERED');
+        const tableOrders = orders.filter(order => order.tableId === tableId && isOrderActive(order));
         if (!tableOrders.length) return 0;
 
         // Priority: bill requests > other requests > ready > picking_up
@@ -124,7 +165,7 @@ export const FohView = () => {
       setSelectedTableId(preferredTableId);
       setSidebarOpen(true);
     }
-  }, [preferredTableId, selectedTableId, singleOperatorMode, manualTableSelection, orders, tables]);
+  }, [preferredTableId, selectedTableId, singleOperatorMode, manualTableSelection, orders, tables, isOrderActive]);
 
   // Enhanced auto-select logic for seamless updates
   useEffect(() => {
@@ -149,17 +190,17 @@ export const FohView = () => {
         ? orders.filter(
             (order) =>
               order.tableId === selectedTable.id &&
-              order.status !== 'DELIVERED'
+              isOrderActive(order)
           )
         : [],
-    [orders, selectedTable]
+    [orders, selectedTable, isOrderActive]
   );
 
   const tableSignals = useMemo(() => {
     const signalMap: Record<string, TableSignal> = {};
     tables.forEach((table) => {
       const active = orders.filter(
-        (order) => order.tableId === table.id && order.status !== 'DELIVERED'
+        (order) => order.tableId === table.id && isOrderActive(order)
       );
       const hasRequest = active.some((order) => order.orderType === 'request');
       const hasOrder = active.some(
@@ -177,7 +218,7 @@ export const FohView = () => {
       };
     });
     return signalMap;
-  }, [orders, tables]);
+  }, [orders, tables, isOrderActive]);
 
   const cleaningMinutes =
     selectedTable?.cleaningStartedAt && selectedTable.state === 'CLEANING'
@@ -231,40 +272,40 @@ export const FohView = () => {
 
   const actionsForOrder = (order: StaffOrder) => {
     // Handle bill requests specially - they trigger bill payment page
-        if (order.orderType === 'request' && order.customerName?.includes('Bill Request')) {
-          const actions: { label: string; onClick: () => void }[] = [];
-          if (order.status === 'NEW') {
-            actions.push({
-              label: 'View Bill',
-              onClick: () => {
-                // Navigate to staff bill view using OrderSummaryScreen
-                if (order.tableId) {
-                  const latestOrderId = getLatestNonRequestOrderId(order.tableId);
-                  const params = new URLSearchParams();
-                  if (latestOrderId) params.set('orderId', latestOrderId);
-                  if (activeRestaurantId) params.set('restaurantId', activeRestaurantId);
-                  const query = params.toString();
-                  const url = query
-                    ? `/staff/bill/${order.tableId}?${query}`
-                    : `/staff/bill/${order.tableId}`;
-                  window.location.href = url;
-                }
-              },
-            });
-            if (singleOperatorMode) {
-              actions.push({
-                label: 'Handle',
-                onClick: () => updateStationStatus(order.id, 'server', 'IN_PROGRESS'),
-              });
+    if (order.orderType === 'request' && order.customerName?.includes('Bill Request')) {
+      const actions: { label: string; onClick: () => void }[] = [];
+      if (order.status === 'NEW') {
+        actions.push({
+          label: 'View Bill',
+          onClick: () => {
+            // Navigate to staff bill view using OrderSummaryScreen
+            if (order.tableId) {
+              const latestOrderId = getLatestNonRequestOrderId(order.tableId);
+              const params = new URLSearchParams();
+              if (latestOrderId) params.set('orderId', latestOrderId);
+              if (activeRestaurantId) params.set('restaurantId', activeRestaurantId);
+              const query = params.toString();
+              const url = query
+                ? `/staff/bill/${order.tableId}?${query}`
+                : `/staff/bill/${order.tableId}`;
+              window.location.href = url;
             }
-          } else if (order.status === 'IN_PROGRESS' && singleOperatorMode) {
-            actions.push({
-              label: 'Complete',
-              onClick: () => markStationDelivered(order.id, 'server'),
-            });
-          }
-          return actions;
+          },
+        });
+        if (singleOperatorMode) {
+          actions.push({
+            label: 'Handle',
+            onClick: () => updateStationStatus(order.id, 'server', 'IN_PROGRESS'),
+          });
         }
+      } else if (order.status === 'IN_PROGRESS' && singleOperatorMode) {
+        actions.push({
+          label: 'Complete',
+          onClick: () => markStationDelivered(order.id, 'server'),
+        });
+      }
+      return actions;
+    }
 
     // In 1-op mode, allow full control over all order types
     if (singleOperatorMode) {
@@ -278,8 +319,15 @@ export const FohView = () => {
         }
         return [];
       }
+      
       // Handle kitchen/bar orders in 1-op mode
+      // FIX: Add defensive check for station existence
       const station = order.station;
+      if (!station) {
+        console.warn('Order missing station in 1-op mode:', order.id, order);
+        return [];
+      }
+      
       if (order.status === 'NEW' && (station === 'kitchen' || station === 'bar')) {
         return [{
           label: 'Start',
@@ -321,7 +369,14 @@ export const FohView = () => {
 
     // Normal mode - FOH only handles pickup/delivery
     if (order.orderType === 'request') return [];
+    
+    // FIX: Add defensive check for station existence
     const station = order.station;
+    if (!station) {
+      console.warn('Order missing station in normal mode:', order.id, order);
+      return [];
+    }
+    
     if (order.status === 'READY' && (station === 'kitchen' || station === 'bar')) {
       return [
         {
@@ -374,7 +429,7 @@ export const FohView = () => {
                           number: table.tableNumber ?? 0,
                           seats: table.seats ?? 4,
                           location: (table.location as Table['location']) ?? 'middle',
-                          available: table.state === 'READY',
+                          // REMOVED: available - now derived from orders + payment status (canonical)
                           reserved: table.state === 'OCCUPIED' ? false : undefined,
                           x: table.x ?? 0,
                           y: table.y ?? 0,

@@ -118,7 +118,7 @@ export function ManagerTablesPanel({ enabled }: Props) {
       seats: Number.isFinite(newSeats) ? newSeats : 4,
       location: newLocation || null,
       section: null,
-      available: true,
+      // REMOVED: available - now derived from orders + payment status (canonical)
       visible_to_customers: false,
       x: null,
       y: null,
@@ -274,14 +274,7 @@ export function ManagerTablesPanel({ enabled }: Props) {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={!!r.available}
-                  onChange={(e) => updateRowField(r.id, { available: e.target.checked })}
-                />
-                Available
-              </label>
+              {/* REMOVED: Available checkbox - availability is now derived from orders + payment status */}
             </div>
           ))
         )}

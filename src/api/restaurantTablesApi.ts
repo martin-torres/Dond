@@ -13,7 +13,7 @@ export type RestaurantTableRow = {
   location: string | null;
   section: string | null;
 
-  available: boolean | null;
+  // REMOVED: available - now derived from orders + payment status (canonical)
   visible_to_customers: boolean | null;
 
   x: number | null;
@@ -21,7 +21,7 @@ export type RestaurantTableRow = {
 
   // floorplan editor fields (safe to keep optional/nullable)
   shape?: string | null;
-  rotation?: number | null;
+  rotation?: string | null;
   is_interactive?: boolean | null;
 
   created_at?: string;

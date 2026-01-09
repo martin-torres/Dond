@@ -37,6 +37,21 @@ export function BillPayment({
   const taxRate = bill.subtotal > 0 ? bill.tax / bill.subtotal : 0;
   const tipRate = tipPercent / 100;
 
+  // CANONICAL: Compute remaining due from order_payment_status view
+  const totalRemainingDue = useMemo(() => {
+    if (!bill.orderPaymentStatus || bill.orderPaymentStatus.length === 0) {
+      return bill.total; // No payment info yet, assume full amount due
+    }
+    return bill.orderPaymentStatus.reduce((sum, status) => sum + status.remainingDue, 0);
+  }, [bill.orderPaymentStatus, bill.total]);
+
+  const isBillFullyPaid = useMemo(() => {
+    if (!bill.orderPaymentStatus || bill.orderPaymentStatus.length === 0) {
+      return false; // No payment info yet, assume not paid
+    }
+    return bill.orderPaymentStatus.every((status) => status.isPaymentComplete);
+  }, [bill.orderPaymentStatus]);
+
   const getItemKey = (itemId: string, idx: number) => `${itemId}-${idx}`;
 
   const selectedItemsSubtotal = useMemo(() => {
@@ -155,6 +170,38 @@ export function BillPayment({
         <div className="space-y-5">
           <Card className="p-4 space-y-3">
             <h2 className="text-xl font-semibold text-gray-900">{t('billSummary', language)}</h2>
+            
+            {/* CANONICAL: Payment status indicator */}
+            {bill.orderPaymentStatus && bill.orderPaymentStatus.length > 0 && (
+              <div className={`p-3 rounded-lg border-2 ${
+                isBillFullyPaid 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-yellow-50 border-yellow-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">
+                    {isBillFullyPaid ? '✅ ' : '💰 '}
+                    {isBillFullyPaid ? t('billFullyPaid', language) : t('paymentStatus', language)}
+                  </span>
+                  <span className={`text-sm font-bold ${
+                    isBillFullyPaid ? 'text-green-700' : 'text-yellow-700'
+                  }`}>
+                    ${totalRemainingDue.toFixed(2)}
+                  </span>
+                </div>
+                {!isBillFullyPaid && (
+                  <div className="text-xs text-gray-600 mt-1">
+                    {t('remainingDue', language)}: ${totalRemainingDue.toFixed(2)}
+                  </div>
+                )}
+                {isBillFullyPaid && (
+                  <div className="text-xs text-green-600 mt-1">
+                    {t('noOutstandingBalance', language)}
+                  </div>
+                )}
+              </div>
+            )}
+
             <ul className="space-y-1 text-sm text-gray-700 max-h-40 overflow-y-auto">
               {bill.items.map((item, idx) => (
                 <li

@@ -175,6 +175,11 @@ export const translations: Record<Language, Record<string, string>> = {
     tipAllocationService: 'Leaning toward service',
     tipAllocationKitchen: 'Leaning toward kitchen',
     noTipReasonLabel: 'Tell us why (helps us improve)',
+    // CANONICAL: Payment status translations
+    billFullyPaid: 'Bill Fully Paid',
+    paymentStatus: 'Payment Status',
+    remainingDue: 'Remaining Due',
+    noOutstandingBalance: 'No outstanding balance',
   },
   es: {
     scanQR: 'Escanear Código QR',
@@ -350,6 +355,11 @@ export const translations: Record<Language, Record<string, string>> = {
     tipAllocationService: 'Inclinada hacia servicio',
     tipAllocationKitchen: 'Inclinada hacia cocina',
     noTipReasonLabel: 'Cuéntanos por qué (ayuda a mejorar)',
+    // CANONICAL: Payment status translations
+    billFullyPaid: 'Cuenta Totalmente Pagada',
+    paymentStatus: 'Estado de Pago',
+    remainingDue: 'Saldo Pendiente',
+    noOutstandingBalance: 'Sin saldo pendiente',
   },
   fr: {
     scanQR: 'Scanner le Code QR',

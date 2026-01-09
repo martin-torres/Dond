@@ -141,12 +141,11 @@ const seedTablesFromRestaurant = (restaurant: Restaurant | null): TableInfo[] =>
     id: table.id,
     label: `${titleCase(table.location)} ${table.number}`,
     section: titleCase(table.location),
-    state: table.available ? 'READY' : 'OCCUPIED',
+    state: 'READY', // Default state, will be updated based on orders
     cleaningStartedAt: null,
     tableNumber: table.number,
     seats: table.seats,
     location: table.location,
-    available: table.available,
     x: table.x,
     y: table.y,
   }));
@@ -157,12 +156,11 @@ const seedTablesFromDbRows = (rows: RestaurantTableRow[]): TableInfo[] => {
     id: row.id,
     label: row.display_name ?? `Table ${row.table_number ?? row.id}`,
     section: titleCase(row.section ?? row.location),
-    state: row.available ? 'READY' : 'OCCUPIED',
+    state: 'READY', // Default state, will be updated based on orders
     cleaningStartedAt: null,
     tableNumber: row.table_number ?? undefined,
     seats: row.seats ?? undefined,
     location: row.location ?? undefined,
-    available: row.available ?? undefined,
     x: row.x ?? undefined,
     y: row.y ?? undefined,
   }));
@@ -210,11 +208,41 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
   const kindIndex = useMemo(() => buildMenuKindIndex(activeRestaurant), [activeRestaurant]);
 
   const syncTableOccupancy = useCallback(
-    (nextOrders: StaffOrder[]) => {
+    async (nextOrders: StaffOrder[]) => {
+      // CANONICAL: Query payment status for all non-DELIVERED orders
+      const nonDeliveredOrders = nextOrders.filter((order) => order.status !== 'DELIVERED');
+      const orderIds = Array.from(new Set(nonDeliveredOrders.map((order) => order.id)));
+
+      let paymentStatusMap = new Map<string, { is_payment_complete: boolean }>();
+
+      if (orderIds.length > 0) {
+        try {
+          const { data: paymentStatus, error } = await supabase
+            .from('order_payment_status')
+            .select('order_id, is_payment_complete')
+            .in('order_id', orderIds);
+
+          if (!error && paymentStatus) {
+            paymentStatusMap = new Map(
+              paymentStatus.map((status) => [status.order_id, status])
+            );
+          }
+        } catch (error) {
+          console.error('Failed to query payment status for table occupancy:', error);
+        }
+      }
+
+      // CANONICAL: An order is ACTIVE iff status !== 'DELIVERED' AND is_payment_complete === false
+      const isOrderActive = (order: StaffOrder): boolean => {
+        if (order.status === 'DELIVERED') return false;
+        const paymentStatus = paymentStatusMap.get(order.id);
+        return paymentStatus ? !paymentStatus.is_payment_complete : true; // Default to active if payment status unknown
+      };
+
       setTables((prev) =>
         prev.map((table) => {
           const hasActive = nextOrders.some(
-            (order) => order.tableId === table.id && order.status !== 'DELIVERED'
+            (order) => order.tableId === table.id && isOrderActive(order)
           );
           if (table.state === 'CLEANING' || table.state === 'PAYING') return table;
           if (hasActive) {
@@ -486,14 +514,18 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
     []
   );
 
-  const deriveStation = (items: StaffOrderItem[], orderType: OrderType): Station | undefined => {
-    if (orderType === 'request') return 'server';
-    const hasFoodOnly = items.length > 0 && items.every((item) => item.kind === 'food');
-    const hasDrinksOnly = items.length > 0 && items.every((item) => item.kind === 'drink');
-    if (hasFoodOnly) return 'kitchen';
-    if (hasDrinksOnly) return 'bar';
-    return undefined;
-  };
+const deriveStation = (items: StaffOrderItem[], orderType: OrderType): Station | undefined => {
+  if (orderType === 'request') return 'server';
+  
+  const hasFood = items.some((item) => item.kind === 'food');
+  const hasDrinks = items.some((item) => item.kind === 'drink');
+  
+  if (hasFood && !hasDrinks) return 'kitchen';
+  if (hasDrinks && !hasFood) return 'bar';
+  if (hasFood && hasDrinks) return 'kitchen'; // Mixed orders → kitchen (primary station)
+  
+  return undefined;
+};
 
   // Get all relevant stations for an order (for UI filtering)
   const getRelevantStations = (items: StaffOrderItem[], orderType: OrderType): Station[] => {
@@ -543,7 +575,8 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
         const deliveredAt = order.foh_request_delivered_at
           ? new Date(order.foh_request_delivered_at)
           : null;
-        const productionStatus = (order.foh_request_status ?? order.status ?? 'NEW') as OrderStatus;
+        // FIX: Use foh_request_status directly, don't fall back to order.status
+        const productionStatus = (order.foh_request_status || 'NEW') as OrderStatus;
         return [
           {
             id: order.id,
@@ -569,7 +602,8 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       if (foodItems.length) {
         const pickedUpAt = order.kitchen_picked_up_at ? new Date(order.kitchen_picked_up_at) : null;
         const deliveredAt = order.kitchen_delivered_at ? new Date(order.kitchen_delivered_at) : null;
-        const productionStatus = (order.kitchen_status ?? order.status ?? 'NEW') as OrderStatus;
+        // FIX: Use kitchen_status directly, don't fall back to order.status
+        const productionStatus = (order.kitchen_status || 'NEW') as OrderStatus;
         tickets.push({
           id: order.id,
           ticketId: `${order.id}-kitchen`,
@@ -591,7 +625,8 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       if (drinkItems.length) {
         const pickedUpAt = order.bar_picked_up_at ? new Date(order.bar_picked_up_at) : null;
         const deliveredAt = order.bar_delivered_at ? new Date(order.bar_delivered_at) : null;
-        const productionStatus = (order.bar_status ?? order.status ?? 'NEW') as OrderStatus;
+        // FIX: Use bar_status directly, don't fall back to order.status
+        const productionStatus = (order.bar_status || 'NEW') as OrderStatus;
         tickets.push({
           id: order.id,
           ticketId: `${order.id}-bar`,
@@ -749,9 +784,16 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
     const setupSubscription = async () => {
       const unsubscribeFn = await subscribeToOrders((payload) => {
         if (cancelled) return;
+        console.log('🔔 Subscription callback received:', {
+          eventType: payload.eventType,
+          orderId: payload.newRow?.id || payload.oldRow?.id
+        });
+        
         if (payload.eventType === 'INSERT' && payload.newRow) {
+          console.log('🔔 INSERT event for order:', payload.newRow.id);
           handleInsert(payload.newRow);
         } else if (payload.eventType === 'UPDATE' && payload.newRow) {
+          console.log('🔔 UPDATE event for order:', payload.newRow.id);
           // Recompute station tickets from the updated DB order to avoid clobbering
           // kitchen_status / bar_status changes with the legacy `orders.status` column.
           const updatedOrder = payload.newRow as any as OrderWithItems;
@@ -759,6 +801,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
             .then((itemsMap) => {
               const items = itemsMap.get(updatedOrder.id) ?? [];
               const nextTickets = mapSupabaseOrderToStaff({ ...updatedOrder, items });
+              console.log('🔔 Mapped updated order to tickets:', nextTickets.length);
               nextTickets.forEach(upsertStaffOrder);
             })
             .catch((err) => {
@@ -766,6 +809,7 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
             });
         } else if (payload.eventType === 'DELETE' && payload.oldRow) {
           const deletedId = (payload.oldRow as any).id;
+          console.log('🔔 DELETE event for order:', deletedId);
           setOrders((prev) => prev.filter((order) => order.id !== deletedId));
         }
       }, activeRestaurantId);
@@ -782,6 +826,11 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [mapSupabaseOrderToStaff, upsertStaffOrder, activeRestaurantId]);
 
+  // CANONICAL: Update table occupancy when orders change
+  useEffect(() => {
+    syncTableOccupancy(orders);
+  }, [orders, syncTableOccupancy]);
+
   const setTableState = useCallback(async (tableId: string, state: TableState, startedAt?: Date | null) => {
     // Update local state immediately
     setTables((prev) =>
@@ -790,28 +839,53 @@ export const StaffDataProvider = ({ children }: { children: ReactNode }) => {
       )
     );
 
-    // Persist to database
-    try {
-      await supabase
-        .from('restaurant_tables')
-        .update({ available: state === 'READY' })
-        .eq('id', tableId);
-    } catch (error) {
-      console.error('Failed to persist table state to database:', error);
-      // Rollback local state on failure
-      setTables((prev) =>
-        prev.map((table) =>
-          table.id === tableId ? { ...table, state: table.state, cleaningStartedAt: table.cleaningStartedAt } : table
-        )
-      );
-    }
+    // NOTE: Table state is now derived from orders, not persisted to legacy 'available' flag
+    // The 'available' flag is non-authoritative and should not be used for truth
   }, []);
 
   const closeTableSession = useCallback(
-    (tableId: string) => {
+    async (tableId: string) => {
       const tableOrders = orders.filter(
         (order) => order.tableId === tableId && order.status !== 'DELIVERED'
       );
+
+      // CANONICAL GATE: Check payment completeness before closing
+      const uniqueOrderIds = Array.from(new Set(tableOrders.map((order) => order.id)));
+      
+      if (uniqueOrderIds.length > 0) {
+        try {
+          // Query order_payment_status view for payment completeness
+          const { data: paymentStatus, error } = await supabase
+            .from('order_payment_status')
+            .select('order_id, is_payment_complete')
+            .in('order_id', uniqueOrderIds);
+
+          if (error) {
+            console.error('Failed to query payment status:', error);
+            alert('Cannot close table: Failed to verify payment status');
+            return;
+          }
+
+          // Check if all orders are payment complete
+          const allPaid = paymentStatus.every((status) => status.is_payment_complete === true);
+          
+          if (!allPaid) {
+            const unpaidOrders = paymentStatus
+              .filter((status) => !status.is_payment_complete)
+              .map((status) => status.order_id);
+            
+            console.warn('Blocked table close: Unpaid orders', unpaidOrders);
+            alert('Cannot close table: Some orders are not fully paid. Please ensure all bills are settled.');
+            return;
+          }
+        } catch (err) {
+          console.error('Error checking payment completeness:', err);
+          alert('Cannot close table: Error verifying payment status');
+          return;
+        }
+      }
+
+      // All orders are paid - proceed with closing
       tableOrders.forEach((order) => {
         // With per-station tickets, we only need to close each DB order once.
         // Picking the first ticket per DB order prevents duplicate updates.

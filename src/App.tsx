@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { AppStage, Language, OrderItem, Restaurant, Payment, MenuItem } from './types';
+import { AppStage, Language, OrderItem, Restaurant, Payment, MenuItem, Bill } from './types';
 import { QRScanner } from './components/QRScanner';
 import { RestaurantInfo } from './components/RestaurantInfo';
 import { TableSelector } from './components/TableSelector';
@@ -50,7 +50,6 @@ export default function App() {
   const [currentOrders, setCurrentOrders] = useState<OrderItem[]>([]);
   const [drinkOrders, setDrinkOrders] = useState<OrderItem[]>([]);
   const [proximityDistance, setProximityDistance] = useState(10); // meters from restaurant
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [waitSeconds, setWaitSeconds] = useState<number | null>(null);
   const [menuFocusItemId, setMenuFocusItemId] = useState<string | null>(null);
   const [interactiveMenuFocusId, setInteractiveMenuFocusId] = useState<string | null>(null);
@@ -60,6 +59,7 @@ export default function App() {
   const [pendingChefPreviewItems, setPendingChefPreviewItems] = useState<OrderItem[] | null>(null);
   const [pendingTableOrder, setPendingTableOrder] = useState<OrderItem[] | null>(null);
   const [deliveredItemIds, setDeliveredItemIds] = useState<Set<string>>(new Set());
+  const [orderPaymentStatus, setOrderPaymentStatus] = useState<Bill['orderPaymentStatus']>([]);
 
   // Auto-detect language on mount (simulated)
   useEffect(() => {
@@ -122,42 +122,9 @@ export default function App() {
     };
   }, [selectedTableId, currentRestaurant]);
 
-  // Listen for table status changes from staff side to update customer view in real-time
-  useEffect(() => {
-    if (!currentRestaurant?.id) return;
-
-    const channel = supabase
-      .channel('customer-table-sync')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'restaurant_tables',
-          filter: `restaurant_id=eq.${currentRestaurant.id}`,
-        },
-        (payload) => {
-          const updatedTable = payload.new;
-          setCurrentRestaurant((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  tables: prev.tables.map((table) =>
-                    table.id === updatedTable.id
-                      ? { ...table, available: updatedTable.available }
-                      : table
-                  ),
-                }
-              : prev
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentRestaurant?.id]);
+  // NOTE: Removed subscription to restaurant_tables.available flag
+  // Table availability is now derived from orders + payment status (canonical sources)
+  // Legacy flags must not affect UI state or transitions
 
   useEffect(() => {
     let cancelled = false;
@@ -202,7 +169,7 @@ export default function App() {
       currentRestaurant.tables!.find((t) => t.id === tableId)?.number ?? null;
 
     try {
-      await staff.addCustomerOrder({
+      const order = await staff.addCustomerOrder({
         items,
         meta: {
           restaurant: currentRestaurant,
@@ -211,7 +178,7 @@ export default function App() {
           language,
         },
       });
-      console.log('✅ Sent order to Supabase', { tableId, count: items.length });
+      console.log('✅ Sent order to Supabase', { tableId, count: items.length, orderId: order?.id });
     } catch (err) {
       console.error('❌ Failed to send order to Supabase', err);
     }
@@ -296,19 +263,16 @@ export default function App() {
       return;
     }
 
-    // Only show tables that are visible to customers
-    const tablesFromDb = tableRows
-      .filter((t) => t.visible_to_customers === true)
-      .map((t) => ({
-        id: String(t.id),
-        number: Number(t.table_number ?? 0),
-        seats: Number(t.seats ?? 0),
-        location: normalizeTableLocation(t.location),
-        available: Boolean(t.available ?? true),
-        reserved: false,
-        x: Number(t.x ?? 0),
-        y: Number(t.y ?? 0),
-      }));
+    // Render all tables for the restaurant
+    const tablesFromDb = tableRows.map((t) => ({
+      id: String(t.id),
+      number: Number(t.table_number ?? 0),
+      seats: Number(t.seats ?? 0),
+      location: normalizeTableLocation(t.location),
+      reserved: false,
+      x: Number(t.x ?? 0),
+      y: Number(t.y ?? 0),
+    }));
 
     // Convert DB menu rows into your UI MenuItem type
     const menuItemsFromDb: MenuItem[] = menuRows.map((r) => ({
@@ -669,26 +633,42 @@ export default function App() {
   };
 
   const handlePaymentComplete = (paidAmount?: number, paidItems?: string[]) => {
-    const orderReference = selectedTableId ?? 'local-order';
-    if (paidAmount !== undefined) {
-      // Stubbed payment recording to keep flow integration-friendly.
-      createPaymentRecord({
-        orderId: orderReference,
-        amount: paidAmount,
-        currency: 'USD',
-        metadata: {
-          items: (paidItems ?? []).join(','),
-          restaurantId: currentRestaurant?.id ?? 'unknown',
-        },
-      }).then((record) => updatePaymentStatus(record.id, 'PAID'));
+    if (paidAmount !== undefined && selectedTableId) {
+      // Query database to get order IDs for this table (reload-safe)
+      const tableOrders = staff.orders.filter(
+        (order) => order.tableId === selectedTableId && order.orderType !== 'request'
+      );
+      const uniqueOrderIds = Array.from(new Set(tableOrders.map((order) => order.id)));
+      
+      if (uniqueOrderIds.length > 0) {
+        // Create payment records for each order ID
+        const paymentPromises = uniqueOrderIds.map(orderId => 
+          createPaymentRecord({
+            orderId: orderId,
+            amount: paidAmount / uniqueOrderIds.length, // Split payment evenly across orders
+            currency: 'USD',
+            metadata: {
+              items: (paidItems ?? []).join(','),
+              restaurantId: currentRestaurant?.id ?? 'unknown',
+              tableId: selectedTableId,
+              totalPaid: paidAmount,
+              orderCount: uniqueOrderIds.length,
+            },
+          }).then((record) => updatePaymentStatus(record.id, 'PAID'))
+        );
+        
+        Promise.all(paymentPromises).catch(err => {
+          console.error('Failed to record payments:', err);
+        });
+      }
     }
+    
     // Reset to initial state
     setStage('qr-scan');
     setCurrentRestaurant(null);
     setSelectedTableId(null);
     setCurrentOrders([]);
     setDrinkOrders([]);
-    setPayments([]);
     setMenuFocusItemId(null);
     setInteractiveMenuFocusId(null);
     setMenuReturnStage(null);
@@ -738,9 +718,70 @@ export default function App() {
       tax,
       tip,
       total: subtotal + tax + tip,
-      payments,
+      payments: [], // No longer using in-memory payments array
+      orderPaymentStatus: orderPaymentStatus, // CANONICAL: Payment status from view
     };
-  }, [currentOrders, payments]);
+  }, [currentOrders, orderPaymentStatus]);
+
+  // CANONICAL: Query order_payment_status view for payment completeness
+  useEffect(() => {
+    if (!bill || !selectedTableId) return;
+
+    let cancelled = false;
+
+    const fetchPaymentStatus = async () => {
+      // Get order IDs for this table
+      const tableOrders = staff.orders.filter(
+        (order) => order.tableId === selectedTableId && order.orderType !== 'request'
+      );
+      const uniqueOrderIds = Array.from(new Set(tableOrders.map((order) => order.id)));
+
+      if (uniqueOrderIds.length === 0) return;
+
+      try {
+        // Query order_payment_status view
+        const { data: paymentStatus, error } = await supabase
+          .from('order_payment_status')
+          .select('order_id, total_due, total_paid, is_payment_complete')
+          .in('order_id', uniqueOrderIds);
+
+        if (error) {
+          console.error('Failed to query payment status:', error);
+          return;
+        }
+
+        if (cancelled) return;
+
+        // Update bill with payment status
+        const newOrderPaymentStatus = paymentStatus.map((status) => ({
+          orderId: status.order_id,
+          totalDue: status.total_due,
+          totalPaid: status.total_paid,
+          isPaymentComplete: status.is_payment_complete,
+          remainingDue: Math.max(0, status.total_due - status.total_paid),
+        }));
+
+        // Update state to trigger re-render
+        setOrderPaymentStatus(newOrderPaymentStatus);
+
+        console.log('✅ Bill payment status updated from canonical view:', {
+          orderIds: uniqueOrderIds,
+          paymentStatus: newOrderPaymentStatus,
+          allPaid: newOrderPaymentStatus.every((s) => s.isPaymentComplete),
+          totalRemaining: newOrderPaymentStatus.reduce((sum, s) => sum + s.remainingDue, 0),
+        });
+
+      } catch (err) {
+        console.error('Error fetching payment status:', err);
+      }
+    };
+
+    fetchPaymentStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bill, selectedTableId, staff.orders]);
 
   // Render test page if on test route
   if (isTestPage) {

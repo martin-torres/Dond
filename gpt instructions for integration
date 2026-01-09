@@ -1,0 +1,271 @@
+{
+  "meta": {
+    "spec_name": "restaurant_app_canonical_spec",
+    "version": "v1",
+    "status": "authoritative",
+    "purpose": "Freeze intent and prevent drift when implementing or refactoring the existing restaurant app",
+    "instructions_to_implementer": [
+      "This JSON is the single source of truth",
+      "Do not invent fields, tables, flows, permissions, or states not explicitly defined",
+      "Do not create a new app or parallel database",
+      "Refactor by schema convergence against the existing database",
+      "If any requirement conflicts with the existing DB, ask before proceeding"
+    ]
+  },
+
+  "core_principle": {
+    "statement": "Customer visit is the spine of the system. Tables are context only. Seats own items. Payments are flexible.",
+    "non_negotiable": true
+  },
+
+  "identity": {
+    "customer": {
+      "description": "Persistent real person using the app",
+      "identity_type": "persistent",
+      "required_on_first_use": ["first_name"],
+      "upgrade_required_before_payment": ["phone_number", "email"],
+      "recovery_anchors": ["phone_number", "email"],
+      "rules": [
+        "Every customer has exactly one customer_id",
+        "customer_id never changes",
+        "Customer identity survives app reinstall",
+        "Customer identity is recoverable via phone or email",
+        "There are no anonymous customers"
+      ]
+    },
+    "seat": {
+      "description": "Temporary label representing a guest at a table",
+      "identity_type": "ephemeral",
+      "is_customer_account": false,
+      "allowed_names": "any string",
+      "examples": ["Friend", "Mom", "Johnny Bravo", "Guest"],
+      "purpose": [
+        "Assign items at order time",
+        "Guide staff delivery",
+        "Enable split billing"
+      ],
+      "rules": [
+        "Seat names do not imply registration",
+        "Seat occupants are not required to be system users",
+        "Seats are deleted when the visit ends"
+      ]
+    }
+  },
+
+  "visit": {
+    "definition": "One continuous presence of a customer inside a restaurant",
+    "start_conditions": [
+      "Customer enters restaurant boundary",
+      "Customer is assigned to a table"
+    ],
+    "end_condition": "Customer leaves restaurant boundary",
+    "finality_rules": [
+      "When a visit ends it cannot be resumed",
+      "Returning after leaving always creates a new visit",
+      "Previous visit history is immutable"
+    ],
+    "states": {
+      "allowed": ["active", "paid_present", "left"],
+      "storage_rule": "States must be derived, not redundantly stored"
+    }
+  },
+
+  "table": {
+    "definition": "Physical or logical seating context",
+    "ownership": "none",
+    "rules": [
+      "Multiple customers may share the same table",
+      "A customer may be in only one table at a time",
+      "A table remains open while at least one customer is active",
+      "Tables do not own orders, bills, or payments"
+    ],
+    "visibility": {
+      "customer": "Only items they are selecting to pay",
+      "staff": "Full table, all seats, all items, all payment states"
+    }
+  },
+
+  "table_change": {
+    "request_initiator": "customer",
+    "authorization_required": true,
+    "authorizer": "manager",
+    "authorization_mechanisms": ["popup", "ping", "manager_console_action"],
+    "effect": [
+      "Entire customer context moves",
+      "Visit remains the same",
+      "Items, bill, and payment state remain intact"
+    ],
+    "forbidden": [
+      "Customer changing tables without authorization"
+    ]
+  },
+
+  "seating": {
+    "assigned_by": "phone_holder",
+    "when_assigned": "When customer sits at table",
+    "attributes": ["seat_id", "seat_name"],
+    "front_of_house_visibility": true,
+    "rules": [
+      "Seat must be selected before ordering items",
+      "Seat assignment should happen as early as possible",
+      "Late arrivals require adding a new seat"
+    ]
+  },
+
+  "ordering": {
+    "item_ownership": {
+      "assigned_at": "order_time",
+      "owner": "seat",
+      "rules": [
+        "Items are never unowned",
+        "Ownership is determined at order time",
+        "Manual reassignment is allowed only before payment",
+        "Manual reassignment is a fallback, not the preferred flow"
+      ]
+    },
+    "ordering_flow": [
+      "Select seat",
+      "Order items",
+      "Optionally switch seat",
+      "Order items for that seat"
+    ]
+  },
+
+  "billing": {
+    "scope": "per_visit",
+    "initiation": "customer_requests_bill",
+    "customer_permissions": [
+      "Customers cannot close bills",
+      "Customers cannot close tables"
+    ],
+    "closure": {
+      "staff_can_close_early": true,
+      "system_auto_close": {
+        "condition": "All items paid",
+        "grace_period_minutes": "short_delay_for_departure",
+        "purpose": "Allow customers to leave naturally"
+      }
+    },
+    "visibility": {
+      "single_phone_multiple_seats": "Full bill visible",
+      "multiple_phones": "Only selected payable items visible"
+    }
+  },
+
+  "payments": {
+    "authority": {
+      "who_can_pay": "anyone",
+      "restrictions": "none"
+    },
+    "methods": {
+      "card_or_digital": {
+        "initiated_by": "customer",
+        "execution": ["on_customer_phone", "via_physical_terminal"]
+      },
+      "cash": {
+        "initiated_by": "customer",
+        "customer_enters_amount_given": true,
+        "staff_receives_amount_in_real_time": true,
+        "staff_brings_correct_change": true
+      }
+    },
+    "splitting": {
+      "allowed": true,
+      "supported_modes": [
+        "pay_per_seat",
+        "pay_for_multiple_seats",
+        "split_single_seat_across_multiple_payers",
+        "exclude_specific_seats"
+      ]
+    }
+  },
+
+  "distance_based_auto_charge": {
+    "applies_to": "dine_in_only",
+    "activation": "immediately_after_any_order",
+    "allowed_movement": [
+      "bathroom",
+      "smoking_area",
+      "standing_near_restaurant"
+    ],
+    "trigger_condition": "clear_departure_beyond_defined_boundary",
+    "warning": {
+      "required": true,
+      "modalities": ["visual", "audible"],
+      "options_presented_to_customer": [
+        "return_to_restaurant_area",
+        "explicitly_accept_charge",
+        "ignore_and_auto_charge"
+      ],
+      "silent_charge_forbidden": true
+    },
+    "failure_handling": {
+      "auto_charge_failure": "manager_must_comp_remaining_items"
+    }
+  },
+
+  "partial_payment_handling": {
+    "rules": [
+      "Tables cannot close with unpaid items",
+      "System waits if customer is still present",
+      "Distance auto-charge is primary resolution",
+      "Manager comp is final fallback"
+    ],
+    "customer_override": "forbidden"
+  },
+
+  "staff": {
+    "visibility": [
+      "all_tables",
+      "all_seats",
+      "all_items",
+      "all_payment_states"
+    ],
+    "authority": [
+      "approve_table_changes",
+      "close_tables_early",
+      "comp_unpaid_items"
+    ]
+  },
+
+  "state_machines": {
+    "visit": ["active", "paid_present", "left"],
+    "table": ["open", "closing", "cleaning", "ready"],
+    "item": ["ordered", "paid", "comped"],
+    "payment": ["initiated", "completed", "failed"],
+    "rule": "States must be derived from events, not redundantly stored"
+  },
+
+  "non_goals": {
+    "forbidden_actions": [
+      "Anonymous users",
+      "Customer-triggered table closure",
+      "UI-side total calculations",
+      "Duplicated sources of truth",
+      "Parallel schemas or double writes"
+    ]
+  },
+
+  "implementation_directives": {
+    "database": [
+      "Connect to existing database",
+      "Prefer derivation over storage",
+      "Deprecate redundant tables instead of duplicating",
+      "Avoid storing computed totals if derivable from items"
+    ],
+    "api": [
+      "Provide authoritative joined projections per screen",
+      "Minimize number of DB calls per screen",
+      "Do not expose raw fragmented data requiring UI reconciliation"
+    ],
+    "frontend": [
+      "Render authoritative data only",
+      "Do not compute totals or states in UI",
+      "Replace multiple fetches with single projections"
+    ]
+  },
+
+  "questions_policy": {
+    "rule": "If any requirement is unclear or conflicts with the existing system, stop and ask before coding"
+  }
+}

@@ -64,11 +64,12 @@ export function SeedTablesToSupabase(props: Props) {
 
     // For seeding, we need to create mock tables since real restaurants might not have tables yet
     // This creates a basic set of tables for testing
+    // NOTE: available is now derived from orders + payment status, not stored
     const mockTables = [
-      { id: 'table-1', number: 1, seats: 2, location: 'patio', available: true, x: 10, y: 10 },
-      { id: 'table-2', number: 2, seats: 4, location: 'patio', available: true, x: 30, y: 10 },
-      { id: 'table-3', number: 3, seats: 4, location: 'window', available: true, x: 50, y: 10 },
-      { id: 'table-4', number: 4, seats: 6, location: 'middle', available: true, x: 30, y: 40 },
+      { id: 'table-1', number: 1, seats: 2, location: 'patio', x: 10, y: 10 },
+      { id: 'table-2', number: 2, seats: 4, location: 'patio', x: 30, y: 10 },
+      { id: 'table-3', number: 3, seats: 4, location: 'window', x: 50, y: 10 },
+      { id: 'table-4', number: 4, seats: 6, location: 'middle', x: 30, y: 40 },
     ];
 
     return mockTables.map((t) => ({
@@ -80,7 +81,7 @@ export function SeedTablesToSupabase(props: Props) {
       seats: t.seats,
       location: t.location,
       section: null,
-      available: t.available,
+      // REMOVED: available - now derived from orders + payment status (canonical)
       visible_to_customers: false, // management can enable later
       x: t.x,
       y: t.y,

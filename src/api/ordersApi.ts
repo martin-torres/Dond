@@ -154,8 +154,16 @@ export async function subscribeToOrders(
     }
   }
 
+  const channelName = resolvedRestaurantId ? `orders-realtime-${resolvedRestaurantId}` : 'orders-realtime';
+  
+  console.log('🔔 Setting up realtime subscription:', {
+    channel: channelName,
+    table: 'orders',
+    filter: resolvedRestaurantId ? `restaurant_id=eq.${resolvedRestaurantId}` : 'none'
+  });
+
   const channel = supabase
-    .channel(resolvedRestaurantId ? `orders-realtime-${resolvedRestaurantId}` : 'orders-realtime')
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -165,16 +173,37 @@ export async function subscribeToOrders(
         ...(resolvedRestaurantId ? { filter: `restaurant_id=eq.${resolvedRestaurantId}` } : {}),
       },
       (payload) => {
+        const newRow = payload.new as OrderRow | null;
+        const oldRow = payload.old as OrderRow | null;
+        console.log('🔔 Realtime event received:', {
+          eventType: payload.eventType,
+          orderId: newRow?.id || oldRow?.id,
+          table: 'orders'
+        });
         onChange({
           eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
-          newRow: (payload.new || null) as OrderRow | null,
-          oldRow: (payload.old || null) as OrderRow | null,
+          newRow: newRow || null,
+          oldRow: oldRow || null,
         });
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (err) {
+        console.error('❌ Subscription failed:', {
+          channel: channelName,
+          error: err,
+          status
+        });
+      } else {
+        console.log('✅ Subscription active:', {
+          channel: channelName,
+          status
+        });
+      }
+    });
 
   return () => {
+    console.log('🔔 Removing subscription:', channelName);
     supabase.removeChannel(channel);
   };
 }
@@ -289,11 +318,19 @@ export async function updateOrderStationStatus(
   status: ProductionStatus
 ) {
   const column = statusColumnByStation[station];
-  const { error } = await supabase.from('orders').update({ [column]: status }).eq('id', orderId);
+  const { error } = await supabase
+    .from('orders')
+    .update({ [column]: status })
+    .eq('id', orderId)
+    .select(); // Add select to get feedback
+
   if (error) {
     console.error('Error updating station status', error);
+    console.error('Order ID:', orderId, 'Station:', station, 'Status:', status, 'Column:', column);
     throw error;
   }
+  
+  console.log('Station status updated successfully:', { orderId, station, status, column });
 }
 
 /** Mark station ticket as picked up by FOH (hides from kitchen/bar). */
@@ -302,11 +339,16 @@ export async function markStationPickedUp(orderId: string, station: Exclude<Stat
   const { error } = await supabase
     .from('orders')
     .update({ [column]: new Date().toISOString() })
-    .eq('id', orderId);
+    .eq('id', orderId)
+    .select();
+
   if (error) {
     console.error('Error marking station picked up', error);
+    console.error('Order ID:', orderId, 'Station:', station, 'Column:', column);
     throw error;
   }
+  
+  console.log('Station picked up successfully:', { orderId, station, column });
 }
 
 /** Mark station ticket as delivered by FOH (final). */
@@ -315,9 +357,14 @@ export async function markStationDelivered(orderId: string, station: StationKey)
   const { error } = await supabase
     .from('orders')
     .update({ [column]: new Date().toISOString() })
-    .eq('id', orderId);
+    .eq('id', orderId)
+    .select();
+
   if (error) {
     console.error('Error marking station delivered', error);
+    console.error('Order ID:', orderId, 'Station:', station, 'Column:', column);
     throw error;
   }
+  
+  console.log('Station delivered successfully:', { orderId, station, column });
 }

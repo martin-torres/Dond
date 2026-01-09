@@ -132,8 +132,8 @@ export const CoordinateFloorPlan = ({
 
   const visibleRows = useMemo(() => {
     const base = rows ?? [];
-    return onlyVisibleToCustomers ? base.filter((r) => r.visible_to_customers) : base;
-  }, [rows, onlyVisibleToCustomers]);
+    return base;
+  }, [rows]);
 
   if (!restaurantId) {
     return (

@@ -47,7 +47,7 @@ export interface Table {
   label?: string; // Display label like "Table 21" or custom name
   seats: number;
   location: 'patio' | 'window' | 'balcony' | 'middle' | 'secondFloor';
-  available: boolean;
+  // REMOVED: available - now derived from orders + payment status (canonical)
   reserved?: boolean; // indicates if table is reserved but not yet occupied
   x: number; // position for visual layout
   y: number;
@@ -75,6 +75,14 @@ export interface Bill {
   tip: number;
   total: number;
   payments: Payment[];
+  // CANONICAL: Payment completeness from order_payment_status view
+  orderPaymentStatus?: {
+    orderId: string;
+    totalDue: number;
+    totalPaid: number;
+    isPaymentComplete: boolean;
+    remainingDue: number;
+  }[];
 }
 
 export interface Payment {
