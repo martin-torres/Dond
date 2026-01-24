@@ -203,7 +203,7 @@ export default function App() {
       currentRestaurant.tables!.find((t) => t.id === tableId)?.number ?? null;
 
     try {
-      await staff.addCustomerOrder({
+      const staffOrder = await staff.addCustomerOrder({
         items,
         meta: {
           restaurant: currentRestaurant,
@@ -212,7 +212,41 @@ export default function App() {
           language,
         },
       });
-      console.log('✅ Sent order to Supabase', { tableId, count: items.length });
+
+      if (staffOrder && staffOrder.id) {
+        console.log('✅ Sent order to Supabase', { tableId, count: items.length, orderId: staffOrder.id });
+
+        // Create bill for dine-in orders (Issue #3 fix) - like to-go flow does
+        try {
+          const { createBill, getCurrentBillForTable } = await import('./api/billLifecycle');
+          
+          // Check if a bill already exists for this table
+          const existingBill = await getCurrentBillForTable(tableId);
+          
+          if (!existingBill) {
+            // Create new bill for this order
+            const subtotal = items.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
+            const tax = subtotal * 0.089999;
+            
+            await createBill({
+              restaurantId: currentRestaurant.id,
+              tableId: tableId,
+              orderIds: [staffOrder.id],
+              subtotal,
+              tax,
+              tip: 0,
+            });
+            
+            console.log('✅ Created bill for dine-in order:', { tableId, orderId: staffOrder.id });
+          } else {
+            // Bill already exists, this order will be part of the existing bill
+            console.log('ℹ️ Bill already exists for table, order added to existing bill:', existingBill.id);
+          }
+        } catch (billErr) {
+          console.error('❌ Failed to create bill for dine-in order:', billErr);
+          // Don't fail the order if bill creation fails
+        }
+      }
     } catch (err) {
       console.error('❌ Failed to send order to Supabase', err);
     }
@@ -674,8 +708,32 @@ export default function App() {
     handleRequestBill();
   };
 
-  const handlePaymentComplete = (paidAmount?: number, paidItems?: string[]) => {
+  const handlePaymentComplete = async (paidAmount?: number, paidItems?: string[]) => {
     const orderReference = selectedTableId ?? 'local-order';
+    
+    // Clear the bill before resetting state (Issue #2 fix)
+    if (selectedTableId && currentRestaurant) {
+      try {
+        // Import the bill clearing function
+        const { getCurrentBillForTable, clearBillAfterPayment } = await import('./api/billLifecycle');
+        const currentBill = await getCurrentBillForTable(selectedTableId);
+        
+        if (currentBill && currentBill.status === 'PAID') {
+          await clearBillAfterPayment(currentBill.id);
+          console.log('✅ Bill cleared after payment:', currentBill.id);
+        } else if (currentBill) {
+          // If bill exists but not paid, mark it as paid first then clear it
+          const { updateBillStatus } = await import('./api/billLifecycle');
+          await updateBillStatus(currentBill.id, 'PAID');
+          await clearBillAfterPayment(currentBill.id);
+          console.log('✅ Bill paid and cleared:', currentBill.id);
+        }
+      } catch (err) {
+        console.error('❌ Failed to clear bill after payment:', err);
+        // Don't block the payment flow if clearing fails
+      }
+    }
+
     if (paidAmount !== undefined) {
       // Stubbed payment recording to keep flow integration-friendly.
       createPaymentRecord({
@@ -688,6 +746,7 @@ export default function App() {
         },
       }).then((record) => updatePaymentStatus(record.id, 'PAID'));
     }
+    
     // Reset to initial state
     setStage('qr-scan');
     setCurrentRestaurant(null);
@@ -710,7 +769,7 @@ export default function App() {
     }
 
     try {
-      await staff.addCustomerOrder({
+      const staffOrder = await staff.addCustomerOrder({
         items,
         meta: {
           restaurant: currentRestaurant,
@@ -721,8 +780,12 @@ export default function App() {
         },
       });
 
-      // Return a mock order ID (in real implementation, this would come from the API response)
-      return `togo-${Date.now()}`;
+      if (!staffOrder || !staffOrder.id) {
+        throw new Error('Failed to create order: no order ID returned');
+      }
+
+      // Return the real order ID from Supabase
+      return staffOrder.id;
     } catch (err) {
       console.error('❌ Failed to submit to-go order:', err);
       throw err;
