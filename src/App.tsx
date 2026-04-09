@@ -228,7 +228,10 @@ export default function App() {
   };
 
   const handlePaymentComplete = (paidAmount?: number, paidItems?: string[]) => {
-    // Reset to initial state
+    setStage('payment-complete');
+  };
+
+  const handleFinishPayment = () => {
     setStage('qr-scan');
     setCurrentRestaurant(null);
     setSelectedTableId(null);
@@ -456,6 +459,13 @@ export default function App() {
           bill={bill}
           language={language}
           onPaymentComplete={handlePaymentComplete}
+        />
+      )}
+
+      {stage === 'payment-complete' && (
+        <PaymentCompleteScreen
+          language={language}
+          onFinish={handleFinishPayment}
         />
       )}
     </div>

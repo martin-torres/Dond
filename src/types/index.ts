@@ -85,7 +85,8 @@ export type AppStage =
   | 'table-ready'
   | 'ordering-food'
   | 'dining'
-  | 'payment';
+  | 'payment'
+  | 'payment-complete';
 
 export interface UserSession {
   userId: string;
