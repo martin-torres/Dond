@@ -115,6 +115,14 @@ export function WaitingScreen({
           </Button>
         </BottomActionBar>
       )}
+
+      {timeRemaining === 0 && (
+        <BottomActionBar>
+          <Button onClick={onTableReady} className="w-full sm:flex-1" size="lg">
+            {t('proceedToTable', language)}
+          </Button>
+        </BottomActionBar>
+      )}
     </>
   );
 }
